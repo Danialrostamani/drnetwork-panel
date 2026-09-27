@@ -44,6 +44,33 @@ func (s *ClientService) GetAllWithConfig() (*[]model.Client, error) {
 	return &clients, nil
 }
 
+type ClientTraffic struct {
+	Up       int64 `json:"up"`
+	Down     int64 `json:"down"`
+	OnlineAt int64 `json:"onlineAt"`
+}
+
+// GetTrafficSnapshot is the lightweight live payload used by the clients page.
+// It deliberately excludes credentials, links and assignments so polling it
+// frequently does not turn a traffic refresh into a full client-list reload.
+func (s *ClientService) GetTrafficSnapshot() (map[string]ClientTraffic, error) {
+	var rows []struct {
+		Name     string
+		Up       int64
+		Down     int64
+		OnlineAt int64
+	}
+	if err := database.GetDB().Model(model.Client{}).
+		Select("`name`, `up`, `down`, `online_at`").Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := make(map[string]ClientTraffic, len(rows))
+	for _, row := range rows {
+		out[row.Name] = ClientTraffic{Up: row.Up, Down: row.Down, OnlineAt: row.OnlineAt}
+	}
+	return out, nil
+}
+
 func (s *ClientService) GetAll() (*[]model.Client, error) {
 	db := database.GetDB()
 	var clients []model.Client

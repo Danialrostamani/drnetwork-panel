@@ -49,6 +49,13 @@ func (a *ApiService) getData(c *gin.Context) (interface{}, error) {
 		return "", err
 	}
 	onlines, err := a.StatsService.GetClusterOnlines()
+	if err != nil {
+		return "", err
+	}
+	clientTraffic, err := a.ClientService.GetTrafficSnapshot()
+	if err != nil {
+		return "", err
+	}
 
 	// Carried on every poll so the panel can keep saying the core is down on
 	// purpose, wherever the operator happens to be looking.
@@ -60,6 +67,7 @@ func (a *ApiService) getData(c *gin.Context) (interface{}, error) {
 	data["nodesStatus"] = a.NodeService.GetStatuses()
 	data["ipCounts"] = service.GetIPCounts()
 	data["clusterIpActive"] = service.ClusterIPActive()
+	data["clientTraffic"] = clientTraffic
 
 	sysInfo := a.ServerService.GetSingboxInfo()
 	// A core stopped on purpose is not a failure to report; without this the
@@ -71,9 +79,6 @@ func (a *ApiService) getData(c *gin.Context) (interface{}, error) {
 		}
 	}
 
-	if err != nil {
-		return "", err
-	}
 	if isUpdated {
 		config, err := a.SettingService.GetConfig()
 		if err != nil {

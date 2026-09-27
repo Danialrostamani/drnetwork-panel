@@ -45,7 +45,7 @@ func (c *CronJob) Start(loc *time.Location, trafficAge int, statsBucketSeconds i
 	}
 
 	// Start stats job
-	addJob("@every 10s", NewStatsJob(trafficAge > 0, statsBucketSeconds), "stats job")
+	addJob("@every 2s", NewStatsJob(trafficAge > 0, statsBucketSeconds), "stats job")
 	addJob("@every 10s", NewIpLimitJob(), "ip limit job")
 	addJob("@every 10s", NewClusterIPLimitJob(), "cluster IP limit job")
 	// Start expiry job
@@ -66,7 +66,7 @@ func (c *CronJob) Start(loc *time.Location, trafficAge int, statsBucketSeconds i
 	// Start core if it is not running
 	addJob("@every 5s", NewCheckCoreJob(), "core watchdog")
 	addJob("@every 5s", NewNodesJob(), "node probe")
-	addJob("@every 1m", NewNodeTrafficJob(), "node traffic")
+	addJob("@every 10s", NewNodeTrafficJob(), "node traffic")
 	addJob("@every 1h", NewNodeReconcileJob(), "node reconcile")
 	// database WAL checkpoint
 	addJob("@every 10m", NewWALCheckpointJob(), "WAL checkpoint")
