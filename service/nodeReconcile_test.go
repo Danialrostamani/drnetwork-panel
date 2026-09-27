@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 
@@ -39,6 +40,10 @@ func TestReconcileCreatesUpdatesAndDeletesOnlyClusterClients(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/app/apiv2/inbounds":
+			if r.URL.Query().Get("id") != "" {
+				_, _ = w.Write([]byte(`{"success":true,"obj":{"inbounds":[{"id":77,"type":"vless","tag":"remote-vless","listen_port":443,"addrs":[],"out_json":{"type":"vless","tag":"remote-vless","server":"node.example","server_port":443,"tls":{"enabled":false}}}]}}`))
+				return
+			}
 			_, _ = w.Write([]byte(`{"success":true,"obj":{"inbounds":[{"id":77,"type":"vless","tag":"remote-vless"}]}}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/app/apiv2/clients":
 			mu.Lock()
@@ -89,7 +94,7 @@ func TestReconcileCreatesUpdatesAndDeletesOnlyClusterClients(t *testing.T) {
 		t.Fatal(err)
 	}
 	inbounds, _ := json.Marshal([]uint{replica.Id})
-	alice := model.Client{Name: "alice", Enable: true, Config: json.RawMessage(`{"vless":{"uuid":"u-1","name":"alice"}}`), Inbounds: inbounds, Links: json.RawMessage(`[]`), Expiry: 12345}
+	alice := model.Client{Name: "alice", Enable: true, Config: json.RawMessage(`{"vless":{"uuid":"11111111-1111-1111-1111-111111111111","name":"alice"}}`), Inbounds: inbounds, Links: json.RawMessage(`[]`), Expiry: 12345}
 	bob := model.Client{Name: "bob", Enable: true, Config: json.RawMessage(`{}`), Inbounds: json.RawMessage(`[]`), Links: json.RawMessage(`[]`)}
 	if err := database.GetDB().Create(&alice).Error; err != nil {
 		t.Fatal(err)
@@ -117,8 +122,19 @@ func TestReconcileCreatesUpdatesAndDeletesOnlyClusterClients(t *testing.T) {
 	if cluster.Name != "alice" || string(cluster.Inbounds) != "[77]" || cluster.Expiry != alice.Expiry {
 		t.Fatalf("bad pushed client: %#v", cluster)
 	}
+	var storedAlice model.Client
+	if err := database.GetDB().First(&storedAlice, alice.Id).Error; err != nil {
+		t.Fatal(err)
+	}
+	var links []map[string]string
+	if err := json.Unmarshal(storedAlice.Links, &links); err != nil {
+		t.Fatal(err)
+	}
+	if len(links) != 1 || links[0]["remark"] != "[node-a] remote-vless" || links[0]["type"] != "external" || !strings.Contains(links[0]["uri"], "node.example:443") {
+		t.Fatalf("node subscription link missing: %#v", links)
+	}
 
-	if err := database.GetDB().Model(&alice).Updates(map[string]interface{}{"enable": false, "config": json.RawMessage(`{"vless":{"uuid":"u-2","name":"alice"}}`)}).Error; err != nil {
+	if err := database.GetDB().Model(&alice).Updates(map[string]interface{}{"enable": false, "config": json.RawMessage(`{"vless":{"uuid":"22222222-2222-2222-2222-222222222222","name":"alice"}}`)}).Error; err != nil {
 		t.Fatal(err)
 	}
 	svc.MarkAllDirty()
@@ -128,7 +144,7 @@ func TestReconcileCreatesUpdatesAndDeletesOnlyClusterClients(t *testing.T) {
 	mu.Lock()
 	updated := remote[cluster.Id]
 	mu.Unlock()
-	if updated.Enable || string(updated.Config) != `{"vless":{"uuid":"u-2","name":"alice"}}` {
+	if updated.Enable || string(updated.Config) != `{"vless":{"uuid":"22222222-2222-2222-2222-222222222222","name":"alice"}}` {
 		t.Fatalf("cluster client not updated: %#v", updated)
 	}
 

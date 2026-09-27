@@ -114,7 +114,7 @@ func (j *JsonService) getData(subId string) (*model.Client, []*model.Inbound, er
 		return nil, nil, err
 	}
 	var inbounds []*model.Inbound
-	err = db.Model(model.Inbound{}).Preload("Tls").Where("id in ?", clientInbounds).Find(&inbounds).Error
+	err = db.Model(model.Inbound{}).Preload("Tls").Where("id in ? AND node_id IS NULL", clientInbounds).Find(&inbounds).Error
 	if err != nil {
 		return nil, nil, err
 	}

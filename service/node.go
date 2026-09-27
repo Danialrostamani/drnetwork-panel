@@ -328,6 +328,7 @@ func (s *NodeService) Save(tx *gorm.DB, action string, data json.RawMessage) err
 		if !strings.HasPrefix(n.BaseUrl, "http://") && !strings.HasPrefix(n.BaseUrl, "https://") {
 			return common.NewError("node baseUrl must start with http:// or https://")
 		}
+		var oldName string
 		if action == "new" {
 			n.Id = 0
 			n.Dirty = false
@@ -341,6 +342,7 @@ func (s *NodeService) Save(tx *gorm.DB, action string, data json.RawMessage) err
 			if err := tx.First(&old, n.Id).Error; err != nil {
 				return err
 			}
+			oldName = old.Name
 			if n.Token == "" {
 				n.Token = old.Token
 			}
@@ -353,6 +355,11 @@ func (s *NodeService) Save(tx *gorm.DB, action string, data json.RawMessage) err
 		}
 		if err := tx.Save(&n).Error; err != nil {
 			return err
+		}
+		if oldName != "" && oldName != n.Name {
+			if err := renameNodeLinkPrefix(tx, oldName, n.Name); err != nil {
+				return err
+			}
 		}
 		invalidateNodeClient(n.Id)
 		return nil
@@ -382,4 +389,36 @@ func (s *NodeService) Save(tx *gorm.DB, action string, data json.RawMessage) err
 	default:
 		return common.NewErrorf("unknown action: %s", action)
 	}
+}
+
+func renameNodeLinkPrefix(tx *gorm.DB, oldName, newName string) error {
+	oldPrefix, newPrefix := nodeLinkPrefix(oldName), nodeLinkPrefix(newName)
+	var clients []model.Client
+	if err := tx.Find(&clients).Error; err != nil {
+		return err
+	}
+	for i := range clients {
+		var links []map[string]string
+		if json.Unmarshal(clients[i].Links, &links) != nil {
+			continue
+		}
+		changed := false
+		for _, link := range links {
+			if strings.HasPrefix(link["remark"], oldPrefix) {
+				link["remark"] = newPrefix + strings.TrimPrefix(link["remark"], oldPrefix)
+				changed = true
+			}
+		}
+		if !changed {
+			continue
+		}
+		encoded, err := json.MarshalIndent(links, "", "  ")
+		if err != nil {
+			return err
+		}
+		if err := tx.Model(model.Client{}).Where("id = ?", clients[i].Id).Update("links", encoded).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }

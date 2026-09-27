@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"github.com/alireza0/s-ui/database"
 	"github.com/alireza0/s-ui/database/model"
 	"github.com/alireza0/s-ui/logger"
+	"github.com/alireza0/s-ui/util"
 	"github.com/alireza0/s-ui/util/common"
 	"gorm.io/gorm"
 )
@@ -224,11 +226,32 @@ const (
 )
 
 var (
-	reconcileMu   sync.Mutex
-	reconcileBusy = map[uint]bool{}
-	reconcileLast = map[uint]time.Time{}
-	dirtyGen      uint64
+	reconcileMu    sync.Mutex
+	reconcileBusy  = map[uint]bool{}
+	reconcileLast  = map[uint]time.Time{}
+	dirtyGen       uint64
+	refreshLinksMu sync.Mutex
 )
+
+func nodeLinkPrefix(nodeName string) string { return "[" + nodeName + "] " }
+
+func isNodeOwnedRemark(remark string, nodeNames []string) bool {
+	for _, name := range nodeNames {
+		if strings.HasPrefix(remark, nodeLinkPrefix(name)) {
+			return true
+		}
+	}
+	return false
+}
+
+func isNodeLinkFor(remark, tag string, nodeNames []string) bool {
+	for _, name := range nodeNames {
+		if remark == nodeLinkPrefix(name)+tag {
+			return true
+		}
+	}
+	return false
+}
 
 type nodeClientState struct {
 	Id       uint            `json:"id"`
@@ -312,6 +335,9 @@ func (s *NodeSyncService) runReconcile(nodeID uint, startGen uint64) error {
 	if err != nil {
 		return err
 	}
+	if s.refreshReplicas(node, client, tagToID) {
+		s.refreshNodeLinks(node)
+	}
 	expected, err := s.expectedClients(nodeID, tagToID)
 	if err != nil {
 		return err
@@ -340,6 +366,7 @@ func (s *NodeSyncService) runReconcile(nodeID uint, startGen uint64) error {
 			}
 		}
 	}
+	s.refreshNodeLinks(node)
 	now := time.Now().Unix()
 	db := database.GetDB()
 	if !s.dirtyUnchangedSince(startGen) {
@@ -464,6 +491,195 @@ func jsonEqual(a interface{}, b json.RawMessage) bool {
 	leftJSON, _ := json.Marshal(left)
 	rightJSON, _ := json.Marshal(right)
 	return string(leftJSON) == string(rightJSON)
+}
+
+func genNodeReplicaLinks(replica *model.Inbound, client *model.Client) (links []string) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			logger.Warning("nodes: link generation panic for ", replica.Tag, ": ", recovered)
+			links = nil
+		}
+	}()
+	if len(replica.OutJson) == 0 {
+		return nil
+	}
+	var outbound map[string]interface{}
+	if err := json.Unmarshal(replica.OutJson, &outbound); err != nil || outbound == nil {
+		return nil
+	}
+	server, _ := outbound["server"].(string)
+	if server == "" {
+		return nil
+	}
+	base := map[string]interface{}{"server": server, "server_port": outbound["server_port"]}
+	if tlsConfig, ok := outbound["tls"].(map[string]interface{}); ok {
+		if _, valid := tlsConfig["enabled"].(bool); valid {
+			base["tls"] = tlsConfig
+		}
+	}
+	var addressBook []map[string]interface{}
+	if len(replica.Addrs) > 0 {
+		_ = json.Unmarshal(replica.Addrs, &addressBook)
+	}
+	addresses := make([]map[string]interface{}, 0, len(addressBook))
+	for _, address := range addressBook {
+		if address == nil {
+			continue
+		}
+		if _, exists := address["server"]; !exists {
+			address["server"] = base["server"]
+		}
+		if _, exists := address["server_port"]; !exists {
+			address["server_port"] = base["server_port"]
+		}
+		if _, exists := address["tls"]; !exists {
+			if tlsConfig, ok := base["tls"]; ok {
+				address["tls"] = tlsConfig
+			}
+		}
+		addresses = append(addresses, address)
+	}
+	if len(addresses) == 0 {
+		addresses = []map[string]interface{}{base}
+	}
+	synthetic := *replica
+	synthetic.TlsId = 0
+	synthetic.Tls = nil
+	synthetic.Addrs, _ = json.Marshal(addresses)
+	return util.LinkGenerator(client.Config, &synthetic, server, client.Remark)
+}
+
+func (s *NodeSyncService) refreshReplicas(node *model.Node, client *http.Client, tagToID map[string]uint) bool {
+	var replicas []model.Inbound
+	if err := database.GetDB().Where("node_id = ?", node.Id).Find(&replicas).Error; err != nil {
+		logger.Warning("nodes: load replicas for refresh: ", err)
+		return false
+	}
+	byTag := make(map[string]*model.Inbound, len(replicas))
+	ids := make([]string, 0, len(replicas))
+	for i := range replicas {
+		replica := &replicas[i]
+		remoteID, exists := tagToID[replica.Tag]
+		if !exists {
+			continue
+		}
+		byTag[replica.Tag] = replica
+		ids = append(ids, strconv.FormatUint(uint64(remoteID), 10))
+	}
+	if len(ids) == 0 {
+		return false
+	}
+	obj, err := s.nodeGet(node, client, "inbounds", url.Values{"id": {strings.Join(ids, ",")}})
+	if err != nil {
+		logger.Warning("nodes: refresh replicas from ", node.Name, ": ", err)
+		return false
+	}
+	var payload struct {
+		Inbounds []json.RawMessage `json:"inbounds"`
+	}
+	if json.Unmarshal(obj, &payload) != nil {
+		logger.Warning("nodes: unexpected full inbound payload from ", node.Name)
+		return false
+	}
+	touched := false
+	for _, raw := range payload.Inbounds {
+		fresh, err := buildReplicaInbound(raw, node.Id)
+		if err != nil {
+			logger.Warning("nodes: parse refreshed replica: ", err)
+			continue
+		}
+		current, exists := byTag[fresh.Tag]
+		if !exists {
+			continue
+		}
+		if fresh.Type == current.Type && bytes.Equal(fresh.Options, current.Options) && bytes.Equal(fresh.OutJson, current.OutJson) && bytes.Equal(fresh.Addrs, current.Addrs) {
+			continue
+		}
+		audit, _ := json.Marshal(map[string]interface{}{"tag": fresh.Tag, "node": node.Name})
+		if err := database.GetDB().Transaction(func(tx *gorm.DB) error {
+			if err := tx.Model(model.Inbound{}).Where("id = ?", current.Id).Updates(map[string]interface{}{"type": fresh.Type, "options": fresh.Options, "out_json": fresh.OutJson, "addrs": fresh.Addrs}).Error; err != nil {
+				return err
+			}
+			return tx.Create(&model.Changes{DateTime: time.Now().Unix(), Actor: "NodeSync", Key: "inbounds", Action: "edit", Obj: audit}).Error
+		}); err != nil {
+			logger.Warning("nodes: update replica ", fresh.Tag, ": ", err)
+			continue
+		}
+		touched = true
+	}
+	if touched {
+		LastUpdate = time.Now().Unix()
+	}
+	return touched
+}
+
+func (s *NodeSyncService) refreshNodeLinks(node *model.Node) {
+	refreshLinksMu.Lock()
+	defer refreshLinksMu.Unlock()
+	var replicas []model.Inbound
+	if err := database.GetDB().Where("node_id = ?", node.Id).Find(&replicas).Error; err != nil {
+		logger.Warning("nodes: load replicas for links: ", err)
+		return
+	}
+	replicaByID := make(map[uint]*model.Inbound, len(replicas))
+	for i := range replicas {
+		replicaByID[replicas[i].Id] = &replicas[i]
+	}
+	var clients []model.Client
+	if err := database.GetDB().Find(&clients).Error; err != nil {
+		logger.Warning("nodes: load clients for links: ", err)
+		return
+	}
+	prefix := nodeLinkPrefix(node.Name)
+	touched := false
+	for i := range clients {
+		client := &clients[i]
+		var inboundIDs []uint
+		_ = json.Unmarshal(client.Inbounds, &inboundIDs)
+		desired := []map[string]string{}
+		for _, inboundID := range inboundIDs {
+			replica, exists := replicaByID[inboundID]
+			if !exists {
+				continue
+			}
+			for _, uri := range genNodeReplicaLinks(replica, client) {
+				desired = append(desired, map[string]string{"remark": prefix + replica.Tag, "type": "external", "uri": uri})
+			}
+		}
+		var existing []map[string]string
+		_ = json.Unmarshal(client.Links, &existing)
+		hadPrefix := false
+		kept := make([]map[string]string, 0, len(existing))
+		for _, link := range existing {
+			if link["type"] != "local" && strings.HasPrefix(link["remark"], prefix) {
+				hadPrefix = true
+				continue
+			}
+			kept = append(kept, link)
+		}
+		if len(desired) == 0 && !hadPrefix {
+			continue
+		}
+		merged := append(kept, desired...)
+		newLinks, err := json.MarshalIndent(merged, "", "  ")
+		if err != nil || jsonEqual(client.Links, newLinks) {
+			continue
+		}
+		audit, _ := json.Marshal(map[string]interface{}{"name": client.Name, "node": node.Name})
+		if err := database.GetDB().Transaction(func(tx *gorm.DB) error {
+			if err := tx.Model(model.Client{}).Where("id = ?", client.Id).Update("links", newLinks).Error; err != nil {
+				return err
+			}
+			return tx.Create(&model.Changes{DateTime: time.Now().Unix(), Actor: "NodeSync", Key: "clients", Action: "edit", Obj: audit}).Error
+		}); err != nil {
+			logger.Warning("nodes: refresh links for ", client.Name, ": ", err)
+			continue
+		}
+		touched = true
+	}
+	if touched {
+		LastUpdate = time.Now().Unix()
+	}
 }
 
 func (s *NodeSyncService) MarkAllDirty() {

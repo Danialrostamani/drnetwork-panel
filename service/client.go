@@ -307,6 +307,31 @@ func (s *ClientService) updateLinksWithFixedInbounds(tx *gorm.DB, clients []*mod
 		inboundById[inbounds[i].Id] = &inbounds[i]
 	}
 
+	// Node links are system-owned. Preserve them only while the edited client
+	// still references the corresponding replica, even if that node is offline.
+	var replicas []model.Inbound
+	if len(allIds) > 0 {
+		if err := tx.Model(model.Inbound{}).Select("id", "tag", "node_id").Where("id in ? AND node_id IS NOT NULL", allIds).Find(&replicas).Error; err != nil {
+			return err
+		}
+	}
+	var nodes []model.Node
+	if err := tx.Model(model.Node{}).Select("id", "name").Find(&nodes).Error; err != nil {
+		return err
+	}
+	nodeNameByID := make(map[uint]string, len(nodes))
+	nodeNames := make([]string, 0, len(nodes))
+	for _, node := range nodes {
+		nodeNameByID[node.Id] = node.Name
+		nodeNames = append(nodeNames, node.Name)
+	}
+	replicaRemarkByID := make(map[uint]string, len(replicas))
+	for _, replica := range replicas {
+		if replica.NodeId != nil {
+			replicaRemarkByID[replica.Id] = nodeLinkPrefix(nodeNameByID[*replica.NodeId]) + replica.Tag
+		}
+	}
+
 	for index, client := range clients {
 		var clientLinks []map[string]string
 		if err := json.Unmarshal(client.Links, &clientLinks); err != nil {
@@ -329,11 +354,20 @@ func (s *ClientService) updateLinksWithFixedInbounds(tx *gorm.DB, clients []*mod
 			}
 		}
 
-		// Add non local links
-		for _, clientLink := range clientLinks {
-			if clientLink["type"] != "local" {
-				newClientLinks = append(newClientLinks, clientLink)
+		allowedNodeLinks := make(map[string]bool)
+		for _, inboundID := range clientInboundIds[index] {
+			if remark := replicaRemarkByID[inboundID]; remark != "" {
+				allowedNodeLinks[remark] = true
 			}
+		}
+		for _, clientLink := range clientLinks {
+			if clientLink["type"] == "local" {
+				continue
+			}
+			if isNodeOwnedRemark(clientLink["remark"], nodeNames) && !allowedNodeLinks[clientLink["remark"]] {
+				continue
+			}
+			newClientLinks = append(newClientLinks, clientLink)
 		}
 
 		links, err := json.MarshalIndent(newClientLinks, "", "  ")
@@ -409,6 +443,10 @@ func (s *ClientService) UpdateClientsOnInboundDelete(tx *gorm.DB, id uint, tag s
 	if err != nil {
 		return err
 	}
+	var nodeNames []string
+	if err = tx.Model(model.Node{}).Pluck("name", &nodeNames).Error; err != nil {
+		return err
+	}
 	for _, client := range clients {
 		// Delete inbounds
 		var clientInbounds, newClientInbounds []uint
@@ -426,7 +464,7 @@ func (s *ClientService) UpdateClientsOnInboundDelete(tx *gorm.DB, id uint, tag s
 		var clientLinks, newClientLinks []map[string]string
 		json.Unmarshal(client.Links, &clientLinks)
 		for _, clientLink := range clientLinks {
-			if clientLink["remark"] != tag {
+			if clientLink["remark"] != tag && !isNodeLinkFor(clientLink["remark"], tag, nodeNames) {
 				newClientLinks = append(newClientLinks, clientLink)
 			}
 		}
