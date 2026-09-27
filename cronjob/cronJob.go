@@ -63,6 +63,7 @@ func (c *CronJob) Start(loc *time.Location, trafficAge int, statsBucketSeconds i
 	}
 	// Start core if it is not running
 	addJob("@every 5s", NewCheckCoreJob(), "core watchdog")
+	addJob("@every 5s", NewNodesJob(), "node probe")
 	// database WAL checkpoint
 	addJob("@every 10m", NewWALCheckpointJob(), "WAL checkpoint")
 

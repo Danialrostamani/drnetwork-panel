@@ -28,6 +28,7 @@ func schema() []table {
 		{"endpoints", &model.Endpoint{}, copyRows[model.Endpoint]},
 		{"users", &model.User{}, copyRows[model.User]},
 		{"tokens", &model.Tokens{}, copyRows[model.Tokens]},
+		{"nodes", &model.Node{}, copyRows[model.Node]},
 		{"stats", &model.Stats{}, copyRows[model.Stats]},
 		{"clients", &model.Client{}, copyRows[model.Client]},
 		{"changes", &model.Changes{}, copyRows[model.Changes]},

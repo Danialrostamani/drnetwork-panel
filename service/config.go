@@ -35,6 +35,7 @@ type ConfigService struct {
 	OutboundService
 	ServicesService
 	EndpointService
+	NodeService
 }
 
 // SingBoxConfig is the shape GetConfig decodes the stored base config into
@@ -447,6 +448,8 @@ func (s *ConfigService) Save(obj string, act string, data json.RawMessage, initU
 		restartWith = configData
 	case "settings":
 		err = s.SettingService.Save(tx, data)
+	case "nodes":
+		err = s.NodeService.Save(tx, act, data)
 	default:
 		return nil, common.NewError("unknown object: ", obj)
 	}
@@ -460,7 +463,12 @@ func (s *ConfigService) Save(obj string, act string, data json.RawMessage, initU
 		Actor:    loginUser,
 		Key:      obj,
 		Action:   act,
-		Obj:      data,
+		Obj: func() json.RawMessage {
+			if obj == "nodes" {
+				return redactNodeToken(data)
+			}
+			return data
+		}(),
 	}).Error
 	if err != nil {
 		return nil, err

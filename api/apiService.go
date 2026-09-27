@@ -28,6 +28,7 @@ type ApiService struct {
 	service.PanelService
 	service.StatsService
 	service.ServerService
+	service.NodeService
 }
 
 func (a *ApiService) LoadData(c *gin.Context) {
@@ -55,6 +56,7 @@ func (a *ApiService) getData(c *gin.Context) (interface{}, error) {
 		logger.Warning("unable to read maintenance setting:", mErr)
 	}
 	data["maintenance"] = maintenance
+	data["nodesStatus"] = a.NodeService.GetStatuses()
 
 	sysInfo := a.ServerService.GetSingboxInfo()
 	// A core stopped on purpose is not a failure to report; without this the
@@ -172,6 +174,12 @@ func (a *ApiService) LoadPartialData(c *gin.Context, objs []string) error {
 				return err
 			}
 			data[obj] = json.RawMessage(config)
+		case "nodes":
+			nodes, err := a.NodeService.GetAll()
+			if err != nil {
+				return err
+			}
+			data[obj] = nodes
 		case "settings":
 			settings, err := a.SettingService.GetAllSetting()
 			if err != nil {
@@ -477,4 +485,9 @@ func (a *ApiService) GetCertPing(c *gin.Context) {
 	port := c.PostForm("port")
 	tlsPing, err := util.GetTlsPing(domain, port)
 	jsonObj(c, tlsPing, err)
+}
+
+func (a *ApiService) TestNode(c *gin.Context) {
+	status, err := a.NodeService.TestNode(json.RawMessage(c.PostForm("data")))
+	jsonObj(c, status, err)
 }

@@ -83,3 +83,20 @@ type Tokens struct {
 	UserId uint   `json:"userId" form:"userId"`
 	User   *User  `json:"user" gorm:"foreignKey:UserId;references:Id"`
 }
+
+// Node is a remote S-UI panel managed over its token-authenticated API.
+type Node struct {
+	Id        uint            `json:"id" form:"id" gorm:"primaryKey;autoIncrement"`
+	Enable    bool            `json:"enable" form:"enable" gorm:"default:true;not null"`
+	Name      string          `json:"name" form:"name" gorm:"uniqueIndex"`
+	BaseUrl   string          `json:"baseUrl" form:"baseUrl"`
+	WebPath   string          `json:"webPath" form:"webPath"`
+	Token     string          `json:"token,omitempty" form:"token"`
+	Insecure  bool            `json:"insecure" form:"insecure" gorm:"default:false;not null"`
+	CertPin   string          `json:"certPin" form:"certPin"`
+	Desc      string          `json:"desc" form:"desc"`
+	LastSeen  int64           `json:"lastSeen" form:"lastSeen" gorm:"default:0;not null"`
+	Dirty     bool            `json:"dirty" gorm:"default:false;not null"`
+	LastSync  int64           `json:"lastSync" gorm:"default:0;not null"`
+	Baselines json.RawMessage `json:"-"`
+}
