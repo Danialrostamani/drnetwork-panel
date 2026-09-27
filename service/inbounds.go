@@ -61,6 +61,9 @@ func (s *InboundService) GetAll() (*[]map[string]interface{}, error) {
 			"tag":    inbound.Tag,
 			"tls_id": inbound.TlsId,
 		}
+		if inbound.NodeId != nil {
+			inbData["node_id"] = *inbound.NodeId
+		}
 		if inbound.Options != nil {
 			var restFields map[string]json.RawMessage
 			if err := json.Unmarshal(inbound.Options, &restFields); err != nil {
@@ -111,6 +114,9 @@ func (s *InboundService) Save(tx *gorm.DB, act string, data json.RawMessage, ini
 		if err != nil {
 			return err
 		}
+		if inbound.NodeId != nil {
+			return common.NewError("inbound belongs to a node: manage it on the node panel")
+		}
 		if inbound.TlsId > 0 {
 			err = tx.Model(model.Tls{}).Where("id = ?", inbound.TlsId).Find(&inbound.Tls).Error
 			if err != nil {
@@ -119,10 +125,15 @@ func (s *InboundService) Save(tx *gorm.DB, act string, data json.RawMessage, ini
 		}
 		var oldTag string
 		if act == "edit" {
-			err = tx.Model(model.Inbound{}).Select("tag").Where("id = ?", inbound.Id).Find(&oldTag).Error
+			var old model.Inbound
+			err = tx.Model(model.Inbound{}).Select("tag", "node_id").Where("id = ?", inbound.Id).Find(&old).Error
 			if err != nil {
 				return err
 			}
+			if old.NodeId != nil {
+				return common.NewError("inbound belongs to a node: manage it on the node panel")
+			}
+			oldTag = old.Tag
 		}
 
 		if corePtr.IsRunning() {
@@ -177,17 +188,18 @@ func (s *InboundService) Save(tx *gorm.DB, act string, data json.RawMessage, ini
 		if err != nil {
 			return err
 		}
-		if corePtr.IsRunning() {
+		var old model.Inbound
+		err = tx.Model(model.Inbound{}).Select("id", "node_id").Where("tag = ?", tag).Scan(&old).Error
+		if err != nil {
+			return err
+		}
+		if old.NodeId == nil && corePtr.IsRunning() {
 			err = corePtr.RemoveInbound(tag)
 			if err != nil && err != os.ErrInvalid {
 				return err
 			}
 		}
-		var id uint
-		err = tx.Model(model.Inbound{}).Select("id").Where("tag = ?", tag).Scan(&id).Error
-		if err != nil {
-			return err
-		}
+		id := old.Id
 		err = s.ClientService.UpdateClientsOnInboundDelete(tx, id, tag)
 		if err != nil {
 			return err
@@ -204,7 +216,7 @@ func (s *InboundService) Save(tx *gorm.DB, act string, data json.RawMessage, ini
 
 func (s *InboundService) UpdateOutJsons(tx *gorm.DB, inboundIds []uint, hostname string) error {
 	var inbounds []model.Inbound
-	err := tx.Model(model.Inbound{}).Preload("Tls").Where("id in ?", inboundIds).Find(&inbounds).Error
+	err := tx.Model(model.Inbound{}).Preload("Tls").Where("id in ?", inboundIds).Where("node_id IS NULL").Find(&inbounds).Error
 	if err != nil {
 		return err
 	}
@@ -225,7 +237,7 @@ func (s *InboundService) UpdateOutJsons(tx *gorm.DB, inboundIds []uint, hostname
 func (s *InboundService) GetAllConfig(db *gorm.DB) ([]json.RawMessage, error) {
 	var inboundsJson []json.RawMessage
 	var inbounds []*model.Inbound
-	err := db.Model(model.Inbound{}).Preload("Tls").Find(&inbounds).Error
+	err := db.Model(model.Inbound{}).Preload("Tls").Where("node_id IS NULL").Find(&inbounds).Error
 	if err != nil {
 		return nil, err
 	}
@@ -360,7 +372,7 @@ func (s *InboundService) UpdateInboundsUsers(tx *gorm.DB, ids []uint) error {
 		return nil
 	}
 	var inbounds []*model.Inbound
-	err := tx.Model(model.Inbound{}).Preload("Tls").Where("id in ?", ids).Find(&inbounds).Error
+	err := tx.Model(model.Inbound{}).Preload("Tls").Where("id in ?", ids).Where("node_id IS NULL").Find(&inbounds).Error
 	if err != nil {
 		return err
 	}
@@ -410,7 +422,7 @@ func (s *InboundService) RestartInbounds(tx *gorm.DB, ids []uint) error {
 		return nil
 	}
 	var inbounds []*model.Inbound
-	err := tx.Model(model.Inbound{}).Preload("Tls").Where("id in ?", ids).Find(&inbounds).Error
+	err := tx.Model(model.Inbound{}).Preload("Tls").Where("id in ?", ids).Where("node_id IS NULL").Find(&inbounds).Error
 	if err != nil {
 		return err
 	}

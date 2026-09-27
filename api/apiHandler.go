@@ -68,6 +68,8 @@ func (a *APIHandler) postHandler(c *gin.Context) {
 		a.ApiService.GetCertPing(c)
 	case "testNode":
 		a.ApiService.TestNode(c)
+	case "adoptInbounds":
+		a.ApiService.AdoptInbounds(c, loginUser)
 	default:
 		jsonMsg(c, "failed", common.NewError("unknown action: ", action))
 	}
@@ -113,6 +115,8 @@ func (a *APIHandler) getHandler(c *gin.Context) {
 		a.ApiService.GetSingboxConfig(c)
 	case "checkOutbound":
 		a.ApiService.GetCheckOutbound(c)
+	case "nodeInbounds":
+		a.ApiService.GetNodeInbounds(c)
 	default:
 		jsonMsg(c, "failed", common.NewError("unknown action: ", action))
 	}

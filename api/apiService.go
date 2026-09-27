@@ -29,6 +29,7 @@ type ApiService struct {
 	service.StatsService
 	service.ServerService
 	service.NodeService
+	service.NodeSyncService
 }
 
 func (a *ApiService) LoadData(c *gin.Context) {
@@ -490,4 +491,29 @@ func (a *ApiService) GetCertPing(c *gin.Context) {
 func (a *ApiService) TestNode(c *gin.Context) {
 	status, err := a.NodeService.TestNode(json.RawMessage(c.PostForm("data")))
 	jsonObj(c, status, err)
+}
+
+func (a *ApiService) GetNodeInbounds(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Query("id"), 10, 64)
+	if err != nil {
+		jsonMsg(c, "nodeInbounds", common.NewError("invalid node id"))
+		return
+	}
+	inbounds, err := a.NodeSyncService.FetchNodeInbounds(uint(id))
+	jsonObj(c, inbounds, err)
+}
+
+func (a *ApiService) AdoptInbounds(c *gin.Context, actor string) {
+	id, err := strconv.ParseUint(c.PostForm("id"), 10, 64)
+	if err != nil {
+		jsonMsg(c, "adoptInbounds", common.NewError("invalid node id"))
+		return
+	}
+	var tags []string
+	if err := json.Unmarshal([]byte(c.PostForm("tags")), &tags); err != nil {
+		jsonMsg(c, "adoptInbounds", common.NewError("invalid tags"))
+		return
+	}
+	err = a.NodeSyncService.AdoptInbounds(uint(id), tags, actor)
+	jsonMsg(c, "adoptInbounds", err)
 }

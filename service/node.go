@@ -364,6 +364,13 @@ func (s *NodeService) Save(tx *gorm.DB, action string, data json.RawMessage) err
 		if id == 0 {
 			return common.NewError("node id is required")
 		}
+		var replicas int64
+		if err := tx.Model(model.Inbound{}).Where("node_id = ?", id).Count(&replicas).Error; err != nil {
+			return err
+		}
+		if replicas > 0 {
+			return common.NewErrorf("node still has %d adopted inbound(s)", replicas)
+		}
 		if err := tx.Delete(&model.Node{}, id).Error; err != nil {
 			return err
 		}

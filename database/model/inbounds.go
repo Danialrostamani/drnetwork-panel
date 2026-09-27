@@ -13,6 +13,9 @@ type Inbound struct {
 	TlsId uint `json:"tls_id" form:"tls_id"`
 	Tls   *Tls `json:"tls" form:"tls" gorm:"foreignKey:TlsId;references:Id"`
 
+	// NodeId marks a read-only replica of an inbound hosted on a managed node.
+	NodeId *uint `json:"node_id,omitempty" form:"node_id" gorm:"index"`
+
 	Addrs   json.RawMessage `json:"addrs" form:"addrs"`
 	OutJson json.RawMessage `json:"out_json" form:"out_json"`
 	Options json.RawMessage `json:"-" form:"-"`
@@ -42,6 +45,12 @@ func (i *Inbound) UnmarshalJSON(data []byte) error {
 	delete(raw, "tls_id")
 	delete(raw, "tls")
 	delete(raw, "users")
+
+	if val, exists := raw["node_id"].(float64); exists && val > 0 {
+		nodeID := uint(val)
+		i.NodeId = &nodeID
+	}
+	delete(raw, "node_id")
 
 	// Addrs
 	i.Addrs, _ = json.MarshalIndent(raw["addrs"], "", "  ")
@@ -88,6 +97,9 @@ func (i Inbound) MarshalFull() (*map[string]interface{}, error) {
 	combined["tls_id"] = i.TlsId
 	combined["addrs"] = i.Addrs
 	combined["out_json"] = i.OutJson
+	if i.NodeId != nil {
+		combined["node_id"] = *i.NodeId
+	}
 
 	if i.Options != nil {
 		var restFields map[string]interface{}
