@@ -58,6 +58,7 @@ func (a *ApiService) getData(c *gin.Context) (interface{}, error) {
 	}
 	data["maintenance"] = maintenance
 	data["nodesStatus"] = a.NodeService.GetStatuses()
+	data["ipCounts"] = service.GetIPCounts()
 
 	sysInfo := a.ServerService.GetSingboxInfo()
 	// A core stopped on purpose is not a failure to report; without this the
@@ -258,6 +259,29 @@ func (a *ApiService) GetOnlines(c *gin.Context) {
 func (a *ApiService) GetClusterOnlines(c *gin.Context) {
 	onlines, err := a.StatsService.GetClusterOnlines()
 	jsonObj(c, onlines, err)
+}
+
+func (a *ApiService) GetOnlineIps(c *gin.Context) {
+	name := c.Query("name")
+	if ips, ok := service.ClusterOnlineIPsOf(name); ok {
+		jsonObj(c, gin.H{"ips": ips}, nil)
+		return
+	}
+	jsonObj(c, gin.H{"ips": service.OnlineIPsOf(name)}, nil)
+}
+
+func (a *ApiService) GetClusterIps(c *gin.Context) {
+	ips, err := service.ClusterIPSnapshot()
+	jsonObj(c, ips, err)
+}
+
+func (a *ApiService) ApplyClusterBans(c *gin.Context) {
+	var bans map[string][]string
+	if err := json.Unmarshal([]byte(c.PostForm("data")), &bans); err != nil {
+		jsonMsg(c, "clusterBans", err)
+		return
+	}
+	jsonMsg(c, "clusterBans", service.ApplyClusterBans(bans))
 }
 
 func (a *ApiService) GetSessions(c *gin.Context) {

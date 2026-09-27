@@ -63,6 +63,7 @@ type Box struct {
 	httpClientService   adapter.LifecycleService
 	internalService     []adapter.LifecycleService
 	sessionTracker      *SessionTracker
+	connTracker         *ConnTracker
 	done                chan struct{}
 }
 
@@ -468,7 +469,9 @@ func NewBox(options Options) (*Box, error) {
 		internalServices = append(internalServices, adapter.NewLifecycleService(ntpService, "ntp service"))
 	}
 	sessionTracker := NewSessionTracker()
+	connTracker := NewConnTracker()
 	router.AppendTracker(sessionTracker)
+	router.AppendTracker(connTracker)
 
 	return &Box{
 		ctx:                 ctx,
@@ -489,6 +492,7 @@ func NewBox(options Options) (*Box, error) {
 		logger:              logFactory.Logger(),
 		internalService:     internalServices,
 		sessionTracker:      sessionTracker,
+		connTracker:         connTracker,
 		done:                make(chan struct{}),
 	}, nil
 }
@@ -662,6 +666,9 @@ func (s *Box) Close() error {
 		return E.Cause(err, "close logger")
 	})
 	done()
+	if s.connTracker != nil {
+		s.connTracker.Reset()
+	}
 	return err
 }
 
@@ -695,4 +702,8 @@ func (s *Box) Uptime() uint32 {
 
 func (s *Box) SessionTracker() *SessionTracker {
 	return s.sessionTracker
+}
+
+func (s *Box) ConnTracker() *ConnTracker {
+	return s.connTracker
 }

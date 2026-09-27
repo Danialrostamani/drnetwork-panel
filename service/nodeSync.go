@@ -263,6 +263,8 @@ type nodeClientState struct {
 	Group    string          `json:"group"`
 	Up       int64           `json:"up"`
 	Down     int64           `json:"down"`
+	// Pointer distinguishes an older node that does not report this field.
+	LimitIp *int `json:"limitIp"`
 }
 
 func (s *NodeSyncService) nodePost(node *model.Node, client *http.Client, action string, form url.Values) (json.RawMessage, error) {
@@ -417,6 +419,7 @@ func (s *NodeSyncService) expectedClients(nodeID uint, tagToID map[string]uint) 
 			"name": client.Name, "enable": client.Enable, "config": client.Config,
 			"inbounds": json.RawMessage(encodedIDs), "links": json.RawMessage("[]"),
 			"volume": 0, "expiry": client.Expiry, "group": clusterGroup, "desc": client.Desc,
+			"limitIp": client.LimitIp,
 		}
 	}
 	return expected, nil
@@ -475,7 +478,15 @@ func clientDiffers(want map[string]interface{}, current nodeClientState) bool {
 	if config, ok := want["config"].(json.RawMessage); ok && len(config) > 0 && len(current.Config) > 0 && !jsonEqual(config, current.Config) {
 		return true
 	}
-	return !jsonEqual(want["inbounds"], current.Inbounds)
+	if !jsonEqual(want["inbounds"], current.Inbounds) {
+		return true
+	}
+	if current.LimitIp != nil {
+		if limit, ok := want["limitIp"].(int); !ok || limit != *current.LimitIp {
+			return true
+		}
+	}
+	return false
 }
 
 func jsonEqual(a interface{}, b json.RawMessage) bool {

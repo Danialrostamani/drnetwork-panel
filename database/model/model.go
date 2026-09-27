@@ -46,6 +46,9 @@ type Client struct {
 	CreatedAt int64 `json:"createdAt" form:"createdAt" gorm:"default:0;not null"`
 	OnlineAt  int64 `json:"onlineAt" form:"onlineAt" gorm:"default:0;not null"`
 
+	// Maximum concurrently connected source IP identities; 0 means unlimited.
+	LimitIp int `json:"limitIp" form:"limitIp" gorm:"default:0;not null;index"`
+
 	// Delay start and periodic reset
 	DelayStart bool  `json:"delayStart" form:"delayStart" gorm:"default:false;not null"`
 	AutoReset  bool  `json:"autoReset" form:"autoReset" gorm:"default:false;not null"`
