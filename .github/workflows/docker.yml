@@ -62,8 +62,7 @@ jobs:
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
         with:
           images: |
-            alireza7/s-ui
-            ghcr.io/alireza0/s-ui
+            ghcr.io/danialrostamani/s-ui-multinode
           tags: |
             type=ref,event=branch
             type=ref,event=tag
@@ -79,11 +78,6 @@ jobs:
           key: ${{ runner.os }}-buildx-${{ matrix.platform }}-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-buildx-${{ matrix.platform }}-
-      - name: Login to Docker Hub
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
-        with:
-          username: ${{ secrets.DOCKER_HUB_USERNAME }}
-          password: ${{ secrets.DOCKER_HUB_TOKEN }}
       - name: Login to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
@@ -99,8 +93,7 @@ jobs:
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
           tags: |
-            alireza7/s-ui
-            ghcr.io/alireza0/s-ui
+            ghcr.io/danialrostamani/s-ui-multinode
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache,mode=max
           outputs: type=image,push-by-digest=true,name-canonical=true,push=true
@@ -127,11 +120,6 @@ jobs:
           path: ${{ runner.temp }}/digests
           pattern: digests-*
           merge-multiple: true
-      - name: Login to Docker Hub
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
-        with:
-          username: ${{ secrets.DOCKER_HUB_USERNAME }}
-          password: ${{ secrets.DOCKER_HUB_TOKEN }}
       - name: Login to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
@@ -145,8 +133,7 @@ jobs:
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
         with:
           images: |
-            alireza7/s-ui
-            ghcr.io/alireza0/s-ui
+            ghcr.io/danialrostamani/s-ui-multinode
           tags: |
             type=ref,event=branch
             type=ref,event=tag
@@ -157,8 +144,7 @@ jobs:
         working-directory: ${{ runner.temp }}/digests
         run: |
           set -e
-          for img in alireza7/s-ui ghcr.io/alireza0/s-ui; do
-            TAGS_ARGS=$(echo "$DOCKER_METADATA_OUTPUT_JSON" | jq -cr --arg img "$img" '.tags | map(select(startswith($img))) | map("-t " + .) | join(" ")')
-            DIGEST_REFS=$(for f in *; do echo -n "${img}@sha256:$(cat "$f") "; done)
-            docker buildx imagetools create $TAGS_ARGS $DIGEST_REFS
-          done
+          img=ghcr.io/danialrostamani/s-ui-multinode
+          TAGS_ARGS=$(echo "$DOCKER_METADATA_OUTPUT_JSON" | jq -cr --arg img "$img" '.tags | map(select(startswith($img))) | map("-t " + .) | join(" ")')
+          DIGEST_REFS=$(for f in *; do echo -n "${img}@sha256:$(cat "$f") "; done)
+          docker buildx imagetools create $TAGS_ARGS $DIGEST_REFS

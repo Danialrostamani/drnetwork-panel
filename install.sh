@@ -516,7 +516,7 @@ install_s-ui() {
     local sums="$workdir/SHA256SUMS"
 
     if [ $# == 0 ]; then
-        last_version=$(curl -Ls "https://api.github.com/repos/alireza0/s-ui/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+        last_version=$(curl -Ls "https://api.github.com/repos/Danialrostamani/s-ui-multinode/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
         if [[ ! -n "$last_version" ]]; then
             echo -e "${red}$(t fetch_fail)${plain}"
             exit 1
@@ -530,7 +530,7 @@ install_s-ui() {
     # No --no-check-certificate. It was on every download here, which turns the
     # whole install into an unauthenticated fetch: anyone able to intercept it
     # chooses the binary that then runs as root.
-    local base="https://github.com/alireza0/s-ui/releases/download/${last_version}"
+    local base="https://github.com/Danialrostamani/s-ui-multinode/releases/download/${last_version}"
     if ! wget -q --show-progress -O "$archive" "${base}/s-ui-linux-$(arch).tar.gz"; then
         if [ $# == 0 ]; then
             echo -e "${red}$(t download_fail)${plain}"
