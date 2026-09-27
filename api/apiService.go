@@ -48,7 +48,7 @@ func (a *ApiService) getData(c *gin.Context) (interface{}, error) {
 	if err != nil {
 		return "", err
 	}
-	onlines, err := a.StatsService.GetOnlines()
+	onlines, err := a.StatsService.GetClusterOnlines()
 
 	// Carried on every poll so the panel can keep saying the core is down on
 	// purpose, wherever the operator happens to be looking.
@@ -252,6 +252,11 @@ func (a *ApiService) GetStatus(c *gin.Context) {
 
 func (a *ApiService) GetOnlines(c *gin.Context) {
 	onlines, err := a.StatsService.GetOnlines()
+	jsonObj(c, onlines, err)
+}
+
+func (a *ApiService) GetClusterOnlines(c *gin.Context) {
+	onlines, err := a.StatsService.GetClusterOnlines()
 	jsonObj(c, onlines, err)
 }
 

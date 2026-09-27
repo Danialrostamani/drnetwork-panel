@@ -261,6 +261,8 @@ type nodeClientState struct {
 	Inbounds json.RawMessage `json:"inbounds"`
 	Expiry   int64           `json:"expiry"`
 	Group    string          `json:"group"`
+	Up       int64           `json:"up"`
+	Down     int64           `json:"down"`
 }
 
 func (s *NodeSyncService) nodePost(node *model.Node, client *http.Client, action string, form url.Values) (json.RawMessage, error) {
@@ -680,6 +682,88 @@ func (s *NodeSyncService) refreshNodeLinks(node *model.Node) {
 	if touched {
 		LastUpdate = time.Now().Unix()
 	}
+}
+
+type trafficBaseline struct {
+	Up   int64 `json:"up"`
+	Down int64 `json:"down"`
+}
+
+// CollectTraffic folds each online node's cumulative @cluster counters into
+// the master's client totals. Persisted baselines make restarts idempotent.
+func (s *NodeSyncService) CollectTraffic() {
+	var nodes []model.Node
+	if err := database.GetDB().Where("enable = ?", true).Find(&nodes).Error; err != nil {
+		return
+	}
+	statuses := s.GetStatuses()
+	for i := range nodes {
+		node := &nodes[i]
+		if status, ok := statuses[node.Id]; !ok || status.State != "online" {
+			continue
+		}
+		if err := s.collectNodeTraffic(node); err != nil {
+			logger.Warning("nodes: collect traffic from ", node.Name, ": ", err)
+		}
+	}
+}
+
+func (s *NodeSyncService) collectNodeTraffic(node *model.Node) error {
+	client := nodePushClient(node)
+	defer closeNodeIdle(client)
+	current, err := s.actualClusterClients(node, client)
+	if err != nil {
+		return err
+	}
+	baseline := map[string]trafficBaseline{}
+	if len(node.Baselines) > 0 {
+		_ = json.Unmarshal(node.Baselines, &baseline)
+	}
+	var names []string
+	db := database.GetDB()
+	if err := db.Model(model.Client{}).Pluck("name", &names).Error; err != nil {
+		return err
+	}
+	owned := make(map[string]bool, len(names))
+	for _, name := range names {
+		owned[name] = true
+	}
+	newBaseline := map[string]trafficBaseline{}
+	type delta struct{ up, down int64 }
+	deltas := map[string]delta{}
+	for name, remote := range current {
+		newBaseline[name] = trafficBaseline{Up: remote.Up, Down: remote.Down}
+		if !owned[name] {
+			continue
+		}
+		previous := baseline[name]
+		up := remote.Up - previous.Up
+		down := remote.Down - previous.Down
+		if up < 0 {
+			up = remote.Up
+		}
+		if down < 0 {
+			down = remote.Down
+		}
+		if up > 0 || down > 0 {
+			deltas[name] = delta{up: up, down: down}
+		}
+	}
+	encoded, err := json.Marshal(newBaseline)
+	if err != nil {
+		return err
+	}
+	return db.Transaction(func(tx *gorm.DB) error {
+		for name, value := range deltas {
+			if err := tx.Model(model.Client{}).Where("name = ?", name).Updates(map[string]interface{}{
+				"up":   gorm.Expr("up + ?", value.up),
+				"down": gorm.Expr("down + ?", value.down),
+			}).Error; err != nil {
+				return err
+			}
+		}
+		return tx.Model(model.Node{}).Where("id = ?", node.Id).Update("baselines", encoded).Error
+	})
 }
 
 func (s *NodeSyncService) MarkAllDirty() {

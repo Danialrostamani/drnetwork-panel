@@ -233,6 +233,50 @@ func (s *StatsService) GetOnlines() (onlines, error) {
 	}, nil
 }
 
+const nodeOnlineTTL = 20 * time.Second
+
+// GetClusterOnlines merges recent node snapshots with the local online list.
+// Only clients owned by this master are exposed; node-local users stay private.
+func (s *StatsService) GetClusterOnlines() (onlines, error) {
+	result, err := s.GetOnlines()
+	if err != nil {
+		return onlines{}, err
+	}
+	nodeStatusMu.RLock()
+	now := time.Now().Unix()
+	var remoteUsers []string
+	for _, status := range nodeStatuses {
+		if status.State == "online" && status.onlineCheckedAt > 0 && now-status.onlineCheckedAt <= int64(nodeOnlineTTL.Seconds()) {
+			remoteUsers = append(remoteUsers, status.onlineUsers...)
+		}
+	}
+	nodeStatusMu.RUnlock()
+	if len(remoteUsers) == 0 {
+		return result, nil
+	}
+	sort.Strings(remoteUsers)
+	var names []string
+	if err := database.GetDB().Model(model.Client{}).Pluck("name", &names).Error; err != nil {
+		return onlines{}, err
+	}
+	known := make(map[string]bool, len(names))
+	for _, name := range names {
+		known[name] = true
+	}
+	seen := make(map[string]bool, len(result.User))
+	result.User = append([]string(nil), result.User...)
+	for _, name := range result.User {
+		seen[name] = true
+	}
+	for _, name := range remoteUsers {
+		if known[name] && !seen[name] {
+			result.User = append(result.User, name)
+			seen[name] = true
+		}
+	}
+	return result, nil
+}
+
 // GetSessions lists the live routed connections, narrowed to one user, inbound
 // or outbound. Sorted newest first so the panel shows fresh connections on top.
 func (s *StatsService) GetSessions(resource string, tag string) ([]core.SessionInfo, error) {
