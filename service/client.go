@@ -35,6 +35,15 @@ func (s *ClientService) getById(id string) (*[]model.Client, error) {
 	return &client, nil
 }
 
+func (s *ClientService) GetAllWithConfig() (*[]model.Client, error) {
+	db := database.GetDB()
+	var clients []model.Client
+	if err := db.Model(model.Client{}).Find(&clients).Error; err != nil {
+		return nil, err
+	}
+	return &clients, nil
+}
+
 func (s *ClientService) GetAll() (*[]model.Client, error) {
 	db := database.GetDB()
 	var clients []model.Client
@@ -80,7 +89,12 @@ func (s *ClientService) Save(tx *gorm.DB, act string, data json.RawMessage, host
 		if err != nil {
 			return nil, err
 		}
-		if err = s.validateClientName(tx, &client); err != nil {
+		if client.Group == clusterGroup {
+			client.Name = strings.TrimSpace(client.Name)
+			if client.Name == "" {
+				return nil, common.NewError("client name must not be empty")
+			}
+		} else if err = s.validateClientName(tx, &client); err != nil {
 			return nil, err
 		}
 		if err = setConfigIdentity(&client); err != nil {
@@ -283,7 +297,7 @@ func (s *ClientService) updateLinksWithFixedInbounds(tx *gorm.DB, clients []*mod
 	// Zero inbounds means removing local links only
 	var inbounds []model.Inbound
 	if len(allIds) > 0 {
-		err := tx.Model(model.Inbound{}).Preload("Tls").Where("id in ? and type in ?", allIds, util.InboundTypeWithLink).Find(&inbounds).Error
+		err := tx.Model(model.Inbound{}).Preload("Tls").Where("id in ? and type in ? and node_id IS NULL", allIds, util.InboundTypeWithLink).Find(&inbounds).Error
 		if err != nil {
 			return err
 		}

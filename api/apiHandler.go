@@ -41,7 +41,7 @@ func (a *APIHandler) postHandler(c *gin.Context) {
 	case "changePass":
 		a.ApiService.ChangePass(c)
 	case "save":
-		a.ApiService.Save(c, loginUser)
+		a.ApiService.Save(c, loginUser, true)
 	case "restartApp":
 		a.ApiService.RestartApp(c)
 	case "restartSb":
@@ -70,6 +70,8 @@ func (a *APIHandler) postHandler(c *gin.Context) {
 		a.ApiService.TestNode(c)
 	case "adoptInbounds":
 		a.ApiService.AdoptInbounds(c, loginUser)
+	case "reconcileNode":
+		a.ApiService.ReconcileNode(c)
 	default:
 		jsonMsg(c, "failed", common.NewError("unknown action: ", action))
 	}

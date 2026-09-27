@@ -47,7 +47,7 @@ func (a *APIv2Handler) postHandler(c *gin.Context) {
 
 	switch action {
 	case "save":
-		a.ApiService.Save(c, username)
+		a.ApiService.Save(c, username, c.Query("sync") == "true" || c.PostForm("sync") == "true")
 	case "restartApp":
 		a.ApiService.RestartApp(c)
 	case "restartSb":

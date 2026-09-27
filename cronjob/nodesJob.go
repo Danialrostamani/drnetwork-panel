@@ -7,6 +7,7 @@ import (
 
 type NodesJob struct {
 	service.NodeService
+	service.NodeSyncService
 	running sync.Mutex
 }
 
@@ -17,4 +18,5 @@ func (j *NodesJob) Run() {
 	}
 	defer j.running.Unlock()
 	j.NodeService.RefreshAll()
+	j.NodeSyncService.ReconcileDirtyOnline()
 }

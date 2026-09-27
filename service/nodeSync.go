@@ -2,14 +2,17 @@ package service
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/alireza0/s-ui/database"
 	"github.com/alireza0/s-ui/database/model"
+	"github.com/alireza0/s-ui/logger"
 	"github.com/alireza0/s-ui/util/common"
 	"gorm.io/gorm"
 )
@@ -174,6 +177,9 @@ func (s *NodeSyncService) AdoptInbounds(nodeID uint, tags []string, actor string
 		if err := tx.Create(&model.Changes{DateTime: time.Now().Unix(), Actor: actor, Key: "inbounds", Action: "adopt", Obj: audit}).Error; err != nil {
 			return err
 		}
+		// Claim a new dirty generation before publishing the database flag so a
+		// concurrent reconcile cannot clear an adoption it did not observe.
+		bumpDirtyGen()
 		return tx.Model(model.Node{}).Where("id = ?", nodeID).Update("dirty", true).Error
 	})
 	if err == nil {
@@ -210,4 +216,317 @@ func buildReplicaInbound(raw json.RawMessage, nodeID uint) (*model.Inbound, erro
 	}
 	inbound.Options = options
 	return inbound, nil
+}
+
+const (
+	clusterGroup     = "@cluster"
+	reconcileBackoff = 30 * time.Second
+)
+
+var (
+	reconcileMu   sync.Mutex
+	reconcileBusy = map[uint]bool{}
+	reconcileLast = map[uint]time.Time{}
+	dirtyGen      uint64
+)
+
+type nodeClientState struct {
+	Id       uint            `json:"id"`
+	Name     string          `json:"name"`
+	Enable   bool            `json:"enable"`
+	Config   json.RawMessage `json:"config"`
+	Inbounds json.RawMessage `json:"inbounds"`
+	Expiry   int64           `json:"expiry"`
+	Group    string          `json:"group"`
+}
+
+func (s *NodeSyncService) nodePost(node *model.Node, client *http.Client, action string, form url.Values) (json.RawMessage, error) {
+	req, err := http.NewRequest(http.MethodPost, nodeAPIURL(node, action), strings.NewReader(form.Encode()))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Token", node.Token)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept", "application/json")
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, nodeHTTPStatusError(resp.StatusCode)
+	}
+	var msg struct {
+		Success bool            `json:"success"`
+		Msg     string          `json:"msg"`
+		Obj     json.RawMessage `json:"obj"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, nodeMaxResponseSize)).Decode(&msg); err != nil {
+		return nil, common.NewError("unexpected response from node")
+	}
+	if !msg.Success {
+		if msg.Msg == "" {
+			msg.Msg = "node rejected the request"
+		}
+		return nil, common.NewError(msg.Msg)
+	}
+	return msg.Obj, nil
+}
+
+func (s *NodeSyncService) pushClient(node *model.Node, client *http.Client, action string, payload interface{}) error {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	form := url.Values{"object": {"clients"}, "action": {action}, "data": {string(data)}}
+	_, err = s.nodePost(node, client, "save", form)
+	return err
+}
+
+func (s *NodeSyncService) Reconcile(nodeID uint) error {
+	gen, ok := s.claimReconcile(nodeID, false)
+	if !ok {
+		return nil
+	}
+	defer s.releaseReconcile(nodeID)
+	return s.runReconcile(nodeID, gen)
+}
+
+func (s *NodeSyncService) ReconcileNow(nodeID uint) error {
+	gen, ok := s.claimReconcile(nodeID, true)
+	if !ok {
+		return common.NewError("a sync for this node is already running; try again shortly")
+	}
+	defer s.releaseReconcile(nodeID)
+	return s.runReconcile(nodeID, gen)
+}
+
+func (s *NodeSyncService) runReconcile(nodeID uint, startGen uint64) error {
+	node, err := s.getNodeByID(nodeID)
+	if err != nil {
+		return err
+	}
+	client := nodePushClient(node)
+	defer closeNodeIdle(client)
+	tagToID, err := s.nodeInboundTagMap(node, client)
+	if err != nil {
+		return err
+	}
+	expected, err := s.expectedClients(nodeID, tagToID)
+	if err != nil {
+		return err
+	}
+	actual, err := s.actualClusterClients(node, client)
+	if err != nil {
+		return err
+	}
+	for name, want := range expected {
+		current, exists := actual[name]
+		if !exists {
+			if err := s.pushClient(node, client, "new", want); err != nil {
+				return common.NewErrorf("push new client %s to %s: %v", name, node.Name, err)
+			}
+		} else if clientDiffers(want, current) {
+			want["id"] = current.Id
+			if err := s.pushClient(node, client, "edit", want); err != nil {
+				return common.NewErrorf("push edit client %s to %s: %v", name, node.Name, err)
+			}
+		}
+	}
+	for name, current := range actual {
+		if _, exists := expected[name]; !exists {
+			if err := s.pushClient(node, client, "del", current.Id); err != nil {
+				return common.NewErrorf("delete stale client %s from %s: %v", name, node.Name, err)
+			}
+		}
+	}
+	now := time.Now().Unix()
+	db := database.GetDB()
+	if !s.dirtyUnchangedSince(startGen) {
+		return db.Model(model.Node{}).Where("id = ?", nodeID).Update("last_sync", now).Error
+	}
+	if err := db.Model(model.Node{}).Where("id = ?", nodeID).Updates(map[string]interface{}{"dirty": false, "last_sync": now}).Error; err != nil {
+		return err
+	}
+	LastUpdate = now
+	return nil
+}
+
+func (s *NodeSyncService) expectedClients(nodeID uint, tagToID map[string]uint) (map[string]map[string]interface{}, error) {
+	var replicas []model.Inbound
+	if err := database.GetDB().Where("node_id = ?", nodeID).Find(&replicas).Error; err != nil {
+		return nil, err
+	}
+	replicaTag := make(map[uint]string, len(replicas))
+	for _, replica := range replicas {
+		replicaTag[replica.Id] = replica.Tag
+	}
+	var clients []model.Client
+	if err := database.GetDB().Find(&clients).Error; err != nil {
+		return nil, err
+	}
+	expected := map[string]map[string]interface{}{}
+	for i := range clients {
+		client := &clients[i]
+		var inboundIDs []uint
+		if json.Unmarshal(client.Inbounds, &inboundIDs) != nil {
+			continue
+		}
+		var remoteIDs []uint
+		for _, inboundID := range inboundIDs {
+			if tag, ok := replicaTag[inboundID]; ok {
+				if remoteID, exists := tagToID[tag]; exists {
+					remoteIDs = append(remoteIDs, remoteID)
+				}
+			}
+		}
+		if len(remoteIDs) == 0 {
+			continue
+		}
+		encodedIDs, _ := json.Marshal(remoteIDs)
+		expected[client.Name] = map[string]interface{}{
+			"name": client.Name, "enable": client.Enable, "config": client.Config,
+			"inbounds": json.RawMessage(encodedIDs), "links": json.RawMessage("[]"),
+			"volume": 0, "expiry": client.Expiry, "group": clusterGroup, "desc": client.Desc,
+		}
+	}
+	return expected, nil
+}
+
+func (s *NodeSyncService) actualClusterClients(node *model.Node, client *http.Client) (map[string]nodeClientState, error) {
+	obj, err := s.nodeGet(node, client, "clients", url.Values{"full": {"1"}})
+	if err != nil {
+		return nil, err
+	}
+	var payload struct {
+		Clients []nodeClientState `json:"clients"`
+	}
+	if err := json.Unmarshal(obj, &payload); err != nil {
+		return nil, common.NewError("unexpected clients payload from node")
+	}
+	out := map[string]nodeClientState{}
+	for _, client := range payload.Clients {
+		if client.Group == clusterGroup {
+			out[client.Name] = client
+		}
+	}
+	return out, nil
+}
+
+func (s *NodeSyncService) nodeInboundTagMap(node *model.Node, client *http.Client) (map[string]uint, error) {
+	obj, err := s.nodeGet(node, client, "inbounds", nil)
+	if err != nil {
+		return nil, err
+	}
+	var payload struct {
+		Inbounds []struct {
+			Id  uint   `json:"id"`
+			Tag string `json:"tag"`
+		} `json:"inbounds"`
+	}
+	if err := json.Unmarshal(obj, &payload); err != nil {
+		return nil, common.NewError("unexpected inbounds payload from node")
+	}
+	out := make(map[string]uint, len(payload.Inbounds))
+	for _, inbound := range payload.Inbounds {
+		out[inbound.Tag] = inbound.Id
+	}
+	return out, nil
+}
+
+func clientDiffers(want map[string]interface{}, current nodeClientState) bool {
+	enable, _ := want["enable"].(bool)
+	if enable != current.Enable {
+		return true
+	}
+	expiry, _ := want["expiry"].(int64)
+	if expiry != current.Expiry {
+		return true
+	}
+	if config, ok := want["config"].(json.RawMessage); ok && len(config) > 0 && len(current.Config) > 0 && !jsonEqual(config, current.Config) {
+		return true
+	}
+	return !jsonEqual(want["inbounds"], current.Inbounds)
+}
+
+func jsonEqual(a interface{}, b json.RawMessage) bool {
+	encoded, err := json.Marshal(a)
+	if raw, ok := a.(json.RawMessage); ok {
+		encoded = raw
+	}
+	if err != nil {
+		return false
+	}
+	var left, right interface{}
+	if json.Unmarshal(encoded, &left) != nil || json.Unmarshal(b, &right) != nil {
+		return false
+	}
+	leftJSON, _ := json.Marshal(left)
+	rightJSON, _ := json.Marshal(right)
+	return string(leftJSON) == string(rightJSON)
+}
+
+func (s *NodeSyncService) MarkAllDirty() {
+	bumpDirtyGen()
+	if err := database.GetDB().Model(model.Node{}).Where("enable = ? AND dirty = ?", true, false).Update("dirty", true).Error; err != nil {
+		logger.Warning("nodes: mark dirty failed: ", err)
+	}
+}
+
+func (s *NodeSyncService) ReconcileDirtyOnline() {
+	var nodes []model.Node
+	if database.GetDB().Select("id").Where("enable = ? AND dirty = ?", true, true).Find(&nodes).Error != nil {
+		return
+	}
+	statuses := s.GetStatuses()
+	for _, node := range nodes {
+		if status, ok := statuses[node.Id]; ok && status.State == "online" {
+			id := node.Id
+			go func() {
+				if err := s.Reconcile(id); err != nil {
+					logger.Warning("nodes: reconcile failed: ", err)
+				}
+			}()
+		}
+	}
+}
+
+func (s *NodeSyncService) ReconcileAllOnline() {
+	var nodes []model.Node
+	if database.GetDB().Select("id").Where("enable = ?", true).Find(&nodes).Error != nil {
+		return
+	}
+	statuses := s.GetStatuses()
+	for _, node := range nodes {
+		if status, ok := statuses[node.Id]; ok && status.State == "online" {
+			if err := s.Reconcile(node.Id); err != nil {
+				logger.Warning("nodes: safety reconcile failed: ", err)
+			}
+		}
+	}
+}
+
+func (s *NodeSyncService) claimReconcile(nodeID uint, force bool) (uint64, bool) {
+	reconcileMu.Lock()
+	defer reconcileMu.Unlock()
+	if reconcileBusy[nodeID] {
+		return 0, false
+	}
+	if !force && time.Since(reconcileLast[nodeID]) < reconcileBackoff {
+		return 0, false
+	}
+	reconcileBusy[nodeID] = true
+	return dirtyGen, true
+}
+func bumpDirtyGen() { reconcileMu.Lock(); dirtyGen++; reconcileMu.Unlock() }
+func (s *NodeSyncService) dirtyUnchangedSince(gen uint64) bool {
+	reconcileMu.Lock()
+	defer reconcileMu.Unlock()
+	return dirtyGen == gen
+}
+func (s *NodeSyncService) releaseReconcile(nodeID uint) {
+	reconcileMu.Lock()
+	reconcileBusy[nodeID] = false
+	reconcileLast[nodeID] = time.Now()
+	reconcileMu.Unlock()
 }
