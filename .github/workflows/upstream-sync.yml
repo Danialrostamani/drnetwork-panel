@@ -1,0 +1,94 @@
+name: Sync official S-UI
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 3 * * *'
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: upstream-sync-backend
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout multinode branch
+        uses: actions/checkout@v6
+        with:
+          ref: multinode
+          fetch-depth: 0
+          submodules: false
+          persist-credentials: false
+
+      - name: Merge official backend
+        id: merge
+        shell: bash
+        run: |
+          set +e
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git remote add upstream https://github.com/alireza0/s-ui.git 2>/dev/null || true
+          git fetch upstream main
+          backend_changed=false
+          if ! git merge-base --is-ancestor upstream/main HEAD; then
+            git merge --no-edit upstream/main
+            rc=$?
+            if [ $rc -ne 0 ]; then
+              git merge --abort || true
+              echo 'conflict=true' >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            backend_changed=true
+          fi
+          # Keep the product branch wired to our maintained frontend fork.
+          git config -f .gitmodules submodule.frontend.url https://github.com/Danialrostamani/s-ui-frontend-multinode.git
+          git config -f .gitmodules submodule.frontend.branch multinode
+          git submodule sync -- frontend
+          git submodule update --init frontend
+          git -C frontend fetch origin multinode
+          git -C frontend checkout --detach origin/multinode
+          git add .gitmodules frontend
+          if [ "$backend_changed" = true ] || ! git diff --cached --quiet; then
+            git commit -m 'chore: sync official S-UI and maintained frontend' || true
+            echo 'changed=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Report merge conflict
+        if: steps.merge.outputs.conflict == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title='Upstream backend sync conflict'
+          gh issue list --state open --search "$title in:title" --json title --jq '.[].title' | grep -Fx "$title" >/dev/null || \
+            gh issue create --title "$title" --body "Automatic merge from alireza0/s-ui failed. Resolve the conflict on the multinode branch, then run this workflow again. Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          exit 1
+
+      - name: Setup Go
+        if: steps.merge.outputs.changed == 'true'
+        uses: actions/setup-go@v6
+        with:
+          cache: false
+          go-version-file: go.mod
+
+      - name: Validate backend
+        if: steps.merge.outputs.changed == 'true'
+        run: |
+          unformatted=$(gofmt -l . | grep -v '^frontend/' || true)
+          test -z "$unformatted" || { echo "$unformatted"; exit 1; }
+          go vet ./...
+          . ./build-tags.sh
+          TAGS=$(tags_for test)
+          go test -tags "$TAGS" ./...
+
+      - name: Push validated update
+        if: steps.merge.outputs.changed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:multinode
