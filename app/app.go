@@ -9,6 +9,7 @@ import (
 	"github.com/Danialrostamani/drnetwork-panel/database"
 	"github.com/Danialrostamani/drnetwork-panel/logger"
 	"github.com/Danialrostamani/drnetwork-panel/service"
+	"github.com/Danialrostamani/drnetwork-panel/service/tgbot"
 	"github.com/Danialrostamani/drnetwork-panel/sub"
 	"github.com/Danialrostamani/drnetwork-panel/web"
 
@@ -84,6 +85,9 @@ func (a *APP) Start() error {
 		return err
 	}
 
+	// Idle unless the Telegram bot is enabled in the settings.
+	tgbot.Start()
+
 	// StartCore does nothing while maintenance is on, so say why rather than
 	// leave the operator looking at a panel that came up with no core.
 	if maintenance, mErr := a.SettingService.GetMaintenance(); mErr == nil && maintenance {
@@ -99,6 +103,7 @@ func (a *APP) Start() error {
 }
 
 func (a *APP) Stop() {
+	tgbot.Stop()
 	a.cronJob.Stop()
 	err := a.subServer.Stop()
 	if err != nil {

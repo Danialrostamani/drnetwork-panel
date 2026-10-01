@@ -95,6 +95,12 @@ var defaultValueMap = map[string]string{
 	"subClashSprtAll":    "false",
 	"subClashUdp":        "false",
 	"maintenance":        "false",
+	"tgBotEnable":        "false",
+	"tgBotToken":         "",
+	"tgBotAdmins":        "",
+	"tgBotProxy":         "",
+	"tgBotLang":          "fa",
+	"tgBotNotify":        "true",
 	"globalReset":        "",
 	"globalResetLast":    "0",
 	"config":             defaultConfig,
@@ -380,6 +386,40 @@ func (s *SettingService) GetSubShowInfo() (bool, error) {
 
 func (s *SettingService) GetSubURI() (string, error) {
 	return s.getString("subURI")
+}
+
+// TgBotSettings is the Telegram bot configuration as stored in the settings table.
+type TgBotSettings struct {
+	Enable bool
+	Token  string
+	Admins string
+	Proxy  string
+	Lang   string
+	Notify bool
+}
+
+func (s *SettingService) GetTgBotSettings() (TgBotSettings, error) {
+	var out TgBotSettings
+	var err error
+	if out.Enable, err = s.getBool("tgBotEnable"); err != nil {
+		out.Enable = false
+	}
+	if out.Notify, err = s.getBool("tgBotNotify"); err != nil {
+		out.Notify = true
+	}
+	if out.Token, err = s.getString("tgBotToken"); err != nil {
+		return out, err
+	}
+	if out.Admins, err = s.getString("tgBotAdmins"); err != nil {
+		return out, err
+	}
+	if out.Proxy, err = s.getString("tgBotProxy"); err != nil {
+		return out, err
+	}
+	if out.Lang, err = s.getString("tgBotLang"); err != nil {
+		return out, err
+	}
+	return out, nil
 }
 
 // GetGlobalReset returns the cron spec for resetting all clients' traffic;

@@ -18,6 +18,9 @@
       <v-tab value="t4">
         {{ $t('setting.clashSub') }}
       </v-tab>
+      <v-tab value="t5">
+        {{ $t('setting.tgBot') }}
+      </v-tab>
     </v-tabs>
     <v-card-text>
       <v-row
@@ -356,6 +359,92 @@
         <v-window-item value="t4">
           <SubClashExtVue :settings="settings" />
         </v-window-item>
+
+        <v-window-item value="t5">
+          <v-row>
+            <v-col cols="12">
+              <v-alert
+                type="info"
+                variant="tonal"
+                density="compact"
+              >
+                {{ $t('setting.tgBotHint') }}
+              </v-alert>
+            </v-col>
+            <v-col
+              cols="12"
+              sm="6"
+              md="4"
+            >
+              <v-switch
+                v-model="tgBotEnable"
+                color="primary"
+                :label="$t('setting.tgBotEnable')"
+                hide-details
+              />
+            </v-col>
+            <v-col
+              cols="12"
+              sm="6"
+              md="4"
+            >
+              <v-switch
+                v-model="tgBotNotify"
+                color="primary"
+                :label="$t('setting.tgBotNotify')"
+                hide-details
+              />
+            </v-col>
+            <v-col
+              cols="12"
+              sm="6"
+              md="4"
+            >
+              <v-select
+                v-model="settings.tgBotLang"
+                :items="[{ title: 'فارسی', value: 'fa' }, { title: 'English', value: 'en' }]"
+                :label="$t('setting.tgBotLang')"
+                hide-details
+              />
+            </v-col>
+            <v-col
+              cols="12"
+              md="6"
+            >
+              <v-text-field
+                v-model="settings.tgBotToken"
+                :label="$t('setting.tgBotToken')"
+                placeholder="123456789:AA..."
+                autocomplete="off"
+                hide-details
+              />
+            </v-col>
+            <v-col
+              cols="12"
+              md="6"
+            >
+              <v-text-field
+                v-model="settings.tgBotAdmins"
+                :label="$t('setting.tgBotAdmins')"
+                :hint="$t('setting.tgBotAdminsHint')"
+                persistent-hint
+                placeholder="12345678, 87654321"
+              />
+            </v-col>
+            <v-col
+              cols="12"
+              md="6"
+            >
+              <v-text-field
+                v-model="settings.tgBotProxy"
+                :label="$t('setting.tgBotProxy')"
+                :hint="$t('setting.tgBotProxyHint')"
+                persistent-hint
+                placeholder="http://127.0.0.1:8080"
+              />
+            </v-col>
+          </v-row>
+        </v-window-item>
       </v-window>
     </v-card-text>
   </v-card>
@@ -402,6 +491,12 @@ const settings = ref({
   subClashSprtAll: "false",
   subClashUdp: "false",
   globalReset: "",
+  tgBotEnable: "false",
+  tgBotToken: "",
+  tgBotAdmins: "",
+  tgBotProxy: "",
+  tgBotLang: "fa",
+  tgBotNotify: "true",
 })
 
 // The panel settings, exactly as the block above spells them out.
@@ -499,6 +594,14 @@ const subEncode = computed({
   set: (v:boolean) => { settings.value.subEncode = v ? "true" : "false" }
 })
 
+const tgBotEnable = computed({
+  get: () => { return settings.value.tgBotEnable == "true" },
+  set: (v:boolean) => { settings.value.tgBotEnable = v ? "true" : "false" }
+})
+const tgBotNotify = computed({
+  get: () => { return settings.value.tgBotNotify == "true" },
+  set: (v:boolean) => { settings.value.tgBotNotify = v ? "true" : "false" }
+})
 const subShowInfo = computed({
   get: () => { return settings.value.subShowInfo == "true" },
   set: (v:boolean) => { settings.value.subShowInfo = v ? "true" : "false" }

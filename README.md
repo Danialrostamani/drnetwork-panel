@@ -307,3 +307,13 @@ Community-made projects built around S-UI. These are not affiliated with or main
 
 ## Stargazers over Time
 [![Stargazers over time](https://starchart.cc/alireza0/s-ui.svg)](https://starchart.cc/alireza0/s-ui)
+
+## Telegram bot
+
+DrNetwork includes an optional Telegram bot for administrators (**Settings → Telegram Bot**):
+
+1. Create a bot with [@BotFather](https://t.me/BotFather) and paste its token.
+2. Send `/id` to your bot and add the number it returns to **Admin Telegram IDs**.
+3. Enable the bot. If the server cannot reach `api.telegram.org`, set a proxy (`http://` or `socks5://`).
+
+Commands (admins only, private chats only): `/status`, `/nodes`, `/online`, `/clients [name]`, `/ips <name>`, `/inbounds`, `/traffic`. Anyone else only gets `/id`. With alerts enabled the bot also reports when a node goes down or recovers, and when a client is near its volume or expiry limit. Changes in settings apply within seconds, without a restart.
