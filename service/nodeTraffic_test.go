@@ -179,3 +179,28 @@ func TestNodeReportedOnlineUserRefreshesOnlineAtWithoutTraffic(t *testing.T) {
 		t.Fatalf("bob was not online but onlineAt = %d", bob.OnlineAt)
 	}
 }
+
+func TestClusterOnlinesMergesKnownInboundsFromNodes(t *testing.T) {
+	if err := database.InitDB(filepath.Join(t.TempDir(), "inb.db")); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.GetDB().Create(&model.Inbound{Tag: "hy2-nl", Type: "hysteria2", Options: json.RawMessage(`{}`)}).Error; err != nil {
+		t.Fatal(err)
+	}
+	previousOnline := onlineResources
+	onlineResources = &onlines{}
+	nodeStatusMu.Lock()
+	previous := nodeStatuses
+	nodeStatuses = map[uint]NodeStatus{1: {State: "online", onlineInbounds: []string{"hy2-nl", "node-private"}, onlineCheckedAt: time.Now().Unix()}}
+	nodeStatusMu.Unlock()
+	defer func() {
+		onlineResources = previousOnline
+		nodeStatusMu.Lock()
+		nodeStatuses = previous
+		nodeStatusMu.Unlock()
+	}()
+	got, err := (&StatsService{}).GetClusterOnlines()
+	if err != nil || !reflect.DeepEqual(got.Inbound, []string{"hy2-nl"}) {
+		t.Fatalf("cluster online inbounds = %v, %v", got.Inbound, err)
+	}
+}

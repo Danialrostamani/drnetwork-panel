@@ -35,6 +35,8 @@ type NodeStatus struct {
 	CheckedAt       int64   `json:"checkedAt"`
 	LastOnline      int64   `json:"lastOnline"`
 	onlineUsers     []string
+	onlineInbounds  []string
+	onlineOutbounds []string
 	onlineCheckedAt int64
 }
 
@@ -205,10 +207,14 @@ func (s *NodeService) probe(n *model.Node, client *http.Client) NodeStatus {
 	st.State = "online"
 	if onlineObj, err := s.nodeGet(n, client, "onlines", nil); err == nil {
 		var online struct {
-			User []string `json:"user"`
+			User     []string `json:"user"`
+			Inbound  []string `json:"inbound"`
+			Outbound []string `json:"outbound"`
 		}
 		if json.Unmarshal(onlineObj, &online) == nil {
 			st.onlineUsers = online.User
+			st.onlineInbounds = online.Inbound
+			st.onlineOutbounds = online.Outbound
 			st.onlineCheckedAt = time.Now().Unix()
 		}
 	}

@@ -244,35 +244,53 @@ func (s *StatsService) GetClusterOnlines() (onlines, error) {
 	}
 	nodeStatusMu.RLock()
 	now := time.Now().Unix()
-	var remoteUsers []string
+	var remote onlines
 	for _, status := range nodeStatuses {
 		if status.State == "online" && status.onlineCheckedAt > 0 && now-status.onlineCheckedAt <= int64(nodeOnlineTTL.Seconds()) {
-			remoteUsers = append(remoteUsers, status.onlineUsers...)
+			remote.User = append(remote.User, status.onlineUsers...)
+			remote.Inbound = append(remote.Inbound, status.onlineInbounds...)
+			remote.Outbound = append(remote.Outbound, status.onlineOutbounds...)
 		}
 	}
 	nodeStatusMu.RUnlock()
-	if len(remoteUsers) == 0 {
+	if len(remote.User) == 0 && len(remote.Inbound) == 0 && len(remote.Outbound) == 0 {
 		return result, nil
 	}
-	sort.Strings(remoteUsers)
-	var names []string
-	if err := database.GetDB().Model(model.Client{}).Pluck("name", &names).Error; err != nil {
-		return onlines{}, err
-	}
-	known := make(map[string]bool, len(names))
-	for _, name := range names {
-		known[name] = true
-	}
-	seen := make(map[string]bool, len(result.User))
-	result.User = append([]string(nil), result.User...)
-	for _, name := range result.User {
-		seen[name] = true
-	}
-	for _, name := range remoteUsers {
-		if known[name] && !seen[name] {
-			result.User = append(result.User, name)
+	db := database.GetDB()
+	var err2 error
+	mergeKnown := func(local []string, remoteTags []string, model interface{}, column string) []string {
+		if len(remoteTags) == 0 || err2 != nil {
+			return local
+		}
+		sort.Strings(remoteTags)
+		var names []string
+		if err2 = db.Model(model).Pluck(column, &names).Error; err2 != nil {
+			return local
+		}
+		known := make(map[string]bool, len(names))
+		for _, name := range names {
+			known[name] = true
+		}
+		merged := append([]string(nil), local...)
+		seen := make(map[string]bool, len(merged))
+		for _, name := range merged {
 			seen[name] = true
 		}
+		for _, name := range remoteTags {
+			if known[name] && !seen[name] {
+				merged = append(merged, name)
+				seen[name] = true
+			}
+		}
+		return merged
+	}
+	// Only objects owned by this master are exposed; node-local users and
+	// inbounds stay private.
+	result.User = mergeKnown(result.User, remote.User, model.Client{}, "name")
+	result.Inbound = mergeKnown(result.Inbound, remote.Inbound, model.Inbound{}, "tag")
+	result.Outbound = mergeKnown(result.Outbound, remote.Outbound, model.Outbound{}, "tag")
+	if err2 != nil {
+		return onlines{}, err2
 	}
 	return result, nil
 }
