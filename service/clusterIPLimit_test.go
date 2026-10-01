@@ -249,3 +249,27 @@ func TestClusterIPLimitPushesOneGlobalDecisionToEveryNode(t *testing.T) {
 		t.Fatal("cluster count stayed active with an unavailable node")
 	}
 }
+
+func TestObservedClusterIPsAreShownWhenCoordinationIsUnavailable(t *testing.T) {
+	resetClusterIPState(t)
+	t.Cleanup(func() {
+		clusterIPs.mu.Lock()
+		clusterIPs.obsCounts, clusterIPs.obsList, clusterIPs.obsAt = nil, nil, time.Time{}
+		clusterIPs.mu.Unlock()
+	})
+	publishObservedClusterIPs(map[string][]string{
+		"alice": {"203.0.113.9", "203.0.113.9", "198.51.100.4"},
+		"other": {"192.0.2.1"},
+	}, map[string]int{"alice": 1})
+	counts, ok := clusterIPCountSnapshot()
+	if !ok || counts["alice"] != 2 || counts["other"] != 0 {
+		t.Fatalf("observed counts = %v, %v", counts, ok)
+	}
+	ips, ok := ClusterOnlineIPsOf("alice")
+	if !ok || len(ips) != 2 || ips[0].IP != "198.51.100.4" || ips[1].IP != "203.0.113.9" {
+		t.Fatalf("observed IPs = %v, %v", ips, ok)
+	}
+	if _, ok := ClusterOnlineIPsOf("other"); ok {
+		t.Fatal("unlimited client leaked into the observed list")
+	}
+}

@@ -32,6 +32,13 @@ var clusterIPs = struct {
 	list      map[string][]OnlineIP
 	active    bool
 	updatedAt time.Time
+
+	// What the cluster could observe on the nodes it can reach, kept apart
+	// from the enforced view above. It exists so the panel can still show who
+	// is connected from where when one node is down or too old to coordinate.
+	obsCounts map[string]int
+	obsList   map[string][]OnlineIP
+	obsAt     time.Time
 }{
 	holders: map[ipBanKey]clusterIPHold{},
 	bans:    map[ipBanKey]time.Time{},
@@ -164,16 +171,21 @@ func EnforceClusterIPLimits() {
 		clusterIPs.list = nil
 		clusterIPs.active = false
 		clusterIPs.updatedAt = time.Time{}
+		clusterIPs.obsCounts = nil
+		clusterIPs.obsList = nil
+		clusterIPs.obsAt = time.Time{}
 		clusterIPs.mu.Unlock()
 		return
 	}
 
 	all := clusterIPSnapshot(limits)
 	status := (&NodeService{}).GetStatuses()
+	// One global cap can only be enforced while every node answers. If one
+	// does not, the IPs of the reachable ones are still published for display.
+	complete := true
 	for _, node := range nodes {
 		if status[node.Id].State != "online" {
-			deactivateClusterIPSnapshot()
-			return
+			complete = false
 		}
 	}
 	snapshots := make([]map[string][]string, len(nodes))
@@ -203,8 +215,7 @@ func EnforceClusterIPLimits() {
 	for i, err := range errs {
 		if err != nil {
 			logger.Warning("cluster IP limit: read ", nodes[i].Name, ": ", err)
-			deactivateClusterIPSnapshot()
-			return
+			complete = false
 		}
 	}
 	for _, snapshot := range snapshots {
@@ -213,6 +224,11 @@ func EnforceClusterIPLimits() {
 				all[user] = append(all[user], ips...)
 			}
 		}
+	}
+	if !complete {
+		deactivateClusterIPSnapshot()
+		publishObservedClusterIPs(all, limits)
+		return
 	}
 
 	bans, err := planClusterIPLimits(all, limits, time.Now())
@@ -258,6 +274,40 @@ func EnforceClusterIPLimits() {
 	if failed {
 		deactivateClusterIPSnapshot()
 	}
+}
+
+// publishObservedClusterIPs records the distinct IPs seen per limited client
+// without planning or applying any ban.
+func publishObservedClusterIPs(snapshots map[string][]string, limits map[string]int) {
+	counts := make(map[string]int, len(snapshots))
+	lists := make(map[string][]OnlineIP, len(snapshots))
+	for user, ips := range snapshots {
+		if limits[user] <= 0 {
+			continue
+		}
+		seen := map[netip.Addr]bool{}
+		var addrs []netip.Addr
+		for _, raw := range ips {
+			addr, err := normalizeClusterIP(raw)
+			if err != nil || seen[addr] {
+				continue
+			}
+			seen[addr] = true
+			addrs = append(addrs, addr)
+		}
+		sort.Slice(addrs, func(i, j int) bool { return addrs[i].Compare(addrs[j]) < 0 })
+		for _, addr := range addrs {
+			lists[user] = append(lists[user], OnlineIP{IP: identityLabel(addr)})
+		}
+		if len(addrs) > 0 {
+			counts[user] = len(addrs)
+		}
+	}
+	clusterIPs.mu.Lock()
+	clusterIPs.obsCounts = counts
+	clusterIPs.obsList = lists
+	clusterIPs.obsAt = time.Now()
+	clusterIPs.mu.Unlock()
 }
 
 func deactivateClusterIPSnapshot() {
@@ -387,11 +437,15 @@ func planClusterIPLimits(snapshots map[string][]string, limits map[string]int, n
 func clusterIPCountSnapshot() (map[string]int, bool) {
 	clusterIPs.mu.RLock()
 	defer clusterIPs.mu.RUnlock()
+	source := clusterIPs.counts
 	if !clusterIPs.active || time.Since(clusterIPs.updatedAt) > clusterBanLease {
-		return nil, false
+		if clusterIPs.obsCounts == nil || time.Since(clusterIPs.obsAt) > clusterBanLease {
+			return nil, false
+		}
+		source = clusterIPs.obsCounts
 	}
-	out := make(map[string]int, len(clusterIPs.counts))
-	for name, count := range clusterIPs.counts {
+	out := make(map[string]int, len(source))
+	for name, count := range source {
 		if count > 0 {
 			out[name] = count
 		}
@@ -408,12 +462,16 @@ func ClusterIPActive() bool {
 func ClusterOnlineIPsOf(name string) ([]OnlineIP, bool) {
 	clusterIPs.mu.RLock()
 	defer clusterIPs.mu.RUnlock()
+	counts, lists := clusterIPs.counts, clusterIPs.list
 	if !clusterIPs.active || time.Since(clusterIPs.updatedAt) > clusterBanLease {
+		if clusterIPs.obsCounts == nil || time.Since(clusterIPs.obsAt) > clusterBanLease {
+			return nil, false
+		}
+		counts, lists = clusterIPs.obsCounts, clusterIPs.obsList
+	}
+	if _, limited := counts[name]; !limited {
 		return nil, false
 	}
-	if _, limited := clusterIPs.counts[name]; !limited {
-		return nil, false
-	}
-	out := append([]OnlineIP{}, clusterIPs.list[name]...)
+	out := append([]OnlineIP{}, lists[name]...)
 	return out, true
 }
