@@ -18,7 +18,7 @@ require (
 	github.com/sagernet/sing-quic v0.7.0
 	github.com/sagernet/sing-shadowsocks v0.2.8
 	github.com/sagernet/sing-snell v0.0.0-20260829071736-20f2eaec77c3
-	github.com/sagernet/sing-tun v0.9.3
+	github.com/sagernet/sing-tun v0.9.6
 	github.com/sagernet/sing-vmess v0.2.8
 	github.com/shirou/gopsutil/v4 v4.26.8
 	golang.org/x/crypto v0.57.0
