@@ -54,6 +54,9 @@ func TestNodeTrafficUsesPersistentDeltaBaselinesAndHandlesReset(t *testing.T) {
 	if alice.Up != 105 || alice.Down != 206 {
 		t.Fatalf("first collection = %d/%d", alice.Up, alice.Down)
 	}
+	if alice.OnlineAt == 0 || time.Now().Unix()-alice.OnlineAt > 5 {
+		t.Fatalf("node traffic did not refresh onlineAt: %d", alice.OnlineAt)
+	}
 
 	mu.Lock()
 	up, down = 150, 260
@@ -133,5 +136,46 @@ func TestClusterOnlinesMergesKnownFreshNodeUsersOnly(t *testing.T) {
 	localOnly, err := (&StatsService{}).GetOnlines()
 	if err != nil || !reflect.DeepEqual(localOnly.User, []string{"local"}) {
 		t.Fatalf("node-facing local online list changed: %v, %v", localOnly.User, err)
+	}
+}
+
+func TestNodeReportedOnlineUserRefreshesOnlineAtWithoutTraffic(t *testing.T) {
+	if err := database.InitDB(filepath.Join(t.TempDir(), "onlineat.db")); err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := json.Marshal(map[string]interface{}{"success": true, "obj": map[string]interface{}{"clients": []map[string]interface{}{
+			{"id": 10, "name": "alice", "group": clusterGroup, "up": 0, "down": 0},
+		}}})
+		_, _ = w.Write(body)
+	}))
+	defer srv.Close()
+	node := model.Node{Name: "n", Enable: true, BaseUrl: srv.URL, WebPath: "/app/", Token: "t"}
+	alice := model.Client{Name: "alice", Enable: true, Inbounds: json.RawMessage(`[]`), Links: json.RawMessage(`[]`)}
+	bob := model.Client{Name: "bob", Enable: true, Inbounds: json.RawMessage(`[]`), Links: json.RawMessage(`[]`)}
+	for _, v := range []interface{}{&node, &alice, &bob} {
+		if err := database.GetDB().Create(v).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	nodeStatusMu.Lock()
+	previous := nodeStatuses
+	nodeStatuses = map[uint]NodeStatus{node.Id: {State: "online", onlineUsers: []string{"alice", "stranger"}, onlineCheckedAt: time.Now().Unix()}}
+	nodeStatusMu.Unlock()
+	defer func() {
+		nodeStatusMu.Lock()
+		nodeStatuses = previous
+		nodeStatusMu.Unlock()
+	}()
+	if err := (&NodeSyncService{}).collectNodeTraffic(&node); err != nil {
+		t.Fatal(err)
+	}
+	database.GetDB().First(&alice, alice.Id)
+	database.GetDB().First(&bob, bob.Id)
+	if alice.OnlineAt == 0 {
+		t.Fatal("alice reported online by node but onlineAt not updated")
+	}
+	if bob.OnlineAt != 0 {
+		t.Fatalf("bob was not online but onlineAt = %d", bob.OnlineAt)
 	}
 }

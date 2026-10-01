@@ -764,17 +764,51 @@ func (s *NodeSyncService) collectNodeTraffic(node *model.Node) error {
 	if err != nil {
 		return err
 	}
+	// A client that moved traffic through the node, or that the node currently
+	// reports as connected, is online right now. Without this the master's
+	// "Last online" column only ever reflected sessions on the master itself.
+	now := time.Now().Unix()
+	seenOnline := map[string]bool{}
+	for name := range deltas {
+		seenOnline[name] = true
+	}
+	for _, name := range nodeFreshOnlineUsers(node.Id, now) {
+		if owned[name] {
+			seenOnline[name] = true
+		}
+	}
 	return db.Transaction(func(tx *gorm.DB) error {
 		for name, value := range deltas {
 			if err := tx.Model(model.Client{}).Where("name = ?", name).Updates(map[string]interface{}{
-				"up":   gorm.Expr("up + ?", value.up),
-				"down": gorm.Expr("down + ?", value.down),
+				"up":        gorm.Expr("up + ?", value.up),
+				"down":      gorm.Expr("down + ?", value.down),
+				"online_at": now,
 			}).Error; err != nil {
+				return err
+			}
+		}
+		for name := range seenOnline {
+			if _, hasDelta := deltas[name]; hasDelta {
+				continue
+			}
+			if err := tx.Model(model.Client{}).Where("name = ?", name).Update("online_at", now).Error; err != nil {
 				return err
 			}
 		}
 		return tx.Model(model.Node{}).Where("id = ?", node.Id).Update("baselines", encoded).Error
 	})
+}
+
+// nodeFreshOnlineUsers returns the users a node reported as connected within
+// the online TTL.
+func nodeFreshOnlineUsers(nodeID uint, now int64) []string {
+	nodeStatusMu.RLock()
+	defer nodeStatusMu.RUnlock()
+	status, ok := nodeStatuses[nodeID]
+	if !ok || status.State != "online" || status.onlineCheckedAt <= 0 || now-status.onlineCheckedAt > int64(nodeOnlineTTL.Seconds()) {
+		return nil
+	}
+	return append([]string(nil), status.onlineUsers...)
 }
 
 func (s *NodeSyncService) MarkAllDirty() {
