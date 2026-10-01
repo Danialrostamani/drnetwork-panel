@@ -39,6 +39,10 @@ var clusterIPs = struct {
 	obsCounts map[string]int
 	obsList   map[string][]OnlineIP
 	obsAt     time.Time
+
+	// Why the cluster view is incomplete, shown next to the IP list so an
+	// empty list can be told apart from an unreachable node.
+	problems []string
 }{
 	holders: map[ipBanKey]clusterIPHold{},
 	bans:    map[ipBanKey]time.Time{},
@@ -174,6 +178,7 @@ func EnforceClusterIPLimits() {
 		clusterIPs.obsCounts = nil
 		clusterIPs.obsList = nil
 		clusterIPs.obsAt = time.Time{}
+		clusterIPs.problems = nil
 		clusterIPs.mu.Unlock()
 		return
 	}
@@ -183,9 +188,18 @@ func EnforceClusterIPLimits() {
 	// One global cap can only be enforced while every node answers. If one
 	// does not, the IPs of the reachable ones are still published for display.
 	complete := true
+	var problems []string
 	for _, node := range nodes {
-		if status[node.Id].State != "online" {
+		if st := status[node.Id]; st.State != "online" {
 			complete = false
+			reason := st.State
+			if st.Error != "" {
+				reason += " (" + st.Error + ")"
+			}
+			if reason == "" {
+				reason = "not probed yet"
+			}
+			problems = append(problems, node.Name+": "+reason)
 		}
 	}
 	snapshots := make([]map[string][]string, len(nodes))
@@ -216,8 +230,12 @@ func EnforceClusterIPLimits() {
 		if err != nil {
 			logger.Warning("cluster IP limit: read ", nodes[i].Name, ": ", err)
 			complete = false
+			problems = append(problems, nodes[i].Name+": cannot read client IPs ("+err.Error()+"); make sure this node runs the same DrNetwork version")
 		}
 	}
+	clusterIPs.mu.Lock()
+	clusterIPs.problems = problems
+	clusterIPs.mu.Unlock()
 	for _, snapshot := range snapshots {
 		for user, ips := range snapshot {
 			if limits[user] > 0 {
@@ -451,6 +469,13 @@ func clusterIPCountSnapshot() (map[string]int, bool) {
 		}
 	}
 	return out, true
+}
+
+// ClusterIPProblems lists why the cluster-wide IP view is incomplete.
+func ClusterIPProblems() []string {
+	clusterIPs.mu.RLock()
+	defer clusterIPs.mu.RUnlock()
+	return append([]string(nil), clusterIPs.problems...)
 }
 
 func ClusterIPActive() bool {

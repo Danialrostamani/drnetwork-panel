@@ -274,11 +274,12 @@ func (a *ApiService) GetClusterOnlines(c *gin.Context) {
 
 func (a *ApiService) GetOnlineIps(c *gin.Context) {
 	name := c.Query("name")
+	problems := service.ClusterIPProblems()
 	if ips, ok := service.ClusterOnlineIPsOf(name); ok {
-		jsonObj(c, gin.H{"ips": ips}, nil)
+		jsonObj(c, gin.H{"ips": ips, "problems": problems}, nil)
 		return
 	}
-	jsonObj(c, gin.H{"ips": service.OnlineIPsOf(name)}, nil)
+	jsonObj(c, gin.H{"ips": service.OnlineIPsOf(name), "problems": problems}, nil)
 }
 
 func (a *ApiService) GetClusterIps(c *gin.Context) {

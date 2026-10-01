@@ -11,6 +11,19 @@
       <v-divider />
       <v-card-text>
         <v-alert
+          v-if="!loading && problems.length > 0"
+          type="warning"
+          variant="tonal"
+          class="mb-3"
+        >
+          <div
+            v-for="problem in problems"
+            :key="problem"
+          >
+            {{ problem }}
+          </div>
+        </v-alert>
+        <v-alert
           v-if="!loading && ips.length === 0"
           type="info"
           variant="tonal"
@@ -66,11 +79,13 @@ const props = defineProps<{ visible: boolean; name: string }>()
 defineEmits<{ close: [] }>()
 const loading = ref(false)
 const ips = ref<OnlineIP[]>([])
+const problems = ref<string[]>([])
 watch(() => props.visible, async v => {
   if (!v) return
   loading.value = true
-  const msg = await HttpUtils.get<{ ips: OnlineIP[] }>('api/onlineIps', { name: props.name })
+  const msg = await HttpUtils.get<{ ips: OnlineIP[]; problems?: string[] }>('api/onlineIps', { name: props.name })
   ips.value = msg.success ? (msg.obj?.ips ?? []) : []
+  problems.value = msg.success ? (msg.obj?.problems ?? []) : []
   loading.value = false
 })
 </script>
