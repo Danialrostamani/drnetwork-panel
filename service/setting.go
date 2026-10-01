@@ -101,6 +101,8 @@ var defaultValueMap = map[string]string{
 	"tgBotProxy":         "",
 	"tgBotLang":          "fa",
 	"tgBotNotify":        "true",
+	"tgBotReport":        "",
+	"tgBotReportBackup":  "false",
 	"globalReset":        "",
 	"globalResetLast":    "0",
 	"config":             defaultConfig,
@@ -396,6 +398,9 @@ type TgBotSettings struct {
 	Proxy  string
 	Lang   string
 	Notify bool
+	// Report is a cron spec for the scheduled summary; empty disables it.
+	Report       string
+	ReportBackup bool
 }
 
 func (s *SettingService) GetTgBotSettings() (TgBotSettings, error) {
@@ -418,6 +423,12 @@ func (s *SettingService) GetTgBotSettings() (TgBotSettings, error) {
 	}
 	if out.Lang, err = s.getString("tgBotLang"); err != nil {
 		return out, err
+	}
+	if out.Report, err = s.getString("tgBotReport"); err != nil {
+		return out, err
+	}
+	if out.ReportBackup, err = s.getBool("tgBotReportBackup"); err != nil {
+		out.ReportBackup = false
 	}
 	return out, nil
 }
@@ -532,6 +543,11 @@ func (s *SettingService) Save(tx *gorm.DB, data json.RawMessage) error {
 		// A bad spec used to be accepted here and only logged at the next
 		// panel start, so the reset silently never ran.
 		if key == "globalReset" && obj != "" && obj != "off" {
+			if _, err = CronParser.Parse(obj); err != nil {
+				return common.NewError("invalid cron spec <", obj, ">: ", err)
+			}
+		}
+		if key == "tgBotReport" && obj != "" {
 			if _, err = CronParser.Parse(obj); err != nil {
 				return common.NewError("invalid cron spec <", obj, ">: ", err)
 			}

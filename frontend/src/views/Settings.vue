@@ -443,6 +443,29 @@
                 placeholder="http://127.0.0.1:8080"
               />
             </v-col>
+            <v-col
+              cols="12"
+              md="6"
+            >
+              <v-text-field
+                v-model="settings.tgBotReport"
+                :label="$t('setting.tgBotReport')"
+                :hint="$t('setting.tgBotReportHint')"
+                persistent-hint
+                placeholder="@daily"
+              />
+            </v-col>
+            <v-col
+              cols="12"
+              md="6"
+            >
+              <v-switch
+                v-model="tgBotReportBackup"
+                color="primary"
+                :label="$t('setting.tgBotReportBackup')"
+                hide-details
+              />
+            </v-col>
           </v-row>
         </v-window-item>
       </v-window>
@@ -497,6 +520,8 @@ const settings = ref({
   tgBotProxy: "",
   tgBotLang: "fa",
   tgBotNotify: "true",
+  tgBotReport: "",
+  tgBotReportBackup: "false",
 })
 
 // The panel settings, exactly as the block above spells them out.
@@ -597,6 +622,10 @@ const subEncode = computed({
 const tgBotEnable = computed({
   get: () => { return settings.value.tgBotEnable == "true" },
   set: (v:boolean) => { settings.value.tgBotEnable = v ? "true" : "false" }
+})
+const tgBotReportBackup = computed({
+  get: () => { return settings.value.tgBotReportBackup == "true" },
+  set: (v:boolean) => { settings.value.tgBotReportBackup = v ? "true" : "false" }
 })
 const tgBotNotify = computed({
   get: () => { return settings.value.tgBotNotify == "true" },

@@ -278,12 +278,13 @@ func (s *ClientService) Save(tx *gorm.DB, act string, data json.RawMessage, host
 func (s *ClientService) preserveServerOwnedFields(tx *gorm.DB, client *model.Client) {
 	var existing model.Client
 	if err := tx.Model(model.Client{}).
-		Select("created_at", "online_at", "up", "down", "total_up", "total_down").
+		Select("created_at", "online_at", "tg_id", "up", "down", "total_up", "total_down").
 		Where("id = ?", client.Id).First(&existing).Error; err != nil {
 		return
 	}
 	client.CreatedAt = existing.CreatedAt
 	client.OnlineAt = existing.OnlineAt
+	client.TgId = existing.TgId
 
 	if client.Up == 0 && client.Down == 0 {
 		client.TotalUp = existing.TotalUp + existing.Up

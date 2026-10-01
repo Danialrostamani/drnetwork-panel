@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -40,7 +41,7 @@ var (
 // Start launches the supervisor. It re-reads the settings every few seconds, so
 // enabling, disabling or re-keying the bot in the panel takes effect without a
 // restart.
-func Start() {
+func Start(configService *service.ConfigService) {
 	managerMu.Lock()
 	defer managerMu.Unlock()
 	if managerCancel != nil {
@@ -51,7 +52,7 @@ func Start() {
 	managerCancel, managerDone = cancel, done
 	go func() {
 		defer close(done)
-		supervise(ctx)
+		supervise(ctx, configService)
 	}()
 }
 
@@ -71,7 +72,7 @@ func Stop() {
 	}
 }
 
-func supervise(ctx context.Context) {
+func supervise(ctx context.Context, configService *service.ConfigService) {
 	var (
 		current string
 		stop    context.CancelFunc
@@ -99,6 +100,7 @@ func supervise(ctx context.Context) {
 				finished := make(chan struct{})
 				stop, done = cancel, finished
 				b := newBot(cfg)
+				b.configService = configService
 				go func() {
 					defer close(finished)
 					b.run(botCtx)
@@ -120,10 +122,13 @@ type botConfig struct {
 	Proxy  string
 	Lang   string
 	Notify bool
+
+	Report       string
+	ReportBackup bool
 }
 
 func (c botConfig) fingerprint() string {
-	return fmt.Sprint(c.Enable, "|", c.Token, "|", c.Admins, "|", c.Proxy, "|", c.Lang, "|", c.Notify)
+	return fmt.Sprint(c.Enable, "|", c.Token, "|", c.Admins, "|", c.Proxy, "|", c.Lang, "|", c.Notify, "|", c.Report, "|", c.ReportBackup)
 }
 
 func (c botConfig) isAdmin(id int64) bool {
@@ -165,13 +170,17 @@ func loadConfig() (botConfig, error) {
 		Proxy:  strings.TrimSpace(s.Proxy),
 		Lang:   lang,
 		Notify: s.Notify,
+
+		Report:       strings.TrimSpace(s.Report),
+		ReportBackup: s.ReportBackup,
 	}, nil
 }
 
 type bot struct {
-	cfg    botConfig
-	client *http.Client
-	loc    *time.Location
+	cfg           botConfig
+	client        *http.Client
+	loc           *time.Location
+	configService *service.ConfigService
 }
 
 func newBot(cfg botConfig) *bot {
@@ -235,18 +244,31 @@ func (b *bot) call(ctx context.Context, method string, params, out interface{}) 
 	return nil
 }
 
+type chat struct {
+	ID   int64  `json:"id"`
+	Type string `json:"type"`
+}
+
 type update struct {
 	UpdateID int64 `json:"update_id"`
 	Message  *struct {
 		Text string `json:"text"`
-		Chat struct {
-			ID   int64  `json:"id"`
-			Type string `json:"type"`
-		} `json:"chat"`
+		Chat chat   `json:"chat"`
 		From *struct {
 			ID int64 `json:"id"`
 		} `json:"from"`
 	} `json:"message"`
+	Callback *struct {
+		ID   string `json:"id"`
+		Data string `json:"data"`
+		From struct {
+			ID int64 `json:"id"`
+		} `json:"from"`
+		Message *struct {
+			MessageID int64 `json:"message_id"`
+			Chat      chat  `json:"chat"`
+		} `json:"message"`
+	} `json:"callback_query"`
 }
 
 func (b *bot) run(ctx context.Context) {
@@ -258,9 +280,8 @@ func (b *bot) run(ctx context.Context) {
 	} else {
 		logger.Info("telegram bot: running as @", me.Username)
 	}
-	if b.cfg.Notify {
-		go b.watch(ctx)
-	}
+	b.registerCommands(ctx)
+	go b.watch(ctx)
 	b.announce(ctx)
 
 	var offset int64
@@ -270,7 +291,7 @@ func (b *bot) run(ctx context.Context) {
 		err := b.call(ctx, "getUpdates", map[string]any{
 			"offset":          offset,
 			"timeout":         pollTimeoutSeconds,
-			"allowed_updates": []string{"message"},
+			"allowed_updates": []string{"message", "callback_query"},
 		}, &updates)
 		if err != nil {
 			if ctx.Err() != nil {
@@ -316,20 +337,95 @@ func (b *bot) safeHandle(ctx context.Context, u update) {
 }
 
 // send delivers text as HTML, split on line boundaries to stay under Telegram's
-// message size limit.
+// message size limit. The keyboard, if any, goes on the last part.
 func (b *bot) send(ctx context.Context, chatID int64, text string) {
-	for _, chunk := range splitMessage(text, maxMessageRunes) {
-		err := b.call(ctx, "sendMessage", map[string]any{
+	b.sendKeyboard(ctx, chatID, text, nil)
+}
+
+func (b *bot) sendKeyboard(ctx context.Context, chatID int64, text string, keyboard [][]button) {
+	parts := splitMessage(text, maxMessageRunes)
+	for i, chunk := range parts {
+		params := map[string]any{
 			"chat_id":                  chatID,
 			"text":                     chunk,
 			"parse_mode":               "HTML",
 			"disable_web_page_preview": true,
-		}, nil)
-		if err != nil && ctx.Err() == nil {
+		}
+		if keyboard != nil && i == len(parts)-1 {
+			params["reply_markup"] = map[string]any{"inline_keyboard": keyboard}
+		}
+		if err := b.call(ctx, "sendMessage", params, nil); err != nil && ctx.Err() == nil {
 			logger.Warning("telegram bot: send failed: ", err)
 			return
 		}
 	}
+}
+
+// edit rewrites a message in place, which keeps button presses from piling up
+// new messages. An unchanged message is not an error worth logging.
+func (b *bot) edit(ctx context.Context, chatID, messageID int64, text string, keyboard [][]button) {
+	parts := splitMessage(text, maxMessageRunes)
+	if len(parts) == 0 {
+		return
+	}
+	params := map[string]any{
+		"chat_id":                  chatID,
+		"message_id":               messageID,
+		"text":                     parts[0],
+		"parse_mode":               "HTML",
+		"disable_web_page_preview": true,
+	}
+	if keyboard != nil {
+		params["reply_markup"] = map[string]any{"inline_keyboard": keyboard}
+	}
+	if err := b.call(ctx, "editMessageText", params, nil); err != nil && ctx.Err() == nil && !strings.Contains(err.Error(), "not modified") {
+		logger.Warning("telegram bot: edit failed: ", err)
+	}
+}
+
+func (b *bot) answer(ctx context.Context, callbackID, text string) {
+	_ = b.call(ctx, "answerCallbackQuery", map[string]any{"callback_query_id": callbackID, "text": text}, nil)
+}
+
+// upload sends a file or photo as multipart form data.
+func (b *bot) upload(ctx context.Context, method, field string, chatID int64, filename, caption string, data []byte) error {
+	var body bytes.Buffer
+	w := multipart.NewWriter(&body)
+	_ = w.WriteField("chat_id", strconv.FormatInt(chatID, 10))
+	if caption != "" {
+		_ = w.WriteField("caption", caption)
+		_ = w.WriteField("parse_mode", "HTML")
+	}
+	part, err := w.CreateFormFile(field, filename)
+	if err != nil {
+		return err
+	}
+	if _, err := part.Write(data); err != nil {
+		return err
+	}
+	if err := w.Close(); err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiBase+"/bot"+b.cfg.Token+"/"+method, &body)
+	if err != nil {
+		return errors.New(b.scrub(err.Error()))
+	}
+	req.Header.Set("Content-Type", w.FormDataContentType())
+	client := *b.client
+	client.Timeout = 2 * time.Minute
+	resp, err := client.Do(req)
+	if err != nil {
+		return errors.New(b.scrub(err.Error()))
+	}
+	defer resp.Body.Close()
+	var reply struct {
+		Ok          bool   `json:"ok"`
+		Description string `json:"description"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&reply); err != nil || !reply.Ok {
+		return fmt.Errorf("telegram %s failed: %s", method, b.scrub(reply.Description))
+	}
+	return nil
 }
 
 func (b *bot) broadcast(ctx context.Context, text string) {

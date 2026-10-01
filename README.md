@@ -316,4 +316,23 @@ DrNetwork includes an optional Telegram bot for administrators (**Settings → T
 2. Send `/id` to your bot and add the number it returns to **Admin Telegram IDs**.
 3. Enable the bot. If the server cannot reach `api.telegram.org`, set a proxy (`http://` or `socks5://`).
 
-Commands (admins only, private chats only): `/status`, `/nodes`, `/online`, `/clients [name]`, `/ips <name>`, `/inbounds`, `/traffic`. Anyone else only gets `/id`. With alerts enabled the bot also reports when a node goes down or recovers, and when a client is near its volume or expiry limit. Changes in settings apply within seconds, without a restart.
+Run the bot **on the master only** (nodes do not need it). Send `/menu` for the button menu.
+
+**Administrators** (private chats only):
+
+| Command | What it does |
+| --- | --- |
+| `/menu` | Button menu: status, nodes, online, clients, inbounds, traffic, backup, logs, sync, restart |
+| `/status` `/nodes` `/online` `/inbounds` `/traffic` | Read-only overviews |
+| `/clients [name]` | Clients near their limits, or search; a single hit opens a card with buttons (enable/disable, reset traffic, +10/+50 GB, +30 days, subscription + QR, online IPs, delete) |
+| `/add <name> <GB> <days> [ipLimit]` | Create a client on all inbounds (`0` = unlimited) |
+| `/enable` `/disable` `/reset` `/del <name>` | Enable, disable, reset traffic, delete (reset and delete ask for confirmation) |
+| `/volume <name> <GB>` `/expiry <name> <days>` `/limitip <name> <n>` | Change limits |
+| `/sub <name>` | Subscription link and QR code |
+| `/bind <name> <telegramId>` `/unbind <name>` | Let a client see their own usage in the bot |
+| `/backup` `/logs [n]` `/sync` `/restart` `/maintenance on\|off` | System actions |
+
+**Bound clients** can use `/usage` (their volume, expiry and status), `/sub` (link + QR) and `/id`, and receive their own volume/expiry alerts.
+Everybody else only gets `/id`.
+
+With **Alerts** enabled the bot reports node down/recovery, the master core stopping, and clients near their volume or expiry limit. **Scheduled report** accepts a cron spec (e.g. `@daily` or `0 9 * * *`) and posts the status and traffic summary, optionally with a database backup file. Changes in settings apply within seconds, without a restart.

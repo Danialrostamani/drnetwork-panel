@@ -8,7 +8,10 @@ import (
 
 	"github.com/Danialrostamani/drnetwork-panel/database"
 	"github.com/Danialrostamani/drnetwork-panel/database/model"
+	"github.com/Danialrostamani/drnetwork-panel/logger"
 	"github.com/Danialrostamani/drnetwork-panel/service"
+
+	"github.com/robfig/cron/v3"
 )
 
 const (
@@ -30,12 +33,22 @@ type nodeWatch struct {
 	alerted  bool
 }
 
-// watch sends node down/up alerts and client volume/expiry alerts. Each
-// condition is reported once and again only after it clears.
+// watch sends node, core and client alerts and the scheduled report. Each
+// alert condition is reported once and again only after it clears.
 func (b *bot) watch(ctx context.Context) {
 	nodes := map[uint]*nodeWatch{}
 	reported := map[string]bool{}
+	core := &coreWatch{}
 	var lastClientCheck time.Time
+	var report *reportSchedule
+	if b.cfg.Report != "" {
+		sched, err := service.CronParser.Parse(b.cfg.Report)
+		if err != nil {
+			logger.Warning("telegram bot: invalid report schedule: ", err)
+		} else {
+			report = &reportSchedule{sched: sched, next: sched.Next(time.Now().In(b.loc))}
+		}
+	}
 	ticker := time.NewTicker(watchInterval)
 	defer ticker.Stop()
 	for {
@@ -44,11 +57,64 @@ func (b *bot) watch(ctx context.Context) {
 			return
 		case <-ticker.C:
 		}
-		b.checkNodes(ctx, nodes)
-		if time.Since(lastClientCheck) >= clientCheckEvery {
-			lastClientCheck = time.Now()
-			b.checkClients(ctx, reported)
+		if b.cfg.Notify {
+			b.checkNodes(ctx, nodes)
+			b.checkCore(ctx, core)
+			if time.Since(lastClientCheck) >= clientCheckEvery {
+				lastClientCheck = time.Now()
+				b.checkClients(ctx, reported)
+			}
 		}
+		if report != nil && !time.Now().Before(report.next) {
+			report.next = report.sched.Next(time.Now().In(b.loc))
+			b.sendReport(ctx)
+		}
+	}
+}
+
+type reportSchedule struct {
+	sched cron.Schedule
+	next  time.Time
+}
+
+// sendReport posts the status and traffic summary, and the database when asked.
+func (b *bot) sendReport(ctx context.Context) {
+	b.broadcast(ctx, b.t("reportTitle")+"\n\n"+b.statusText()+"\n\n"+b.trafficText())
+	if b.cfg.ReportBackup {
+		for _, id := range b.cfg.Admins {
+			b.sendBackup(ctx, id)
+		}
+	}
+}
+
+type coreWatch struct {
+	failures int
+	alerted  bool
+}
+
+// checkCore reports the master's own sing-box core stopping. Maintenance mode
+// stops it on purpose, so that is not an alert.
+func (b *bot) checkCore(ctx context.Context, w *coreWatch) {
+	if maintenance, _ := (&service.SettingService{}).GetMaintenance(); maintenance {
+		*w = coreWatch{}
+		return
+	}
+	status := (&service.ServerService{}).GetStatus("sbd")
+	running := false
+	if sbd, ok := (*status)["sbd"].(map[string]interface{}); ok {
+		running, _ = sbd["running"].(bool)
+	}
+	if running {
+		if w.alerted {
+			b.broadcast(ctx, b.t("coreUp"))
+		}
+		*w = coreWatch{}
+		return
+	}
+	w.failures++
+	if w.failures >= nodeDownAfterChecks && !w.alerted {
+		w.alerted = true
+		b.broadcast(ctx, b.t("coreDown"))
 	}
 }
 
@@ -101,28 +167,34 @@ func (b *bot) checkClients(ctx context.Context, reported map[string]bool) {
 	now := time.Now()
 	current := map[string]bool{}
 	var fresh []string
-	add := func(key, line string) {
+	var owner model.Client
+	add := func(key, reason string) {
 		current[key] = true
-		if !reported[key] {
-			fresh = append(fresh, line)
+		if reported[key] {
+			return
+		}
+		fresh = append(fresh, fmt.Sprintf("• <b>%s</b> — %s", esc(owner.Name), reason))
+		// A client bound to Telegram hears about its own limits directly.
+		if owner.TgId != 0 && !b.cfg.isAdmin(owner.TgId) {
+			b.send(ctx, owner.TgId, b.t("userAlertTitle", esc(owner.Name))+"\n"+reason)
 		}
 	}
 	for _, c := range loadClients() {
 		if !c.Enable {
 			continue
 		}
-		name := "<b>" + esc(c.Name) + "</b>"
+		owner = c
 		if p := usagePercent(c); p >= 100 {
-			add(c.Name+"|vol", fmt.Sprintf("• %s — %s", name, b.t("alertDepleted")))
+			add(c.Name+"|vol", b.t("alertDepleted"))
 		} else if p >= volumeAlertPercent {
-			add(c.Name+"|vol", fmt.Sprintf("• %s — %s", name, b.t("alertVolume", p)))
+			add(c.Name+"|vol", b.t("alertVolume", p))
 		}
 		if c.Expiry > 0 {
 			left := time.Unix(c.Expiry, 0).Sub(now)
 			if left <= 0 {
-				add(c.Name+"|exp", fmt.Sprintf("• %s — %s", name, b.t("alertExpired")))
+				add(c.Name+"|exp", b.t("alertExpired"))
 			} else if left <= expiryAlertDays*24*time.Hour {
-				add(c.Name+"|exp", fmt.Sprintf("• %s — %s", name, b.t("alertExpiry", expiryAlertDays)))
+				add(c.Name+"|exp", b.t("alertExpiry", expiryAlertDays))
 			}
 		}
 	}

@@ -86,7 +86,7 @@ func (a *APP) Start() error {
 	}
 
 	// Idle unless the Telegram bot is enabled in the settings.
-	tgbot.Start()
+	tgbot.Start(a.configService)
 
 	// StartCore does nothing while maintenance is on, so say why rather than
 	// leave the operator looking at a panel that came up with no core.

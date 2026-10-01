@@ -49,6 +49,11 @@ type Client struct {
 	// Maximum concurrently connected source IP identities; 0 means unlimited.
 	LimitIp int `json:"limitIp" form:"limitIp" gorm:"default:0;not null;index"`
 
+	// Telegram user allowed to look this client up in the bot; 0 = nobody. It is
+	// bound through the bot, so the panel's own client form does not carry it
+	// and ClientService.preserveServerOwnedFields keeps an edit from erasing it.
+	TgId int64 `json:"tgId" form:"tgId" gorm:"default:0;not null;index"`
+
 	// Delay start and periodic reset
 	DelayStart bool  `json:"delayStart" form:"delayStart" gorm:"default:false;not null"`
 	AutoReset  bool  `json:"autoReset" form:"autoReset" gorm:"default:false;not null"`

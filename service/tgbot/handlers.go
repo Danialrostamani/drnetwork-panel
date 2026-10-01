@@ -1,7 +1,6 @@
 package tgbot
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"html"
@@ -64,52 +63,6 @@ func parseCommand(text string) (string, string) {
 	return strings.ToLower(strings.TrimPrefix(head, "/")), strings.TrimSpace(arg)
 }
 
-func (b *bot) handle(ctx context.Context, u update) {
-	m := u.Message
-	if m == nil || m.Text == "" || m.From == nil {
-		return
-	}
-	cmd, arg := parseCommand(m.Text)
-	if cmd == "" {
-		return
-	}
-	// Only private chats are served, and only for the listed administrators:
-	// a group message must never leak panel data to the other members.
-	if m.Chat.Type != "private" {
-		return
-	}
-	if cmd == "id" || (cmd == "start" && !b.cfg.isAdmin(m.From.ID)) {
-		b.send(ctx, m.Chat.ID, b.t("yourId", m.From.ID))
-		return
-	}
-	if !b.cfg.isAdmin(m.From.ID) {
-		b.send(ctx, m.Chat.ID, b.t("denied"))
-		return
-	}
-	var reply string
-	switch cmd {
-	case "start", "help":
-		reply = b.t("help")
-	case "status":
-		reply = b.statusText()
-	case "nodes":
-		reply = b.nodesText()
-	case "online":
-		reply = b.onlineText()
-	case "clients", "client":
-		reply = b.clientsText(arg)
-	case "ips":
-		reply = b.ipsText(arg)
-	case "inbounds":
-		reply = b.inboundsText()
-	case "traffic":
-		reply = b.trafficText()
-	default:
-		reply = b.t("unknown")
-	}
-	b.send(ctx, m.Chat.ID, reply)
-}
-
 func toFloat(v interface{}) float64 {
 	switch n := v.(type) {
 	case float64:
@@ -129,7 +82,7 @@ func toFloat(v interface{}) float64 {
 func loadClients() []model.Client {
 	var clients []model.Client
 	err := database.GetDB().Model(model.Client{}).
-		Select("`id`, `enable`, `name`, `desc`, `group`, `up`, `down`, `volume`, `expiry`, `created_at`, `online_at`, `limit_ip`, `delay_start`, `reset_days`").
+		Select("`id`, `enable`, `name`, `desc`, `group`, `up`, `down`, `volume`, `expiry`, `created_at`, `online_at`, `limit_ip`, `tg_id`, `delay_start`, `reset_days`").
 		Scan(&clients).Error
 	if err != nil {
 		logger.Warning("telegram bot: load clients: ", err)
@@ -318,6 +271,9 @@ func (b *bot) clientDetail(c model.Client, online bool, now time.Time) string {
 	if c.LimitIp > 0 {
 		lines = append(lines, fmt.Sprintf("%s: %d", b.t("ipLimit"), c.LimitIp))
 	}
+	if c.TgId != 0 {
+		lines = append(lines, fmt.Sprintf("%s: <code>%d</code>", b.t("boundTo"), c.TgId))
+	}
 	lines = append(lines,
 		fmt.Sprintf("%s: %s", b.t("lastOnline"), b.stamp(c.OnlineAt)),
 		fmt.Sprintf("%s: %s", b.t("createdAt"), b.stamp(c.CreatedAt)),
@@ -325,7 +281,7 @@ func (b *bot) clientDetail(c model.Client, online bool, now time.Time) string {
 	return strings.Join(lines, "\n")
 }
 
-func (b *bot) clientsText(query string) string {
+func (b *bot) clientsView(query string) (string, [][]button) {
 	clients := loadClients()
 	now := time.Now()
 	if query == "" {
@@ -349,18 +305,20 @@ func (b *bot) clientsText(query string) string {
 			}
 		}
 		if len(near) == 0 {
-			return b.t("noNear")
+			return b.t("noNear") + "\n" + b.t("findHint"), nil
 		}
 		sort.Slice(near, func(i, j int) bool { return near[i].score > near[j].score })
 		lines := []string{b.t("nearTitle")}
+		var nearClients []model.Client
 		for i, n := range near {
+			nearClients = append(nearClients, n.c)
 			if i == 25 {
 				lines = append(lines, b.t("andMore", len(near)-25))
 				break
 			}
 			lines = append(lines, b.clientLine(n.c, now))
 		}
-		return strings.Join(lines, "\n")
+		return strings.Join(lines, "\n") + "\n\n" + b.t("findHint"), b.clientButtons(nearClients)
 	}
 	needle := strings.ToLower(query)
 	var found []model.Client
@@ -375,7 +333,7 @@ func (b *bot) clientsText(query string) string {
 	}
 	switch len(found) {
 	case 0:
-		return b.t("noClients")
+		return b.t("noClients"), nil
 	case 1:
 		online := false
 		for _, u := range onlineUsers() {
@@ -383,7 +341,7 @@ func (b *bot) clientsText(query string) string {
 				online = true
 			}
 		}
-		return b.clientDetail(found[0], online, now)
+		return b.clientDetail(found[0], online, now), b.clientKeyboard(found[0])
 	}
 	lines := []string{b.t("foundTitle", len(found))}
 	for i, c := range found {
@@ -393,7 +351,7 @@ func (b *bot) clientsText(query string) string {
 		}
 		lines = append(lines, b.clientLine(c, now))
 	}
-	return strings.Join(lines, "\n")
+	return strings.Join(lines, "\n"), b.clientButtons(found)
 }
 
 func (b *bot) ipsText(name string) string {
