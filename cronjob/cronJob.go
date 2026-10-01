@@ -3,8 +3,8 @@ package cronjob
 import (
 	"time"
 
-	"github.com/alireza0/s-ui/logger"
-	"github.com/alireza0/s-ui/service"
+	"github.com/Danialrostamani/drnetwork-panel/logger"
+	"github.com/Danialrostamani/drnetwork-panel/service"
 
 	"github.com/robfig/cron/v3"
 )

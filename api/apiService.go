@@ -6,11 +6,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/alireza0/s-ui/database"
-	"github.com/alireza0/s-ui/logger"
-	"github.com/alireza0/s-ui/service"
-	"github.com/alireza0/s-ui/util"
-	"github.com/alireza0/s-ui/util/common"
+	"github.com/Danialrostamani/drnetwork-panel/database"
+	"github.com/Danialrostamani/drnetwork-panel/logger"
+	"github.com/Danialrostamani/drnetwork-panel/service"
+	"github.com/Danialrostamani/drnetwork-panel/util"
+	"github.com/Danialrostamani/drnetwork-panel/util/common"
 
 	"github.com/gin-gonic/gin"
 )

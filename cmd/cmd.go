@@ -6,8 +6,8 @@ import (
 	"os"
 	"runtime/debug"
 
-	"github.com/alireza0/s-ui/cmd/migration"
-	"github.com/alireza0/s-ui/config"
+	"github.com/Danialrostamani/drnetwork-panel/cmd/migration"
+	"github.com/Danialrostamani/drnetwork-panel/config"
 )
 
 func ParseCmd() {

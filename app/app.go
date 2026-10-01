@@ -3,14 +3,14 @@ package app
 import (
 	"log"
 
-	"github.com/alireza0/s-ui/config"
-	"github.com/alireza0/s-ui/core"
-	"github.com/alireza0/s-ui/cronjob"
-	"github.com/alireza0/s-ui/database"
-	"github.com/alireza0/s-ui/logger"
-	"github.com/alireza0/s-ui/service"
-	"github.com/alireza0/s-ui/sub"
-	"github.com/alireza0/s-ui/web"
+	"github.com/Danialrostamani/drnetwork-panel/config"
+	"github.com/Danialrostamani/drnetwork-panel/core"
+	"github.com/Danialrostamani/drnetwork-panel/cronjob"
+	"github.com/Danialrostamani/drnetwork-panel/database"
+	"github.com/Danialrostamani/drnetwork-panel/logger"
+	"github.com/Danialrostamani/drnetwork-panel/service"
+	"github.com/Danialrostamani/drnetwork-panel/sub"
+	"github.com/Danialrostamani/drnetwork-panel/web"
 
 	"github.com/op/go-logging"
 )

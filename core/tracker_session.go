@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/alireza0/s-ui/database/model"
+	"github.com/Danialrostamani/drnetwork-panel/database/model"
 
 	"github.com/sagernet/sing-box/adapter"
 	"github.com/sagernet/sing-tun"

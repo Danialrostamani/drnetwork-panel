@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alireza0/s-ui/database"
-	"github.com/alireza0/s-ui/database/model"
+	"github.com/Danialrostamani/drnetwork-panel/database"
+	"github.com/Danialrostamani/drnetwork-panel/database/model"
 )
 
 func TestNodeTrafficUsesPersistentDeltaBaselinesAndHandlesReset(t *testing.T) {

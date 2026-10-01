@@ -1,0 +1,79 @@
+name: Sync official S-UI frontend
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 2 * * *'
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: upstream-sync-frontend
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout multinode branch
+        uses: actions/checkout@v6
+        with:
+          ref: multinode
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Merge official frontend
+        id: merge
+        shell: bash
+        run: |
+          set +e
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git remote add upstream https://github.com/alireza0/s-ui-frontend.git 2>/dev/null || true
+          git fetch upstream main
+          if git merge-base --is-ancestor upstream/main HEAD; then
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git merge --no-edit upstream/main
+          rc=$?
+          if [ $rc -ne 0 ]; then
+            git merge --abort || true
+            echo 'conflict=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo 'changed=true' >> "$GITHUB_OUTPUT"
+
+      - name: Report merge conflict
+        if: steps.merge.outputs.conflict == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title='Upstream frontend sync conflict'
+          gh issue list --state open --search "$title in:title" --json title --jq '.[].title' | grep -Fx "$title" >/dev/null || \
+            gh issue create --title "$title" --body "Automatic merge from alireza0/s-ui-frontend failed. Resolve the conflict on the multinode branch, then run this workflow again. Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          exit 1
+
+      - name: Setup Node.js
+        if: steps.merge.outputs.changed == 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: '26'
+          cache: npm
+
+      - name: Validate frontend
+        if: steps.merge.outputs.changed == 'true'
+        run: |
+          npm ci
+          npm run lint -- --max-warnings=0
+          npx vue-tsc --noEmit
+          npm test
+          npm run build
+
+      - name: Push validated update
+        if: steps.merge.outputs.changed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:multinode

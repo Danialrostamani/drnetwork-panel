@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/alireza0/s-ui/database/model"
+	"github.com/Danialrostamani/drnetwork-panel/database/model"
 )
 
-// https://github.com/alireza0/s-ui/issues/1243
+// https://github.com/Danialrostamani/drnetwork-panel/issues/1243
 // Editing a naive inbound and clearing QUIC Congestion Control must remove
 // the stale quic / quic_congestion_control keys from the stored out_json.
 func TestFillOutJsonNaiveClearsStaleQuic(t *testing.T) {

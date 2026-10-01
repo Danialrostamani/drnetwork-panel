@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/alireza0/s-ui/database"
-	"github.com/alireza0/s-ui/middleware"
+	"github.com/Danialrostamani/drnetwork-panel/database"
+	"github.com/Danialrostamani/drnetwork-panel/middleware"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"

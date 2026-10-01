@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/alireza0/s-ui/database"
+	"github.com/Danialrostamani/drnetwork-panel/database"
 
 	"gorm.io/gorm"
 )

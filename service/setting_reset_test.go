@@ -4,8 +4,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/alireza0/s-ui/database"
-	"github.com/alireza0/s-ui/database/model"
+	"github.com/Danialrostamani/drnetwork-panel/database"
+	"github.com/Danialrostamani/drnetwork-panel/database/model"
 )
 
 // ResetSettings used to delete every row, schema version included. A database

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/alireza0/s-ui/database"
+	"github.com/Danialrostamani/drnetwork-panel/database"
 )
 
 // Maintenance mode has to survive every path that starts the core. These tests

@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/alireza0/s-ui/util/common"
+	"github.com/Danialrostamani/drnetwork-panel/util/common"
 
 	sb "github.com/sagernet/sing-box"
 	_ "github.com/sagernet/sing-box/experimental/clashapi"

@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/alireza0/s-ui/logger"
+	"github.com/Danialrostamani/drnetwork-panel/logger"
 
 	"github.com/op/go-logging"
 )

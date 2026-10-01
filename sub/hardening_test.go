@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/alireza0/s-ui/util"
+	"github.com/Danialrostamani/drnetwork-panel/util"
 )
 
 // Every one of these used to be a bare type assertion on data that comes

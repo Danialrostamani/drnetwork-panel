@@ -16,8 +16,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          submodules: recursive
       - name: Set up Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
@@ -62,7 +60,7 @@ jobs:
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
         with:
           images: |
-            ghcr.io/danialrostamani/s-ui-multinode
+            ghcr.io/danialrostamani/drnetwork-panel
           tags: |
             type=ref,event=branch
             type=ref,event=tag
@@ -93,7 +91,7 @@ jobs:
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
           tags: |
-            ghcr.io/danialrostamani/s-ui-multinode
+            ghcr.io/danialrostamani/drnetwork-panel
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache,mode=max
           outputs: type=image,push-by-digest=true,name-canonical=true,push=true
@@ -133,7 +131,7 @@ jobs:
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
         with:
           images: |
-            ghcr.io/danialrostamani/s-ui-multinode
+            ghcr.io/danialrostamani/drnetwork-panel
           tags: |
             type=ref,event=branch
             type=ref,event=tag
@@ -144,7 +142,7 @@ jobs:
         working-directory: ${{ runner.temp }}/digests
         run: |
           set -e
-          img=ghcr.io/danialrostamani/s-ui-multinode
+          img=ghcr.io/danialrostamani/drnetwork-panel
           TAGS_ARGS=$(echo "$DOCKER_METADATA_OUTPUT_JSON" | jq -cr --arg img "$img" '.tags | map(select(startswith($img))) | map("-t " + .) | join(" ")')
           DIGEST_REFS=$(for f in *; do echo -n "${img}@sha256:$(cat "$f") "; done)
           docker buildx imagetools create $TAGS_ARGS $DIGEST_REFS

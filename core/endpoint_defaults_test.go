@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alireza0/s-ui/database/model"
+	"github.com/Danialrostamani/drnetwork-panel/database/model"
 
 	singboxtls "github.com/sagernet/sing-box/common/tls"
 	"github.com/sagernet/sing-box/option"

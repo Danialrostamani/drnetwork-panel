@@ -12,10 +12,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/alireza0/s-ui/cmd/migration"
-	"github.com/alireza0/s-ui/config"
-	"github.com/alireza0/s-ui/logger"
-	"github.com/alireza0/s-ui/util/common"
+	"github.com/Danialrostamani/drnetwork-panel/cmd/migration"
+	"github.com/Danialrostamani/drnetwork-panel/config"
+	"github.com/Danialrostamani/drnetwork-panel/logger"
+	"github.com/Danialrostamani/drnetwork-panel/util/common"
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"

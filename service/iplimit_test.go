@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alireza0/s-ui/core"
+	"github.com/Danialrostamani/drnetwork-panel/core"
 )
 
 func addr(t *testing.T, s string) netip.Addr {

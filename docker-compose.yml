@@ -1,7 +1,7 @@
 ---
 services:
   s-ui:
-    image: ghcr.io/danialrostamani/s-ui-multinode:latest
+    image: ghcr.io/danialrostamani/drnetwork-panel:latest
     container_name: s-ui
     hostname: "s-ui"
     volumes:

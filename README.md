@@ -1,8 +1,12 @@
+# DrNetwork Panel
+
+> Independent, full-source DrNetwork distribution. Backend and frontend are stored in this repository; no GitHub fork or submodule is required. Official S-UI changes are imported through a validated synchronization workflow.
+
 # S-UI
 **An Advanced Web Panel • Built on SagerNet/Sing-Box**
 
 ![](https://img.shields.io/github/v/release/alireza0/s-ui.svg)
-[![Go Report Card](https://goreportcard.com/badge/github.com/alireza0/s-ui)](https://goreportcard.com/report/github.com/alireza0/s-ui)
+[![Go Report Card](https://goreportcard.com/badge/github.com/Danialrostamani/drnetwork-panel)](https://goreportcard.com/report/github.com/Danialrostamani/drnetwork-panel)
 [![Downloads](https://img.shields.io/github/downloads/alireza0/s-ui/total.svg)](https://img.shields.io/github/downloads/alireza0/s-ui/total.svg)
 [![License](https://img.shields.io/badge/license-GPL%20V3-blue.svg?longCache=true)](https://www.gnu.org/licenses/gpl-3.0.en.html)
 
@@ -67,7 +71,7 @@ Full documentation lives in the [Wiki](https://github.com/alireza0/s-ui/wiki):
 
 ### Linux/macOS
 ```sh
-bash <(curl -Ls https://raw.githubusercontent.com/Danialrostamani/s-ui-multinode/multinode/install.sh)
+bash <(curl -Ls https://raw.githubusercontent.com/Danialrostamani/drnetwork-panel/main/install.sh)
 ```
 
 #### Installer language
@@ -75,7 +79,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/Danialrostamani/s-ui-multinode
 The installer is available in the same six languages as the panel: `en` (default), `fa`, `ru`, `vi`, `zhcn`, `zhtw`. Choose one with the `SUI_LANG` environment variable (when unset, your system `$LANG` is used as a hint):
 
 ```sh
-SUI_LANG=fa bash <(curl -Ls https://raw.githubusercontent.com/Danialrostamani/s-ui-multinode/multinode/install.sh)
+SUI_LANG=fa bash <(curl -Ls https://raw.githubusercontent.com/Danialrostamani/drnetwork-panel/main/install.sh)
 ```
 
 ### Alpine Linux
@@ -83,13 +87,13 @@ Alpine uses `apk` and OpenRC instead of `apt`/systemd. The install script detect
 
 ```sh
 apk add bash
-bash <(curl -Ls https://raw.githubusercontent.com/Danialrostamani/s-ui-multinode/multinode/install.sh)
+bash <(curl -Ls https://raw.githubusercontent.com/Danialrostamani/drnetwork-panel/main/install.sh)
 ```
 
 Manage the service with OpenRC: `rc-service s-ui start|stop|restart` and `rc-update add s-ui default`.
 
 ### Windows
-1. Download the latest Windows release from [GitHub Releases](https://github.com/Danialrostamani/s-ui-multinode/releases/latest)
+1. Download the latest Windows release from [GitHub Releases](https://github.com/Danialrostamani/drnetwork-panel/releases/latest)
 2. Extract the ZIP file
 3. Run `install-windows.bat` as Administrator
 4. Follow the installation wizard
@@ -99,14 +103,14 @@ Manage the service with OpenRC: `rc-service s-ui start|stop|restart` and `rc-upd
 **Step 1:** To install your desired legacy version, add the version to the end of the installation command. e.g., ver `v1.5.0`:
 
 ```sh
-VERSION=v1.5.0 && bash <(curl -Ls https://raw.githubusercontent.com/Danialrostamani/s-ui-multinode/$VERSION/install.sh) $VERSION
+VERSION=v1.5.0 && bash <(curl -Ls https://raw.githubusercontent.com/Danialrostamani/drnetwork-panel/$VERSION/install.sh) $VERSION
 ```
 
 ## Manual installation
 
 ### Linux/macOS
-1. Get the latest version of S-UI based on your OS/Architecture from GitHub: [https://github.com/Danialrostamani/s-ui-multinode/releases/latest](https://github.com/Danialrostamani/s-ui-multinode/releases/latest)
-2. **OPTIONAL** Get the latest version of `s-ui.sh` [https://raw.githubusercontent.com/Danialrostamani/s-ui-multinode/multinode/s-ui.sh](https://raw.githubusercontent.com/Danialrostamani/s-ui-multinode/multinode/s-ui.sh)
+1. Get the latest version of S-UI based on your OS/Architecture from GitHub: [https://github.com/Danialrostamani/drnetwork-panel/releases/latest](https://github.com/Danialrostamani/drnetwork-panel/releases/latest)
+2. **OPTIONAL** Get the latest version of `s-ui.sh` [https://raw.githubusercontent.com/Danialrostamani/drnetwork-panel/main/s-ui.sh](https://raw.githubusercontent.com/Danialrostamani/drnetwork-panel/main/s-ui.sh)
 3. **OPTIONAL** Copy `s-ui.sh` to /usr/bin/ and run `chmod +x /usr/bin/s-ui`.
 4. Extract s-ui tar.gz file to a directory of your choice and navigate to the directory where you extracted the tar.gz file.
 5. Copy *.service files to /etc/systemd/system/ and run `systemctl daemon-reload`.
@@ -114,7 +118,7 @@ VERSION=v1.5.0 && bash <(curl -Ls https://raw.githubusercontent.com/Danialrostam
 7. Start sing-box service using `systemctl enable sing-box --now`
 
 ### Windows
-1. Get the latest Windows version from GitHub: [https://github.com/Danialrostamani/s-ui-multinode/releases/latest](https://github.com/Danialrostamani/s-ui-multinode/releases/latest)
+1. Get the latest Windows version from GitHub: [https://github.com/Danialrostamani/drnetwork-panel/releases/latest](https://github.com/Danialrostamani/drnetwork-panel/releases/latest)
 2. Download the appropriate Windows package (e.g., `s-ui-windows-amd64.zip`)
 3. Extract the ZIP file to a directory of your choice
 4. Run `install-windows.bat` as Administrator
@@ -165,7 +169,7 @@ curl -fsSL https://get.docker.com | sh
 
 ```shell
 mkdir s-ui && cd s-ui
-wget -q https://raw.githubusercontent.com/Danialrostamani/s-ui-multinode/multinode/docker-compose.yml
+wget -q https://raw.githubusercontent.com/Danialrostamani/drnetwork-panel/main/docker-compose.yml
 docker compose up -d
 ```
 
@@ -178,15 +182,15 @@ docker run -itd \
     -v $PWD/db/:/app/db/ \
     -v $PWD/cert/:/root/cert/ \
     --name s-ui --restart=unless-stopped \
-    ghcr.io/danialrostamani/s-ui-multinode:latest
+    ghcr.io/danialrostamani/drnetwork-panel:latest
 ```
 
 > Build your own image
 
 ```shell
-git clone https://github.com/alireza0/s-ui
-git submodule update --init --recursive
-docker build -t s-ui .
+git clone https://github.com/Danialrostamani/drnetwork-panel
+cd drnetwork-panel
+docker build -t drnetwork-panel .
 ```
 
 </details>
@@ -203,16 +207,15 @@ docker build -t s-ui .
 
 ### Clone the repository
 ```shell
-# clone repository
-git clone https://github.com/alireza0/s-ui
-# clone submodules
-git submodule update --init --recursive
+# Backend and frontend are included in one repository
+git clone https://github.com/Danialrostamani/drnetwork-panel
+cd drnetwork-panel
 ```
 
 
 ### - Frontend
 
-Visit [s-ui-frontend](https://github.com/alireza0/s-ui-frontend) for frontend code
+The complete DrNetwork frontend source is included in [`frontend/`](frontend/).
 
 ### - Backend
 > Please build frontend once before!

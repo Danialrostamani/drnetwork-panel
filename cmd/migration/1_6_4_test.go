@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/alireza0/s-ui/database/model"
+	"github.com/Danialrostamani/drnetwork-panel/database/model"
 )
 
 // 1.6.0 cleared the legacy ECH options from the client side only. The server

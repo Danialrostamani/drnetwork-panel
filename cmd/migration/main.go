@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/alireza0/s-ui/config"
+	"github.com/Danialrostamani/drnetwork-panel/config"
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"

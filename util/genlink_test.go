@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/alireza0/s-ui/database/model"
+	"github.com/Danialrostamani/drnetwork-panel/database/model"
 )
 
 // nastyPasswords are what an operator can legitimately type into the password

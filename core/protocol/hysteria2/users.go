@@ -1,7 +1,7 @@
 package hysteria2
 
 import (
-	"github.com/alireza0/s-ui/core/usersession"
+	"github.com/Danialrostamani/drnetwork-panel/core/usersession"
 
 	"github.com/sagernet/sing-box/option"
 )

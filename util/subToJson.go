@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alireza0/s-ui/logger"
-	"github.com/alireza0/s-ui/util/common"
+	"github.com/Danialrostamani/drnetwork-panel/logger"
+	"github.com/Danialrostamani/drnetwork-panel/util/common"
 )
 
 // maxExternalBody caps what an external subscription may return. The response

@@ -3,7 +3,7 @@ package cronjob
 import (
 	"sync"
 
-	"github.com/alireza0/s-ui/service"
+	"github.com/Danialrostamani/drnetwork-panel/service"
 )
 
 type ClusterIPLimitJob struct {

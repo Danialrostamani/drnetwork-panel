@@ -5,7 +5,7 @@ import (
 	"net"
 	"os"
 
-	"github.com/alireza0/s-ui/core/usersession"
+	"github.com/Danialrostamani/drnetwork-panel/core/usersession"
 
 	"github.com/sagernet/sing-box/adapter"
 	"github.com/sagernet/sing-box/adapter/inbound"

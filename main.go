@@ -7,8 +7,8 @@ import (
 	"syscall"
 	_ "time/tzdata"
 
-	"github.com/alireza0/s-ui/app"
-	"github.com/alireza0/s-ui/cmd"
+	"github.com/Danialrostamani/drnetwork-panel/app"
+	"github.com/Danialrostamani/drnetwork-panel/cmd"
 )
 
 func runApp() {

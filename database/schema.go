@@ -1,7 +1,7 @@
 package database
 
 import (
-	"github.com/alireza0/s-ui/database/model"
+	"github.com/Danialrostamani/drnetwork-panel/database/model"
 
 	"gorm.io/gorm"
 )

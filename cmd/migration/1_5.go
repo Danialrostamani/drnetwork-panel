@@ -3,7 +3,7 @@ package migration
 import (
 	"encoding/json"
 
-	"github.com/alireza0/s-ui/util"
+	"github.com/Danialrostamani/drnetwork-panel/util"
 
 	"gorm.io/gorm"
 )

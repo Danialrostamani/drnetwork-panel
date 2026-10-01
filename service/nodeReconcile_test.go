@@ -10,8 +10,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/alireza0/s-ui/database"
-	"github.com/alireza0/s-ui/database/model"
+	"github.com/Danialrostamani/drnetwork-panel/database"
+	"github.com/Danialrostamani/drnetwork-panel/database/model"
 )
 
 func TestReconcileCreatesUpdatesAndDeletesOnlyClusterClients(t *testing.T) {

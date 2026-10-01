@@ -3,7 +3,7 @@ package api
 import (
 	"strings"
 
-	"github.com/alireza0/s-ui/util/common"
+	"github.com/Danialrostamani/drnetwork-panel/util/common"
 
 	"github.com/gin-gonic/gin"
 )

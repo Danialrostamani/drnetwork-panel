@@ -1,4 +1,4 @@
-module github.com/alireza0/s-ui
+module github.com/Danialrostamani/drnetwork-panel
 
 go 1.26.7
 

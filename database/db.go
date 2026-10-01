@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alireza0/s-ui/config"
-	"github.com/alireza0/s-ui/database/model"
+	"github.com/Danialrostamani/drnetwork-panel/config"
+	"github.com/Danialrostamani/drnetwork-panel/database/model"
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
