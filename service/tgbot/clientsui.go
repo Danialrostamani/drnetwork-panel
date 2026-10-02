@@ -37,8 +37,42 @@ func (b *bot) clientDetail(c model.Client, online bool, now time.Time) string {
 	if c.LimitIp > 0 {
 		lines = append(lines, fmt.Sprintf("📱 %s: %d", b.t("ipLimit"), c.LimitIp))
 	}
+	if c.Remark != "" {
+		lines = append(lines, "🗒 "+b.tr("یادداشت", "Remark")+": "+esc(c.Remark))
+	}
 	if c.Group != "" {
 		lines = append(lines, fmt.Sprintf("🏷 %s: %s", b.t("group"), esc(c.Group)))
+	}
+	if c.DelayStart || c.AutoReset {
+		var parts []string
+		if c.DelayStart {
+			parts = append(parts, b.tr("شروع با اولین مصرف", "delay start"))
+		}
+		if c.AutoReset {
+			parts = append(parts, b.tr("ریست خودکار", "auto reset"))
+		}
+		line := fmt.Sprintf("🔁 %s (%d %s)", strings.Join(parts, " + "), c.ResetDays, b.tr("روز", "days"))
+		if c.AutoReset && c.NextReset > 0 {
+			line += " — " + b.tr("بعدی: ", "next: ") + b.stamp(c.NextReset)
+		}
+		lines = append(lines, line)
+	}
+	if c.AutoReset || c.TotalUp+c.TotalDown > 0 {
+		lines = append(lines, fmt.Sprintf("Σ %s: ↑ %s ↓ %s", b.tr("مصرف کل", "Lifetime"), humanBytes(c.TotalUp+c.Up), humanBytes(c.TotalDown+c.Down)))
+	}
+	if ids := clientInboundIDs(c); len(ids) > 0 {
+		tags := inboundTagMap()
+		names := make([]string, 0, len(ids))
+		for i, id := range ids {
+			if i == 8 {
+				names = append(names, "…")
+				break
+			}
+			if t, ok := tags[id]; ok {
+				names = append(names, esc(t))
+			}
+		}
+		lines = append(lines, "📡 "+strings.Join(names, ", "))
 	}
 	if c.TgId != 0 {
 		lines = append(lines, fmt.Sprintf("🔔 %s: <code>%d</code>", b.t("boundTo"), c.TgId))
@@ -56,23 +90,20 @@ func (b *bot) clientKeyboard(c model.Client) [][]button {
 	return [][]button{
 		{toggle, b.btn("btnReset", "c:rst:"+id)},
 		{b.btn("btnAddVol", "c:gb10:"+id, 10), b.btn("btnAddVol", "c:gb50:"+id, 50), b.btn("btnAddDays", "c:d30:"+id, 30)},
-		{{Text: b.tr("📦 حجم", "📦 Volume"), Data: "c:ask:vol:" + id}, {Text: b.tr("⏳ روز", "⏳ Days"), Data: "c:ask:days:" + id}, {Text: b.tr("📱 IP", "📱 IP"), Data: "c:ask:ip:" + id}},
-		{{Text: b.tr("📝 توضیح", "📝 Note"), Data: "c:ask:desc:" + id}, {Text: b.tr("🏷 گروه", "🏷 Group"), Data: "c:ask:grp:" + id}, {Text: b.tr("✏️ نام", "✏️ Rename"), Data: "c:ask:name:" + id}},
+		{{Text: b.tr("✏️ ویرایش", "✏️ Edit"), Data: "c:edit:" + id}, {Text: b.tr("🔑 پیکربندی", "🔑 Config"), Data: "c:cfg:" + id}, {Text: b.tr("🔗 لینک خارجی", "🔗 Ext. links"), Data: "c:xl:" + id}},
 		{{Text: b.tr("📡 اینباندها", "📡 Inbounds"), Data: "c:inb:" + id}, b.btn("btnSub", "c:sub:"+id)},
 		{{Text: b.tr("📋 لینک‌ها", "📋 Links"), Data: "c:lnk:" + id}, b.btn("btnIps", "c:ips:"+id), {Text: b.tr("⏏️ قطع", "⏏️ Kick"), Data: "c:kick:" + id}},
-		{{Text: b.tr("🔔 تلگرام", "🔔 Telegram"), Data: "c:ask:tg:" + id}, b.btn("btnDelete", "c:del:"+id)},
+		{{Text: b.tr("🔔 تلگرام", "🔔 Telegram"), Data: "c:ask:tg:" + id}, {Text: "{ } JSON", Data: "c:json:" + id}, b.btn("btnDelete", "c:del:"+id)},
 		{b.btn("btnRefresh", "c:view:"+id), {Text: b.tr("⬅️ کلاینت‌ها", "⬅️ Clients"), Data: "c:ls:a:0"}, {Text: b.tr("🏠", "🏠"), Data: "m:menu"}},
 	}
 }
 
 func clientByID(id uint) *model.Client {
-	for _, c := range loadClients() {
-		if c.Id == id {
-			c := c
-			return &c
-		}
+	c, err := fullClient(id)
+	if err != nil {
+		return nil
 	}
-	return nil
+	return c
 }
 
 func isDepleted(c model.Client, now time.Time) bool {
@@ -164,7 +195,8 @@ func (b *bot) clientsScreen(filter string, page int) (string, [][]button) {
 	}
 	kb = append(kb, chips[:3], chips[3:])
 	kb = append(kb,
-		[]button{{Text: b.tr("➕ کلاینت جدید", "➕ New client"), Data: "c:new"}, {Text: b.tr("🔎 جستجو", "🔎 Search"), Data: "c:srch"}, {Text: b.tr("🧹 پاکسازی", "🧹 Cleanup"), Data: "c:clean"}},
+		[]button{{Text: b.tr("➕ کلاینت جدید", "➕ New client"), Data: "c:new"}, {Text: b.tr("📄 جدید با JSON", "📄 New via JSON"), Data: "c:newj"}},
+		[]button{{Text: b.tr("🔎 جستجو", "🔎 Search"), Data: "c:srch"}, {Text: b.tr("🛠 ویرایش گروهی", "🛠 Bulk edit"), Data: "c:bulk"}, {Text: b.tr("🧹 پاکسازی", "🧹 Cleanup"), Data: "c:clean"}},
 		b.menuRow())
 	return strings.Join(lines, "\n"), kb
 }
@@ -178,6 +210,12 @@ var clientAsks = map[string]struct{ fa, en string }{
 	"desc": {"توضیح را بفرستید (- برای پاک کردن).", "Send the note (- to clear)."},
 	"grp":  {"نام گروه را بفرستید (- برای پاک کردن).", "Send the group name (- to clear)."},
 	"name": {"نام جدید را بفرستید. توجه: لینک اشتراک کلاینت با نام عوض می‌شود.", "Send the new name. Note: the client's subscription link changes with its name."},
+	"rem":  {"یادداشت (Remark) را بفرستید (- برای پاک کردن).", "Send the remark (- to clear)."},
+	"exp":  {"تاریخ انقضا را به شکل YYYY-MM-DD یا YYYY-MM-DD HH:MM بفرستید (۰ = نامحدود).", "Send the expiry date as YYYY-MM-DD or YYYY-MM-DD HH:MM (0 = unlimited)."},
+	"rd":   {"تعداد روزهای ریست / شروع با اولین مصرف را بفرستید (حداقل ۱).", "Send the reset / delay-start days (at least 1)."},
+	"cfgj": {"JSON پیکربندی پروتکل‌ها را بفرستید (متن یا فایل .json)، مثل {\"vless\":{\"name\":\"x\",\"uuid\":\"…\"}}.", "Send the protocol credentials JSON (text or .json file), e.g. {\"vless\":{\"name\":\"x\",\"uuid\":\"…\"}}."},
+	"xl":   {"لینک خارجی را بفرستید: <protocol>://<data>", "Send the external link: <protocol>://<data>"},
+	"sl":   {"لینک اشتراک را بفرستید: http[s]://دامنه[:پورت]/مسیر", "Send the subscription link: http[s]://domain[:port]/path"},
 	"tg":   {"شناسه عددی تلگرام کاربر را بفرستید (۰ = قطع اتصال).", "Send the user's numeric Telegram ID (0 = unbind)."},
 }
 
@@ -226,6 +264,54 @@ func (b *bot) applyClientAnswer(field string, id uint, text string) error {
 			}
 			return nil
 		})
+	case "rem":
+		return b.editClient(id, func(c *model.Client) error {
+			c.Remark = text
+			if clear {
+				c.Remark = ""
+			}
+			return nil
+		})
+	case "exp":
+		ts, err := parseExpiryDate(text)
+		if err != nil {
+			return err
+		}
+		return b.editClient(id, func(c *model.Client) error {
+			if c.DelayStart && !c.AutoReset {
+				return fmt.Errorf("%s", b.tr("برای شروع با اولین مصرف تاریخ ثابت معنی ندارد.", "A fixed date does not apply to delay start."))
+			}
+			c.Expiry = ts
+			return nil
+		})
+	case "rd":
+		d, ok := parseIntArg(text)
+		if !ok {
+			return fmt.Errorf("%s", b.t("badNumber"))
+		}
+		return b.setResetDays(id, d)
+	case "cfgj":
+		v, err := decodeJSONValue(text)
+		if err != nil {
+			return err
+		}
+		m, ok := v.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("a JSON object is required")
+		}
+		for k, x := range m {
+			if _, isObj := x.(map[string]interface{}); !isObj {
+				return fmt.Errorf("%q must be an object", k)
+			}
+		}
+		raw, _ := json.Marshal(m)
+		return b.editClient(id, func(c *model.Client) error { c.Config = raw; return nil })
+	case "xl":
+		return b.addClientLink(id, "external", text)
+	case "sl":
+		return b.addClientLink(id, "sub", text)
+	case "json":
+		return b.applyClientJSON(id, text)
 	case "grp":
 		return b.editClient(id, func(c *model.Client) error {
 			c.Group = text
@@ -375,6 +461,9 @@ func (b *bot) clientCallback(ctx context.Context, cbID string, chatID, msgID int
 		return ""
 	}
 	show := func(text string, kb [][]button) { b.edit(ctx, chatID, msgID, text, kb) }
+	if b.clientCallbackExt(ctx, cbID, chatID, msgID, parts) {
+		return
+	}
 	switch action {
 	case "ls":
 		page, _ := strconv.Atoi(arg(3))

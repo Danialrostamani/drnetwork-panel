@@ -552,3 +552,124 @@ func TestConfigRulesAndSettings(t *testing.T) {
 		t.Fatalf("subDomain = %q", (*all)["subDomain"])
 	}
 }
+
+func TestClientPanelParityEditConfigLinksJSONAndBulk(t *testing.T) {
+	b, got := testBot(t)
+	ctx := context.Background()
+	press := func(data string) { b.handle(ctx, callbackFrom(42, data)) }
+	say := func(text string) { b.handle(ctx, privateMessage(42, text)) }
+
+	// New client from JSON with the friendly template fields.
+	press("c:newj")
+	say(`{"name":"jc1","desc":"d","remark":"r","group":"g1","volumeGB":5,"days":10,"limitIp":2,"autoReset":true,"resetDays":7}`)
+	c := loadByName(t, "jc1")
+	if c.Volume != 5*gib || c.Expiry == 0 || c.LimitIp != 2 || !c.AutoReset || c.ResetDays != 7 || c.Remark != "r" || c.Group != "g1" {
+		t.Fatalf("json client = %+v", c)
+	}
+	id := itoa(int64(c.Id))
+
+	// Every sub-screen opens.
+	for _, d := range []string{"c:view:" + id, "c:edit:" + id, "c:cfg:" + id, "c:xl:" + id, "c:bulk", "c:bk:fa", "c:bk:g0"} {
+		press(d)
+		if lastEdit(t, got) == "" {
+			t.Fatalf("%s opened an empty screen", d)
+		}
+	}
+
+	// Remark, exact expiry date and reset days.
+	press("c:ask:rem:" + id)
+	say("hello")
+	press("c:ask:exp:" + id)
+	say("2031-05-06 07:08")
+	press("c:ask:rd:" + id)
+	say("3")
+	c = loadByName(t, "jc1")
+	if c.Remark != "hello" || c.ResetDays != 3 || time.Unix(c.Expiry, 0).In(time.Local).Format("2006-01-02 15:04") != "2031-05-06 07:08" {
+		t.Fatalf("after edit prompts = %+v", c)
+	}
+
+	// Delay start / auto reset switches.
+	press("c:ar:" + id)
+	if loadByName(t, "jc1").AutoReset {
+		t.Fatal("auto reset should be off")
+	}
+	press("c:dly:" + id)
+	if c = loadByName(t, "jc1"); !c.DelayStart || c.Expiry != 0 {
+		t.Fatalf("delay start = %+v", c)
+	}
+	press("c:dly:" + id)
+
+	// Credentials: regenerate one protocol, then replace via JSON.
+	before := parseClientCfg(loadByName(t, "jc1").Config)
+	press("c:cfgp:" + id + ":" + itoa(int64(indexOf(before.keys(), "vless"))))
+	after := parseClientCfg(loadByName(t, "jc1").Config)
+	if before["vless"]["uuid"] == after["vless"]["uuid"] || before["trojan"]["password"] != after["trojan"]["password"] {
+		t.Fatal("regenerating one protocol changed the wrong credentials")
+	}
+	press("c:cfga:" + id)
+	if parseClientCfg(loadByName(t, "jc1").Config)["trojan"]["password"] == before["trojan"]["password"] {
+		t.Fatal("regenerate all did not change trojan")
+	}
+	press("c:ask:cfgj:" + id)
+	say(`{"trojan":{"name":"jc1","password":"fixed"}}`)
+	if parseClientCfg(loadByName(t, "jc1").Config)["trojan"]["password"] != "fixed" {
+		t.Fatal("config JSON was not applied")
+	}
+
+	// External and subscription links.
+	press("c:ask:xl:" + id)
+	say("vless://abc@example.com:443#x")
+	press("c:ask:sl:" + id)
+	say("https://example.com/sub/x")
+	press("c:ask:xl:" + id)
+	say("not a link")
+	var links []map[string]interface{}
+	_ = json.Unmarshal(loadByName(t, "jc1").Links, &links)
+	if len(links) != 2 {
+		t.Fatalf("links = %v", links)
+	}
+	press("c:xld:" + id + ":0")
+	_ = json.Unmarshal(loadByName(t, "jc1").Links, &links)
+	if len(links) != 1 || links[0]["type"] != "sub" {
+		t.Fatalf("links after delete = %v", links)
+	}
+
+	// Whole-client JSON edit keeps protected fields.
+	press("c:json:" + id)
+	say(`{"desc":"via json","limitIp":9,"up":123456,"tgId":77}`)
+	if c = loadByName(t, "jc1"); c.Desc != "via json" || c.LimitIp != 9 || c.Up != 0 || c.TgId != 0 {
+		t.Fatalf("json edit = %+v", c)
+	}
+
+	// Bulk edit on the group "g1" and on everyone.
+	press("c:bk:g0:days")
+	say("5")
+	press("c:bk:fa:vol")
+	say("2")
+	press("c:bk:fa:ip")
+	say("4")
+	if c = loadByName(t, "jc1"); c.Volume != 7*gib || c.LimitIp != 4 {
+		t.Fatalf("bulk edit = %+v", c)
+	}
+	press("c:bk:fa:dis:y")
+	if loadByName(t, "jc1").Enable {
+		t.Fatal("bulk disable failed")
+	}
+	press("c:bk:fa:rst:y")
+	press("c:bk:fa:del")
+	press("c:bk:fa:del:y")
+	var count int64
+	database.GetDB().Model(model.Client{}).Count(&count)
+	if count != 0 {
+		t.Fatalf("bulk delete left %d clients", count)
+	}
+}
+
+func indexOf(list []string, v string) int {
+	for i, s := range list {
+		if s == v {
+			return i
+		}
+	}
+	return -1
+}

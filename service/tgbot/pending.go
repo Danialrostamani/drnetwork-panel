@@ -40,6 +40,21 @@ func (b *bot) handlePending(ctx context.Context, chatID, userMsgID int64, text s
 		finish(t, kb)
 	}
 	switch {
+	case p.kind == "cl.newj":
+		name, err := b.createClientFromJSON(text)
+		if err != nil {
+			retry(err)
+			return
+		}
+		if c := findClientByName(name); c != nil {
+			t, kb := b.card(*c)
+			finish(b.t("created", esc(c.Name))+"\n\n"+t, kb)
+			return
+		}
+		t, kb := b.clientsScreen("a", 0)
+		finish(t, kb)
+	case strings.HasPrefix(p.kind, "bk."):
+		b.bulkPending(ctx, chatID, p, text, retry, finish)
 	case strings.HasPrefix(p.kind, "cl."):
 		field := strings.TrimPrefix(p.kind, "cl.")
 		if field == "search" {

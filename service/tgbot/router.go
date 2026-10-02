@@ -255,6 +255,9 @@ func parseIntArg(s string) (int, bool) {
 }
 
 func (b *bot) card(c model.Client) (string, [][]button) {
+	if full, err := fullClient(c.Id); err == nil {
+		c = *full
+	}
 	online := false
 	for _, n := range onlineUsers() {
 		if n == c.Name {
