@@ -210,10 +210,10 @@ func (b *bot) wizardPrompt(p *pending) (string, [][]button) {
 			p.data["rnd"] = b.randomClientName()
 		}
 		return b.header("➕", b.tr("کلاینت جدید — ۱/۴", "New client — 1/4")) + "\n" +
-			b.tr("نام پیشنهادی (روی آن بزنید تا کپی شود):", "Suggested name (tap to copy):") + " <code>" + esc(p.data["rnd"]) + "</code>\n" +
-			b.tr("• «استفاده از این نام» را بزنید\n• یا نام دلخواه را بفرستید\n• یا با + شروع کنید تا به انتهای نام پیشنهادی اضافه شود؛ مثلاً <code>+_ali</code>", "• Tap “Use this name”\n• or send your own name\n• or start with + to append to the suggestion, e.g. <code>+_ali</code>"), [][]button{
-			{btn(b.tr("✅ استفاده از این نام", "✅ Use this name"), "name", "#ok"), btn(b.tr("🎲 نام دیگر", "🎲 Another"), "name", "#new")},
-			b.cancelRow()}
+				b.tr("نام پیشنهادی (روی آن بزنید تا کپی شود):", "Suggested name (tap to copy):") + " <code>" + esc(p.data["rnd"]) + "</code>\n" +
+				b.tr("• «استفاده از این نام» را بزنید\n• یا نام دلخواه را بفرستید\n• یا با + شروع کنید تا به انتهای نام پیشنهادی اضافه شود؛ مثلاً <code>+_ali</code>", "• Tap “Use this name”\n• or send your own name\n• or start with + to append to the suggestion, e.g. <code>+_ali</code>"), [][]button{
+				{btn(b.tr("✅ استفاده از این نام", "✅ Use this name"), "name", "#ok"), btn(b.tr("🎲 نام دیگر", "🎲 Another"), "name", "#new")},
+				b.cancelRow()}
 	default:
 		return b.header("➕", "4/4") + "\n" + b.tr("محدودیت تعداد IP همزمان؟", "Concurrent IP limit?"), [][]button{
 			{btn("∞", "ip", "0"), btn("1", "ip", "1"), btn("2", "ip", "2"), btn("3", "ip", "3"), btn("5", "ip", "5")},
