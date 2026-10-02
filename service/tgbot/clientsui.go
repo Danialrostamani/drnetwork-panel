@@ -149,7 +149,13 @@ func (b *bot) filterClients(filter string, all []model.Client) []model.Client {
 			out = append(out, c)
 		}
 	}
-	sort.Slice(out, func(i, j int) bool { return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name) })
+	// Newest first: by creation time, then by id (older rows have no timestamp).
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].CreatedAt != out[j].CreatedAt {
+			return out[i].CreatedAt > out[j].CreatedAt
+		}
+		return out[i].Id > out[j].Id
+	})
 	return out
 }
 
@@ -477,8 +483,10 @@ func (b *bot) clientCallback(ctx context.Context, cbID string, chatID, msgID int
 		return
 	case "new":
 		b.answer(ctx, cbID, "")
-		b.pend.set(chatID, &pending{kind: "wiz", key: "name", msgID: msgID, back: "c:ls:a:0", data: map[string]string{}})
-		show(b.header("➕", b.tr("کلاینت جدید", "New client"))+"\n"+b.tr("۱/۴ — نام کلاینت را بفرستید (حروف انگلیسی، عدد و _ . - @).", "1/4 — Send the client name (English letters, digits and _ . - @)."), [][]button{b.cancelRow()})
+		p := &pending{kind: "wiz", key: "name", msgID: msgID, back: "c:ls:a:0", data: map[string]string{}}
+		b.pend.set(chatID, p)
+		t, kb := b.wizardPrompt(p)
+		show(t, kb)
 		return
 	case "clean":
 		b.answer(ctx, cbID, "")

@@ -673,3 +673,45 @@ func indexOf(list []string, v string) int {
 	}
 	return -1
 }
+
+func TestClientsAreListedNewestFirstAndWizardSuggestsAName(t *testing.T) {
+	b, _ := testBot(t)
+	ctx := context.Background()
+	for i, n := range []string{"zzz", "aaa", "mmm"} {
+		c := model.Client{Enable: true, Name: n, Config: newClientConfig(n), Inbounds: json.RawMessage("[]"), Links: json.RawMessage("[]"), CreatedAt: int64(1000 + i)}
+		if err := database.GetDB().Create(&c).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	list := b.filterClients("a", loadClients())
+	if len(list) != 3 || list[0].Name != "mmm" || list[1].Name != "aaa" || list[2].Name != "zzz" {
+		t.Fatalf("order = %v", list)
+	}
+
+	// Use the suggested name as is.
+	b.handle(ctx, callbackFrom(42, "c:new"))
+	p := b.pend.get(42)
+	if p == nil || len(p.data["rnd"]) != 8 {
+		t.Fatalf("no suggestion: %+v", p)
+	}
+	first := p.data["rnd"]
+	b.handle(ctx, callbackFrom(42, "w:name:#new"))
+	if b.pend.get(42).data["rnd"] == first {
+		t.Fatal("reroll kept the same name")
+	}
+	suggested := b.pend.get(42).data["rnd"]
+	b.handle(ctx, callbackFrom(42, "w:name:#ok"))
+	b.handle(ctx, callbackFrom(42, "w:vol:1"))
+	b.handle(ctx, callbackFrom(42, "w:days:0"))
+	b.handle(ctx, callbackFrom(42, "w:ip:0"))
+	loadByName(t, suggested)
+
+	// Append to the suggestion with "+".
+	b.handle(ctx, callbackFrom(42, "c:new"))
+	suggested = b.pend.get(42).data["rnd"]
+	b.handle(ctx, privateMessage(42, "+_ali"))
+	b.handle(ctx, callbackFrom(42, "w:vol:1"))
+	b.handle(ctx, callbackFrom(42, "w:days:0"))
+	b.handle(ctx, callbackFrom(42, "w:ip:0"))
+	loadByName(t, suggested+"_ali")
+}

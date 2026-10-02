@@ -37,6 +37,18 @@ func clientInboundIDs(c model.Client) []uint {
 	return ids
 }
 
+// randomClientName suggests an unused 8-character name, like the panel's own
+// "Add client" form does.
+func (b *bot) randomClientName() string {
+	for i := 0; i < 20; i++ {
+		n := randomSeq(8)
+		if findClientByName(n) == nil {
+			return n
+		}
+	}
+	return randomSeq(12)
+}
+
 func (b *bot) clientAnswerErr(key string) error { return fmt.Errorf("%s", b.t(key)) }
 
 // ---- edit screen (Basics tab) ----
@@ -776,9 +788,10 @@ func (b *bot) clientCallbackExt(ctx context.Context, cbID string, chatID, msgID 
 	case "newj":
 		b.answer(ctx, cbID, "")
 		b.pend.set(chatID, &pending{kind: "cl.newj", msgID: msgID, back: "c:ls:a:0", data: map[string]string{}})
+		tpl := strings.Replace(newClientTemplate, `"user1"`, `"`+b.randomClientName()+`"`, 1)
 		show(b.header("➕", b.tr("کلاینت جدید با JSON", "New client from JSON"))+"\n"+
 			b.tr("این قالب را ویرایش و بفرستید (متن یا فایل .json). فیلدهای حذف‌شده مقدار پیش‌فرض می‌گیرند؛ اگر inbounds خالی باشد به همه اینباندها وصل می‌شود.", "Edit this template and send it back (text or .json file). Omitted fields use defaults; an empty inbounds list attaches the client to every inbound.")+
-			"\n<pre>"+esc(newClientTemplate)+"</pre>", [][]button{b.cancelRow()})
+			"\n<pre>"+esc(tpl)+"</pre>", [][]button{b.cancelRow()})
 		return true
 	case "edit", "cfg", "cfga", "cfgp", "xl", "xld", "json", "dly", "ar":
 	default:
