@@ -1,7 +1,9 @@
 package service
 
 import (
+	"net/url"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
@@ -155,9 +157,48 @@ func (s *StatsService) SaveStats(enableTraffic bool, bucketSeconds int64) error 
 	return err
 }
 
+// nodeInboundStats answers the traffic chart of an inbound that lives on a
+// managed node. The master only keeps a read-only replica of it and its core
+// does not run it, so the master's own stats table has no samples for that tag
+// (the chart was always empty). The node that does run the inbound holds them,
+// so the request is forwarded there and its answer is returned as is -- it has
+// the same shape as a local one. handled is false for every other inbound.
+func (s *StatsService) nodeInboundStats(tag string, limit int, start, end int64) (obj any, handled bool, err error) {
+	db := database.GetDB()
+	var inbound model.Inbound
+	if err := db.Select("id", "tag", "node_id").Where("tag = ? AND node_id IS NOT NULL", tag).Limit(1).Find(&inbound).Error; err != nil || inbound.Id == 0 || inbound.NodeId == nil {
+		return nil, false, nil
+	}
+	var node model.Node
+	if err := db.First(&node, *inbound.NodeId).Error; err != nil {
+		return nil, true, common.NewError("node not found")
+	}
+	if !node.Enable {
+		return nil, true, common.NewError("node is disabled")
+	}
+	q := url.Values{"resource": {"inbound"}, "tag": {tag}, "limit": {strconv.Itoa(limit)}}
+	if start > 0 && end > start {
+		q.Set("start", strconv.FormatInt(start, 10))
+		q.Set("end", strconv.FormatInt(end, 10))
+	}
+	client := nodePushClient(&node)
+	defer closeNodeIdle(client)
+	raw, err := (&NodeService{}).nodeGet(&node, client, "stats", q)
+	if err != nil {
+		return nil, true, err
+	}
+	return raw, true, nil
+}
+
 func (s *StatsService) GetStats(resource string, tag string, limit int, start int64, end int64) (any, error) {
 	var err error
 	var result []model.Stats
+
+	if resource == "inbound" && tag != "" {
+		if obj, handled, nodeErr := s.nodeInboundStats(tag, limit, start, end); handled {
+			return obj, nodeErr
+		}
+	}
 
 	// Custom range when both start and end are provided, otherwise the last
 	// `limit` hours up to now.
