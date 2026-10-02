@@ -15,6 +15,13 @@ var version string
 //go:embed name
 var name string
 
+// build is the DrNetwork release number ("drnetwork.11"). It is bumped by hand
+// in the commit that is tagged v<version>-<build>, so the bot and the panel can
+// show exactly which release is running.
+//
+//go:embed build
+var build string
+
 type LogLevel string
 
 const (
@@ -26,6 +33,19 @@ const (
 
 func GetVersion() string {
 	return strings.TrimSpace(version)
+}
+
+// GetBuild returns the DrNetwork release number, or "" when unset.
+func GetBuild() string {
+	return strings.TrimSpace(build)
+}
+
+// GetFullVersion returns "1.6.3-drnetwork.11" (or just "1.6.3" without a build).
+func GetFullVersion() string {
+	if b := GetBuild(); b != "" {
+		return GetVersion() + "-" + b
+	}
+	return GetVersion()
 }
 
 func GetName() string {

@@ -149,14 +149,40 @@ func (b *bot) filterClients(filter string, all []model.Client) []model.Client {
 			out = append(out, c)
 		}
 	}
-	// Newest first: by creation time, then by id (older rows have no timestamp).
-	sort.SliceStable(out, func(i, j int) bool {
-		if out[i].CreatedAt != out[j].CreatedAt {
-			return out[i].CreatedAt > out[j].CreatedAt
-		}
-		return out[i].Id > out[j].Id
-	})
+	sortClients(out, clientsNewestFirst())
 	return out
+}
+
+// clientsNewestFirst reports the saved list order. The default is the order the
+// clients were created in (oldest first), like the panel's own table.
+func clientsNewestFirst() bool {
+	return (&service.SettingService{}).GetTgBotClientSort() == "desc"
+}
+
+// sortClients orders clients by creation time, then by id. Rows that predate
+// the creation-time column have createdAt 0 and fall back to id order, which
+// is creation order too.
+func sortClients(list []model.Client, newestFirst bool) {
+	sort.SliceStable(list, func(i, j int) bool {
+		a, c := list[i], list[j]
+		if a.CreatedAt != c.CreatedAt {
+			if newestFirst {
+				return a.CreatedAt > c.CreatedAt
+			}
+			return a.CreatedAt < c.CreatedAt
+		}
+		if newestFirst {
+			return a.Id > c.Id
+		}
+		return a.Id < c.Id
+	})
+}
+
+func (b *bot) clientSortLabel() string {
+	if clientsNewestFirst() {
+		return b.tr("جدیدترین اول", "Newest first")
+	}
+	return b.tr("قدیمی‌ترین اول", "Oldest first")
 }
 
 const clientsPageSize = 10
@@ -170,13 +196,17 @@ func (b *bot) clientsScreen(filter string, page int) (string, [][]button) {
 	for _, n := range onlineUsers() {
 		online[n] = true
 	}
-	lines := []string{b.header("👥", fmt.Sprintf("%s (%d/%d)", b.tr("کلاینت‌ها", "Clients"), len(list), len(all)))}
+	lines := []string{b.header("👥", fmt.Sprintf("%s (%d/%d)", b.tr("کلاینت‌ها", "Clients"), len(list), len(all))),
+		"📅 " + b.tr("مرتب‌شده بر اساس تاریخ ساخت — ", "Sorted by creation date — ") + b.clientSortLabel()}
 	if len(list) == 0 {
 		lines = append(lines, b.t("noClients"))
 	}
 	var btns []button
 	for _, c := range list[from:to] {
 		line := b.clientLine(c, now)
+		if c.CreatedAt > 0 {
+			line += " · 📅 " + time.Unix(c.CreatedAt, 0).In(b.loc).Format("2006-01-02")
+		}
 		if online[c.Name] {
 			line += " 🔵"
 		}
@@ -200,6 +230,7 @@ func (b *bot) clientsScreen(filter string, page int) (string, [][]button) {
 		chips = append(chips, button{Text: text, Data: "c:ls:" + f.code + ":0"})
 	}
 	kb = append(kb, chips[:3], chips[3:])
+	kb = append(kb, []button{{Text: "🔃 " + b.clientSortLabel(), Data: "c:sort:" + filter}})
 	kb = append(kb,
 		[]button{{Text: b.tr("➕ کلاینت جدید", "➕ New client"), Data: "c:new"}, {Text: b.tr("📄 جدید با JSON", "📄 New via JSON"), Data: "c:newj"}},
 		[]button{{Text: b.tr("🔎 جستجو", "🔎 Search"), Data: "c:srch"}, {Text: b.tr("🛠 ویرایش گروهی", "🛠 Bulk edit"), Data: "c:bulk"}, {Text: b.tr("🧹 پاکسازی", "🧹 Cleanup"), Data: "c:clean"}},

@@ -103,6 +103,7 @@ var defaultValueMap = map[string]string{
 	"tgBotNotify":        "true",
 	"tgBotReport":        "",
 	"tgBotReportBackup":  "false",
+	"tgBotClientSort":    "asc",
 	"globalReset":        "",
 	"globalResetLast":    "0",
 	"config":             defaultConfig,
@@ -431,6 +432,24 @@ func (s *SettingService) GetTgBotSettings() (TgBotSettings, error) {
 		out.ReportBackup = false
 	}
 	return out, nil
+}
+
+// GetTgBotClientSort returns the order of the bot's client list: "asc" (oldest
+// first, the order the clients were created in -- the default) or "desc"
+// (newest first).
+func (s *SettingService) GetTgBotClientSort() string {
+	v, err := s.getString("tgBotClientSort")
+	if err != nil || v != "desc" {
+		return "asc"
+	}
+	return v
+}
+
+func (s *SettingService) SetTgBotClientSort(v string) error {
+	if v != "desc" {
+		v = "asc"
+	}
+	return s.setString("tgBotClientSort", v)
 }
 
 // GetGlobalReset returns the cron spec for resetting all clients' traffic;

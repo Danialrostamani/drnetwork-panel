@@ -104,7 +104,7 @@ func onlineUsers() []string {
 func (b *bot) statusText() string {
 	status := (&service.ServerService{}).GetStatus("cpu,mem,sbd")
 	var lines []string
-	lines = append(lines, b.t("status", esc(config.GetVersion())))
+	lines = append(lines, b.t("status", esc(config.GetFullVersion())))
 	mem, _ := (*status)["mem"].(map[string]interface{})
 	lines = append(lines, b.t("cpuMem", toFloat((*status)["cpu"]), humanBytes(int64(toFloat(mem["current"]))), humanBytes(int64(toFloat(mem["total"])))))
 	coreState, uptime := b.t("stopped"), int64(0)
@@ -290,6 +290,7 @@ func (b *bot) clientsView(query string) (string, [][]button) {
 			found = append(found, c)
 		}
 	}
+	sortClients(found, clientsNewestFirst())
 	switch len(found) {
 	case 0:
 		return b.t("noClients"), nil

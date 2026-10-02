@@ -12,6 +12,7 @@ import (
 
 	"github.com/Danialrostamani/drnetwork-panel/database"
 	"github.com/Danialrostamani/drnetwork-panel/database/model"
+	"github.com/Danialrostamani/drnetwork-panel/service"
 )
 
 // This file holds the client screens that mirror the rest of the web panel's
@@ -784,6 +785,23 @@ func (b *bot) clientCallbackExt(ctx context.Context, cbID string, chatID, msgID 
 		return true
 	case "bk":
 		b.bulkCallback(ctx, cbID, chatID, msgID, parts)
+		return true
+	case "sort":
+		next := "desc"
+		if clientsNewestFirst() {
+			next = "asc"
+		}
+		if err := (&service.SettingService{}).SetTgBotClientSort(next); err != nil {
+			b.answer(ctx, cbID, b.t("failed", b.errText(err)))
+			return true
+		}
+		b.answer(ctx, cbID, "")
+		filter := "a"
+		if len(parts) > 2 {
+			filter = parts[2]
+		}
+		t, kb := b.clientsScreen(filter, 0)
+		show(t, kb)
 		return true
 	case "newj":
 		b.answer(ctx, cbID, "")

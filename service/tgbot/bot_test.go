@@ -674,18 +674,47 @@ func indexOf(list []string, v string) int {
 	return -1
 }
 
-func TestClientsAreListedNewestFirstAndWizardSuggestsAName(t *testing.T) {
+func TestClientsAreListedInCreationOrderAndWizardSuggestsAName(t *testing.T) {
 	b, _ := testBot(t)
 	ctx := context.Background()
-	for i, n := range []string{"zzz", "aaa", "mmm"} {
-		c := model.Client{Enable: true, Name: n, Config: newClientConfig(n), Inbounds: json.RawMessage("[]"), Links: json.RawMessage("[]"), CreatedAt: int64(1000 + i)}
+	// Two legacy rows without a creation time, then three dated ones whose
+	// names are deliberately not alphabetical.
+	for _, row := range []struct {
+		name string
+		at   int64
+	}{{"leg1", 0}, {"leg2", 0}, {"xq1", 1000}, {"bq2", 1001}, {"aq3", 1002}} {
+		c := model.Client{Enable: true, Name: row.name, Config: newClientConfig(row.name), Inbounds: json.RawMessage("[]"), Links: json.RawMessage("[]"), CreatedAt: row.at}
 		if err := database.GetDB().Create(&c).Error; err != nil {
 			t.Fatal(err)
 		}
 	}
-	list := b.filterClients("a", loadClients())
-	if len(list) != 3 || list[0].Name != "mmm" || list[1].Name != "aaa" || list[2].Name != "zzz" {
-		t.Fatalf("order = %v", list)
+	names := func(list []model.Client) string {
+		var out []string
+		for _, c := range list {
+			out = append(out, c.Name)
+		}
+		return strings.Join(out, ",")
+	}
+	// Default: the order the clients were created in, oldest first.
+	if got := names(b.filterClients("a", loadClients())); got != "leg1,leg2,xq1,bq2,aq3" {
+		t.Fatalf("default order = %s", got)
+	}
+	// The toggle button flips it, the choice is saved, and search follows it.
+	b.handle(ctx, callbackFrom(42, "c:sort:a"))
+	if got := names(b.filterClients("a", loadClients())); got != "aq3,bq2,xq1,leg2,leg1" {
+		t.Fatalf("newest first = %s", got)
+	}
+	text, _ := b.clientsView("q")
+	if !(strings.Index(text, "aq3") < strings.Index(text, "bq2") && strings.Index(text, "bq2") < strings.Index(text, "xq1")) {
+		t.Fatalf("search results are not newest first:\n%s", text)
+	}
+	screen, _ := b.clientsScreen("a", 0)
+	if !strings.Contains(screen, "· 📅 1970-01-01") {
+		t.Fatalf("list lines carry no creation date:\n%s", screen)
+	}
+	b.handle(ctx, callbackFrom(42, "c:sort:a"))
+	if got := names(b.filterClients("a", loadClients())); got != "leg1,leg2,xq1,bq2,aq3" {
+		t.Fatalf("order after toggling back = %s", got)
 	}
 
 	// Use the suggested name as is.
