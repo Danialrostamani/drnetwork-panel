@@ -316,23 +316,20 @@ DrNetwork includes an optional Telegram bot for administrators (**Settings → T
 2. Send `/id` to your bot and add the number it returns to **Admin Telegram IDs**.
 3. Enable the bot. If the server cannot reach `api.telegram.org`, set a proxy (`http://` or `socks5://`).
 
-Run the bot **on the master only** (nodes do not need it). Send `/menu` for the button menu.
+Run the bot **on the master only** (nodes do not need it). Send `/menu` for the button panel — it mirrors the web panel:
 
-**Administrators** (private chats only):
-
-| Command | What it does |
+| Menu | What you can do |
 | --- | --- |
-| `/menu` | Button menu: status, nodes, online, clients, inbounds, traffic, backup, logs, sync, restart |
-| `/status` `/nodes` `/online` `/inbounds` `/traffic` | Read-only overviews |
-| `/clients [name]` | Clients near their limits, or search; a single hit opens a card with buttons (enable/disable, reset traffic, +10/+50 GB, +30 days, subscription + QR, online IPs, delete) |
-| `/add <name> <GB> <days> [ipLimit]` | Create a client on all inbounds (`0` = unlimited) |
-| `/enable` `/disable` `/reset` `/del <name>` | Enable, disable, reset traffic, delete (reset and delete ask for confirmation) |
-| `/volume <name> <GB>` `/expiry <name> <days>` `/limitip <name> <n>` | Change limits |
-| `/sub <name>` | Subscription link and QR code |
-| `/bind <name> <telegramId>` `/unbind <name>` | Let a client see their own usage in the bot |
-| `/backup` `/logs [n]` `/sync` `/restart` `/maintenance on\|off` | System actions |
+| 🏠 Home | CPU / RAM / disk / swap bars, uptime, IPs, network totals, sing-box state, totals, node health; restart core, maintenance, logs, backup |
+| 👥 Clients | Filtered, paged list (all / active / disabled / near limit / depleted / online), search, new-client wizard, bulk create, cleanup of depleted clients. Client card: enable/disable, reset traffic, volume, days, IP limit, note, group, rename, inbound assignment, subscription + QR, links, online IPs, kick, bind Telegram, delete |
+| 📡 Inbounds · 📤 Outbounds · 🔌 Endpoints · 🛠 Services · 🔐 TLS · 🖥 Nodes | List, view, JSON view, create (templates or JSON; outbounds also from share links), edit by sending JSON (text or `.json` file), delete; inbound port / clients; outbound latency test; node enable, sync, probe |
+| 📏 Rules · 🌐 DNS · ⚙️ Basics | Routing rules, rule sets, DNS servers/rules (add, edit, reorder, delete), route/DNS options, log level, NTP, experimental |
+| 🔧 Settings | Panel and subscription settings (toggles and values), panel restart |
+| 📊 Stats · 🧾 Changes · 📜 Logs · 👮 Admins | Traffic by user / inbound / outbound with a chart, change history, logs by level, admin list |
 
-**Bound clients** can use `/usage` (their volume, expiry and status), `/sub` (link + QR) and `/id`, and receive their own volume/expiry alerts.
-Everybody else only gets `/id`.
+Slash commands still work for quick use: `/add <name> <GB> <days> [ipLimit]`, `/addbulk`, `/enable`, `/disable`, `/reset`, `/del`, `/volume`, `/expiry`, `/limitip`, `/sub`, `/bind`, `/unbind`, `/backup`, `/logs`, `/sync`, `/restart`, `/maintenance on|off`, `/home`, `/stats`, `/settings`, `/changes`.
+Destructive actions (delete, reset, restart) ask for confirmation. Admin credentials and database restore are intentionally left to the web panel.
+
+**Bound clients** (`/bind <name> <telegramId>`) can use `/usage` (volume, expiry, status), `/sub` (link + QR) and `/id`, and receive their own volume/expiry alerts. Everybody else only gets `/id`.
 
 With **Alerts** enabled the bot reports node down/recovery, the master core stopping, and clients near their volume or expiry limit. **Scheduled report** accepts a cron spec (e.g. `@daily` or `0 9 * * *`) and posts the status and traffic summary, optionally with a database backup file. Changes in settings apply within seconds, without a restart.

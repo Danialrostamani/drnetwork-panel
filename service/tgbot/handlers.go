@@ -240,47 +240,6 @@ func (b *bot) clientLine(c model.Client, now time.Time) string {
 	return fmt.Sprintf("%s <b>%s</b> — %s — %s", icon, esc(c.Name), usage, b.expiryText(c, now))
 }
 
-func (b *bot) clientDetail(c model.Client, online bool, now time.Time) string {
-	state := b.t("enabled")
-	if !c.Enable {
-		state = b.t("disabled")
-	}
-	dot := ""
-	if online {
-		dot = " 🟢"
-	}
-	lines := []string{
-		fmt.Sprintf("👤 <b>%s</b> — %s%s", esc(c.Name), state, dot),
-	}
-	if c.Desc != "" {
-		lines = append(lines, esc(c.Desc))
-	}
-	usage := fmt.Sprintf("%s (↑ %s ↓ %s)", humanBytes(c.Up+c.Down), humanBytes(c.Up), humanBytes(c.Down))
-	if c.Volume > 0 {
-		usage += fmt.Sprintf(" / %s · %d%%", humanBytes(c.Volume), usagePercent(c))
-	} else {
-		usage += " / " + b.t("unlimited")
-	}
-	lines = append(lines,
-		fmt.Sprintf("%s: %s", b.t("usage"), usage),
-		fmt.Sprintf("%s: %s", b.t("expiry"), b.expiryText(c, now)),
-	)
-	if c.Group != "" {
-		lines = append(lines, fmt.Sprintf("%s: %s", b.t("group"), esc(c.Group)))
-	}
-	if c.LimitIp > 0 {
-		lines = append(lines, fmt.Sprintf("%s: %d", b.t("ipLimit"), c.LimitIp))
-	}
-	if c.TgId != 0 {
-		lines = append(lines, fmt.Sprintf("%s: <code>%d</code>", b.t("boundTo"), c.TgId))
-	}
-	lines = append(lines,
-		fmt.Sprintf("%s: %s", b.t("lastOnline"), b.stamp(c.OnlineAt)),
-		fmt.Sprintf("%s: %s", b.t("createdAt"), b.stamp(c.CreatedAt)),
-	)
-	return strings.Join(lines, "\n")
-}
-
 func (b *bot) clientsView(query string) (string, [][]button) {
 	clients := loadClients()
 	now := time.Now()

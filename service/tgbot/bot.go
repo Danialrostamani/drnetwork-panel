@@ -181,6 +181,7 @@ type bot struct {
 	client        *http.Client
 	loc           *time.Location
 	configService *service.ConfigService
+	pend          pendingStore
 }
 
 func newBot(cfg botConfig) *bot {
@@ -252,11 +253,17 @@ type chat struct {
 type update struct {
 	UpdateID int64 `json:"update_id"`
 	Message  *struct {
-		Text string `json:"text"`
-		Chat chat   `json:"chat"`
-		From *struct {
+		MessageID int64  `json:"message_id"`
+		Text      string `json:"text"`
+		Chat      chat   `json:"chat"`
+		From      *struct {
 			ID int64 `json:"id"`
 		} `json:"from"`
+		Document *struct {
+			FileID   string `json:"file_id"`
+			FileName string `json:"file_name"`
+			FileSize int64  `json:"file_size"`
+		} `json:"document"`
 	} `json:"message"`
 	Callback *struct {
 		ID   string `json:"id"`
@@ -460,4 +467,31 @@ func splitMessage(text string, limit int) []string {
 	}
 	flush()
 	return out
+}
+
+// download fetches a file a user sent to the bot (limited to 2 MiB).
+func (b *bot) download(ctx context.Context, fileID string) ([]byte, error) {
+	var f struct {
+		Path string `json:"file_path"`
+		Size int64  `json:"file_size"`
+	}
+	if err := b.call(ctx, "getFile", map[string]any{"file_id": fileID}, &f); err != nil {
+		return nil, err
+	}
+	if f.Path == "" || f.Size > 2<<20 {
+		return nil, errors.New("file too large or unavailable")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiBase+"/file/bot"+b.cfg.Token+"/"+f.Path, nil)
+	if err != nil {
+		return nil, errors.New(b.scrub(err.Error()))
+	}
+	resp, err := b.client.Do(req)
+	if err != nil {
+		return nil, errors.New(b.scrub(err.Error()))
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("telegram file: HTTP %d", resp.StatusCode)
+	}
+	return io.ReadAll(io.LimitReader(resp.Body, 2<<20))
 }

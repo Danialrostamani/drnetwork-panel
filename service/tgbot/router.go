@@ -22,31 +22,22 @@ func (b *bot) btn(key, data string, args ...interface{}) button {
 }
 
 func (b *bot) mainMenu() [][]button {
+	t := b.tr
 	return [][]button{
-		{b.btn("btnStatus", "m:status"), b.btn("btnNodes", "m:nodes")},
-		{b.btn("btnOnline", "m:online"), b.btn("btnClients", "m:clients")},
-		{b.btn("btnInbounds", "m:inbounds"), b.btn("btnTraffic", "m:traffic")},
-		{b.btn("btnBackup", "m:backup"), b.btn("btnLogs", "m:logs")},
-		{b.btn("btnSync", "m:sync"), b.btn("btnRestart", "m:restart")},
+		{{Text: t("🏠 خانه", "🏠 Home"), Data: "h:home"}, {Text: t("👥 کلاینت‌ها", "👥 Clients"), Data: "c:ls:a:0"}},
+		{{Text: t("📡 اینباندها", "📡 Inbounds"), Data: "o:in:ls:0"}, {Text: t("📤 اوت‌باندها", "📤 Outbounds"), Data: "o:out:ls:0"}},
+		{{Text: t("🔌 اندپوینت‌ها", "🔌 Endpoints"), Data: "o:ep:ls:0"}, {Text: t("🛠 سرویس‌ها", "🛠 Services"), Data: "o:sv:ls:0"}},
+		{{Text: "🔐 TLS", Data: "o:tl:ls:0"}, {Text: t("🖥 نودها", "🖥 Nodes"), Data: "o:nd:ls:0"}},
+		{{Text: t("📏 قوانین", "📏 Rules"), Data: "g:rl:ls:0"}, {Text: "🌐 DNS", Data: "g:dn:ls:0"}},
+		{{Text: t("⚙️ پایه", "⚙️ Basics"), Data: "g:basics:ls:0"}, {Text: t("🔧 تنظیمات", "🔧 Settings"), Data: "s:ls"}},
+		{{Text: t("📊 آمار", "📊 Stats"), Data: "t:d1"}, {Text: t("🧾 تغییرات", "🧾 Changes"), Data: "x:ls"}},
+		{{Text: t("📜 لاگ‌ها", "📜 Logs"), Data: "m:logs:info"}, {Text: t("👮 مدیران", "👮 Admins"), Data: "a:ls"}},
+		{{Text: t("💾 پشتیبان", "💾 Backup"), Data: "m:backup"}, {Text: t("🔁 همگام‌سازی", "🔁 Sync"), Data: "m:sync"}},
+		{{Text: t("🚧 نگهداری", "🚧 Maintenance"), Data: "m:maint"}, {Text: t("♻️ ریستارت هسته", "♻️ Restart core"), Data: "m:restart"}},
 	}
 }
 
 func (b *bot) menuRow() []button { return []button{b.btn("btnMenu", "m:menu")} }
-
-func (b *bot) clientKeyboard(c model.Client) [][]button {
-	id := strconv.FormatUint(uint64(c.Id), 10)
-	toggle := b.btn("btnDisable", "c:tog:"+id)
-	if !c.Enable {
-		toggle = b.btn("btnEnable", "c:tog:"+id)
-	}
-	return [][]button{
-		{toggle, b.btn("btnReset", "c:rst:"+id)},
-		{b.btn("btnAddVol", "c:gb10:"+id, 10), b.btn("btnAddVol", "c:gb50:"+id, 50), b.btn("btnAddDays", "c:d30:"+id, 30)},
-		{b.btn("btnSub", "c:sub:"+id), b.btn("btnIps", "c:ips:"+id)},
-		{b.btn("btnDelete", "c:del:"+id), b.btn("btnRefresh", "c:view:"+id)},
-		b.menuRow(),
-	}
-}
 
 // clientButtons lists clients as buttons, two per row, capped to keep the
 // keyboard readable.
@@ -73,7 +64,11 @@ type commandInfo struct{ name, fa, en string }
 
 var adminCommands = []commandInfo{
 	{"menu", "منوی دکمه‌ای", "Button menu"},
-	{"status", "وضعیت پنل و کلاستر", "Panel and cluster status"},
+	{"home", "وضعیت سرور", "Server status"},
+	{"stats", "آمار ترافیک", "Traffic statistics"},
+	{"settings", "تنظیمات پنل", "Panel settings"},
+	{"changes", "آخرین تغییرات", "Recent changes"},
+	{"addbulk", "ساخت گروهی کلاینت", "Bulk create clients"},
 	{"nodes", "وضعیت نودها", "Node status"},
 	{"online", "کاربران آنلاین", "Online users"},
 	{"clients", "کلاینت‌ها / جستجو", "Clients / search"},
@@ -134,11 +129,7 @@ func (b *bot) handle(ctx context.Context, u update) {
 		return
 	}
 	m := u.Message
-	if m == nil || m.Text == "" || m.From == nil {
-		return
-	}
-	cmd, arg := parseCommand(m.Text)
-	if cmd == "" {
+	if m == nil || m.From == nil {
 		return
 	}
 	// Only private chats are served: a group message must never leak panel
@@ -147,6 +138,28 @@ func (b *bot) handle(ctx context.Context, u update) {
 		return
 	}
 	chatID, from := m.Chat.ID, m.From.ID
+	text := m.Text
+	if text == "" && m.Document != nil && b.cfg.isAdmin(from) {
+		if p := b.pend.get(chatID); p != nil {
+			data, err := b.download(ctx, m.Document.FileID)
+			if err != nil {
+				b.send(ctx, chatID, b.t("failed", esc(err.Error())))
+				return
+			}
+			b.handlePending(ctx, chatID, m.MessageID, string(data), p)
+		}
+		return
+	}
+	cmd, arg := parseCommand(text)
+	if cmd == "" {
+		if p := b.pend.get(chatID); p != nil && b.cfg.isAdmin(from) && text != "" {
+			b.handlePending(ctx, chatID, m.MessageID, text, p)
+		}
+		return
+	}
+	if b.cfg.isAdmin(from) {
+		b.pend.clear(chatID)
+	}
 	if cmd == "id" {
 		b.send(ctx, chatID, b.t("yourId", from))
 		return
@@ -264,8 +277,8 @@ func (b *bot) sendCard(ctx context.Context, chatID int64, prefix string, id uint
 	}
 }
 
-func (b *bot) logsText() string {
-	logs := (&service.ServerService{}).GetLogs("40", "info")
+func (b *bot) logsText(level string) string {
+	logs := (&service.ServerService{}).GetLogs("40", level)
 	if len(logs) == 0 {
 		return b.t("noLogs")
 	}
@@ -347,21 +360,37 @@ func (b *bot) adminCommand(ctx context.Context, chatID int64, cmd, arg string) {
 		b.sendKeyboard(ctx, chatID, b.t("menuTitle"), b.mainMenu())
 	case "help":
 		b.send(ctx, chatID, b.t("help")+b.t("helpAdmin2"))
-	case "status":
-		b.sendKeyboard(ctx, chatID, b.statusText(), [][]button{b.menuRow()})
+	case "status", "home":
+		b.sendKeyboard(ctx, chatID, b.homeText(), b.homeKeyboard())
 	case "nodes":
-		b.send(ctx, chatID, b.nodesText())
+		text, kb := b.objListScreen(kindByCode("nd"), 0)
+		b.sendKeyboard(ctx, chatID, text, kb)
 	case "online":
 		b.send(ctx, chatID, b.onlineText())
 	case "clients", "client":
+		if arg == "" {
+			text, kb := b.clientsScreen("a", 0)
+			b.sendKeyboard(ctx, chatID, text, kb)
+			break
+		}
 		text, kb := b.clientsView(arg)
 		b.sendKeyboard(ctx, chatID, text, kb)
 	case "ips":
 		b.send(ctx, chatID, b.ipsText(arg))
 	case "inbounds":
-		b.send(ctx, chatID, b.inboundsText())
-	case "traffic":
-		b.send(ctx, chatID, b.trafficText())
+		text, kb := b.objListScreen(kindByCode("in"), 0)
+		b.sendKeyboard(ctx, chatID, text, kb)
+	case "traffic", "stats":
+		text, kb := b.statsScreen("d1")
+		b.sendKeyboard(ctx, chatID, text, kb)
+	case "settings":
+		text, kb := b.settingsHome()
+		b.sendKeyboard(ctx, chatID, text, kb)
+	case "changes":
+		text, kb := b.changesScreen()
+		b.sendKeyboard(ctx, chatID, text, kb)
+	case "addbulk":
+		b.cmdAddBulk(ctx, chatID, fields)
 	case "add":
 		b.cmdAdd(ctx, chatID, fields)
 	case "enable", "disable":
@@ -442,7 +471,12 @@ func (b *bot) adminCommand(ctx context.Context, chatID int64, cmd, arg string) {
 	case "backup":
 		b.sendBackup(ctx, chatID)
 	case "logs":
-		b.send(ctx, chatID, b.logsText())
+		level := strings.ToLower(nameArg)
+		if level == "" {
+			level = "info"
+		}
+		text, kb := b.logsScreen(level)
+		b.sendKeyboard(ctx, chatID, text, kb)
 	case "sync":
 		b.fanOut()
 		b.send(ctx, chatID, b.t("syncStarted"))
@@ -526,26 +560,60 @@ func (b *bot) handleCallback(ctx context.Context, u update) {
 		b.answer(ctx, cb.ID, b.t("denied"))
 		return
 	}
+	show := func(text string, kb [][]button) {
+		b.answer(ctx, cb.ID, "")
+		b.edit(ctx, chatID, msgID, text, kb)
+	}
+	// Any navigation abandons a half-finished prompt.
+	if parts[0] != "w" {
+		if p := b.pend.get(chatID); p != nil && !(parts[0] == "x" && parts[1] == "cancel") {
+			b.pend.clear(chatID)
+		}
+	}
 	switch parts[0] {
 	case "m":
-		b.menuCallback(ctx, cb.ID, chatID, msgID, parts[1])
+		b.menuCallback(ctx, cb.ID, chatID, msgID, parts)
 	case "c":
-		if len(parts) < 3 {
+		b.clientCallback(ctx, cb.ID, chatID, msgID, parts)
+	case "o":
+		b.objCallback(ctx, cb.ID, chatID, msgID, parts)
+	case "g":
+		b.cfgCallback(ctx, cb.ID, chatID, msgID, parts)
+	case "s":
+		b.settingsCallback(ctx, cb.ID, chatID, msgID, parts)
+	case "w":
+		b.wizardCallback(ctx, cb.ID, chatID, parts)
+	case "h":
+		show(b.homeText(), b.homeKeyboard())
+	case "a":
+		text, kb := b.adminsScreen()
+		show(text, kb)
+	case "t":
+		text, kb := b.statsScreen(parts[1])
+		show(text, kb)
+	case "x":
+		if parts[1] == "cancel" {
+			p := b.pend.get(chatID)
+			b.pend.clear(chatID)
+			back := "m:menu"
+			if p != nil && p.back != "" {
+				back = p.back
+			}
 			b.answer(ctx, cb.ID, "")
+			cb.Data = back
+			u.Callback.Data = back
+			b.handleCallback(ctx, u)
 			return
 		}
-		id64, err := strconv.ParseUint(parts[2], 10, 32)
-		if err != nil {
-			b.answer(ctx, cb.ID, "")
-			return
-		}
-		b.clientCallback(ctx, cb.ID, chatID, msgID, parts[1], uint(id64))
+		text, kb := b.changesScreen()
+		show(text, kb)
 	default:
 		b.answer(ctx, cb.ID, "")
 	}
 }
 
-func (b *bot) menuCallback(ctx context.Context, cbID string, chatID, msgID int64, action string) {
+func (b *bot) menuCallback(ctx context.Context, cbID string, chatID, msgID int64, parts []string) {
+	action := parts[1]
 	back := [][]button{b.menuRow()}
 	show := func(text string, kb [][]button) {
 		b.answer(ctx, cbID, "")
@@ -555,19 +623,28 @@ func (b *bot) menuCallback(ctx context.Context, cbID string, chatID, msgID int64
 	case "menu":
 		show(b.t("menuTitle"), b.mainMenu())
 	case "status":
-		show(b.statusText(), back)
+		show(b.homeText(), b.homeKeyboard())
 	case "nodes":
-		show(b.nodesText(), back)
+		text, kb := b.objListScreen(kindByCode("nd"), 0)
+		show(text, kb)
 	case "online":
-		show(b.onlineText(), back)
+		text, kb := b.clientsScreen("o", 0)
+		show(text, kb)
 	case "inbounds":
-		show(b.inboundsText(), back)
+		text, kb := b.objListScreen(kindByCode("in"), 0)
+		show(text, kb)
 	case "traffic":
-		show(b.trafficText(), back)
+		text, kb := b.statsScreen("d1")
+		show(text, kb)
 	case "logs":
-		show(b.logsText(), back)
+		level := "info"
+		if len(parts) > 2 {
+			level = parts[2]
+		}
+		text, kb := b.logsScreen(level)
+		show(text, kb)
 	case "clients":
-		text, kb := b.clientsView("")
+		text, kb := b.clientsScreen("a", 0)
 		show(text, kb)
 	case "backup":
 		b.answer(ctx, cbID, "")
@@ -587,84 +664,23 @@ func (b *bot) menuCallback(ctx context.Context, cbID string, chatID, msgID int64
 			return
 		}
 		b.edit(ctx, chatID, msgID, b.t("restarted"), back)
-	default:
-		b.answer(ctx, cbID, "")
-	}
-}
-
-func (b *bot) clientCallback(ctx context.Context, cbID string, chatID, msgID int64, action string, id uint) {
-	var client *model.Client
-	for _, c := range loadClients() {
-		if c.Id == id {
-			c := c
-			client = &c
-			break
+	case "maint":
+		if b.configService == nil {
+			b.answer(ctx, cbID, "")
+			return
 		}
-	}
-	if client == nil {
-		b.answer(ctx, cbID, b.t("notFound"))
-		return
-	}
-	showCard := func(note string) {
-		for _, c := range loadClients() {
-			if c.Id == id {
-				text, kb := b.card(c)
-				if note != "" {
-					text = note + "\n\n" + text
-				}
-				b.edit(ctx, chatID, msgID, text, kb)
-				return
-			}
-		}
-	}
-	mutate := func(err error, after func()) {
-		if err != nil {
+		on, _ := (&service.SettingService{}).GetMaintenance()
+		if err := b.configService.SetMaintenance(!on); err != nil {
 			b.answer(ctx, cbID, b.t("failed", b.errText(err)))
 			return
 		}
-		b.answer(ctx, cbID, b.t("done"))
-		after()
-	}
-	switch action {
-	case "view":
-		b.answer(ctx, cbID, "")
-		showCard("")
-	case "tog":
-		err := b.setEnabled(id, !client.Enable)
-		mutate(err, func() {
-			note := ""
-			if !client.Enable {
-				c, _ := fullClient(id)
-				if c != nil && ((c.Volume > 0 && c.Up+c.Down >= c.Volume) || (c.Expiry > 0 && c.Expiry <= time.Now().Unix())) {
-					note = strings.TrimSpace(b.t("stillDepleted"))
-				}
-			}
-			showCard(note)
-		})
-	case "rst":
-		b.answer(ctx, cbID, "")
-		b.edit(ctx, chatID, msgID, b.t("confirmReset", esc(client.Name)), b.confirmKeyboard("c:rsty:", id))
-	case "rsty":
-		mutate(b.resetTraffic(id), func() { showCard("") })
-	case "gb10":
-		mutate(b.addVolume(id, 10*gib), func() { showCard("") })
-	case "gb50":
-		mutate(b.addVolume(id, 50*gib), func() { showCard("") })
-	case "d30":
-		mutate(b.addDays(id, 30), func() { showCard("") })
-	case "sub":
-		b.answer(ctx, cbID, "")
-		b.sendSub(ctx, chatID, client.Name)
-	case "ips":
-		b.answer(ctx, cbID, "")
-		b.edit(ctx, chatID, msgID, b.ipsText(client.Name), [][]button{{b.btn("btnBack", "c:view:"+strconv.FormatUint(uint64(id), 10))}, b.menuRow()})
-	case "del":
-		b.answer(ctx, cbID, "")
-		b.edit(ctx, chatID, msgID, b.t("confirmDelete", esc(client.Name)), b.confirmKeyboard("c:dely:", id))
-	case "dely":
-		mutate(b.deleteClient(id), func() {
-			b.edit(ctx, chatID, msgID, b.t("deleted", esc(client.Name)), [][]button{b.menuRow()})
-		})
+		b.answer(ctx, cbID, b.t(map[bool]string{true: "maintOff", false: "maintOn"}[on]))
+		b.edit(ctx, chatID, msgID, b.homeText(), b.homeKeyboard())
+	case "prest":
+		show(b.tr("⚠️ پنل ریستارت شود؟ چند ثانیه در دسترس نیست.", "⚠️ Restart the panel? It is unavailable for a few seconds."), [][]button{{b.btn("btnConfirm", "m:prestY"), b.btn("btnCancel", "m:menu")}})
+	case "prestY":
+		show(b.tr("♻️ پنل در حال ریستارت است…", "♻️ Restarting the panel…"), back)
+		_ = (&service.PanelService{}).RestartPanel(3 * time.Second)
 	default:
 		b.answer(ctx, cbID, "")
 	}
@@ -699,4 +715,28 @@ func (b *bot) userCallback(ctx context.Context, cbID string, chatID, msgID, from
 	case "sub":
 		b.sendSub(ctx, chatID, client.Name)
 	}
+}
+
+func (b *bot) cmdAddBulk(ctx context.Context, chatID int64, f []string) {
+	if len(f) < 4 {
+		b.send(ctx, chatID, b.tr("/addbulk <code>پیشوند تعداد GB روز [IP]</code>\nمثال: <code>/addbulk user 10 20 30</code> → user1 تا user10", "/addbulk <code>prefix count GB days [IP]</code>\nExample: <code>/addbulk user 10 20 30</code> → user1 … user10"))
+		return
+	}
+	count, ok1 := parseIntArg(f[1])
+	gb, ok2 := parseFloatArg(f[2])
+	days, ok3 := parseIntArg(f[3])
+	limit, ok4 := 0, true
+	if len(f) >= 5 {
+		limit, ok4 = parseIntArg(f[4])
+	}
+	if !ok1 || !ok2 || !ok3 || !ok4 || count < 1 || count > 200 {
+		b.send(ctx, chatID, b.t("badNumber"))
+		return
+	}
+	if err := b.createBulk(f[0], count, int64(gb*float64(gib)), days, limit); err != nil {
+		b.fail(ctx, chatID, err)
+		return
+	}
+	text, kb := b.clientsScreen("a", 0)
+	b.sendKeyboard(ctx, chatID, b.t("done")+"\n\n"+text, kb)
 }

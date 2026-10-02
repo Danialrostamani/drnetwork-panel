@@ -7,9 +7,11 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/Danialrostamani/drnetwork-panel/core"
 	"github.com/Danialrostamani/drnetwork-panel/database"
@@ -331,5 +333,222 @@ func TestNewClientConfigCoversEveryProtocol(t *testing.T) {
 	}
 	if !clientNameRe.MatchString("a.b-c_d@e") || clientNameRe.MatchString("a b") {
 		t.Fatal("name validation")
+	}
+}
+
+func testBot(t *testing.T) (*bot, func() []sent) {
+	t.Helper()
+	if err := database.InitDB(filepath.Join(t.TempDir(), "bot.db")); err != nil {
+		t.Fatal(err)
+	}
+	// Saves finish their restart/fan-out work in goroutines; let them end
+	// before the next test swaps the global database.
+	t.Cleanup(func() { time.Sleep(300 * time.Millisecond) })
+	cs := service.NewConfigService(core.NewCore())
+	if err := (&service.SettingService{}).SetMaintenance(true); err != nil {
+		t.Fatal(err)
+	}
+	// Settings rows are created lazily; the config row must exist to be saved.
+	if _, err := (&service.SettingService{}).GetAllSetting(); err != nil {
+		t.Fatal(err)
+	}
+	b, got := fakeTelegram(t)
+	b.configService = cs
+	return b, got
+}
+
+func lastEdit(t *testing.T, got func() []sent) string {
+	t.Helper()
+	edits := texts(got(), "editMessageText")
+	if len(edits) == 0 {
+		t.Fatal("no message was edited")
+	}
+	return edits[len(edits)-1]
+}
+
+// Every button of the main menu has to open a screen without error.
+func TestEveryMenuScreenOpens(t *testing.T) {
+	b, got := testBot(t)
+	ctx := context.Background()
+	database.GetDB().Create(&model.Client{Name: "zoe", Enable: true, Inbounds: json.RawMessage(`[]`), Links: json.RawMessage(`[]`)})
+	b.handle(ctx, privateMessage(42, "/menu"))
+	for _, row := range b.mainMenu() {
+		for _, btn := range row {
+			// These two really stop and start the core.
+			if btn.Data == "m:maint" || btn.Data == "m:restart" {
+				continue
+			}
+			before := len(got())
+			b.handle(ctx, callbackFrom(42, btn.Data))
+			msgs := got()[before:]
+			if len(msgs) == 0 {
+				t.Fatalf("%s: no response", btn.Data)
+			}
+			for _, m := range msgs {
+				if strings.Contains(m.Text, "❌") {
+					t.Fatalf("%s failed: %s", btn.Data, m.Text)
+				}
+			}
+		}
+	}
+	for _, data := range []string{"c:ls:e:0", "c:ls:d:0", "c:ls:n:0", "c:ls:x:0", "c:ls:o:0", "c:clean", "s:ls", "s:g:p", "s:g:s", "s:g:m", "g:rs:ls:0", "g:dr:ls:0", "t:d7", "t:d30", "m:logs:err", "g:log:lv:debug"} {
+		before := len(got())
+		b.handle(ctx, callbackFrom(42, data))
+		for _, m := range got()[before:] {
+			if strings.Contains(m.Text, "❌") {
+				t.Fatalf("%s failed: %s", data, m.Text)
+			}
+		}
+	}
+}
+
+func TestObjectsCreateEditAndDeleteThroughJSON(t *testing.T) {
+	b, got := testBot(t)
+	ctx := context.Background()
+	b.handle(ctx, callbackFrom(42, "o:out:n:0"))
+	b.handle(ctx, privateMessage(42, "```json\n"+templateJSON("out", "direct")+"\n```"))
+	var ob model.Outbound
+	if err := database.GetDB().Where("tag = ?", "direct-out").First(&ob).Error; err != nil {
+		t.Fatalf("outbound was not created: %v (%s)", err, lastEdit(t, got))
+	}
+	b.handle(ctx, callbackFrom(42, "o:out:e:"+itoa(int64(ob.Id))))
+	b.handle(ctx, privateMessage(42, `{"type":"direct","tag":"renamed-out"}`))
+	var count int64
+	database.GetDB().Model(model.Outbound{}).Where("tag = ?", "renamed-out").Count(&count)
+	if count != 1 {
+		t.Fatalf("edit did not apply: %s", lastEdit(t, got))
+	}
+	// A bad answer keeps the prompt open instead of dropping it.
+	b.handle(ctx, callbackFrom(42, "o:out:e:"+itoa(int64(ob.Id))))
+	b.handle(ctx, privateMessage(42, `{not json`))
+	if b.pend.get(42) == nil {
+		t.Fatal("prompt was dropped after a bad answer")
+	}
+	b.handle(ctx, callbackFrom(42, "x:cancel"))
+	if b.pend.get(42) != nil {
+		t.Fatal("cancel did not clear the prompt")
+	}
+	b.handle(ctx, callbackFrom(42, "o:out:d:"+itoa(int64(ob.Id))))
+	b.handle(ctx, callbackFrom(42, "o:out:dy:"+itoa(int64(ob.Id))))
+	database.GetDB().Model(model.Outbound{}).Where("tag = ?", "renamed-out").Count(&count)
+	if count != 0 {
+		t.Fatal("outbound was not deleted")
+	}
+
+	// Inbounds: create, change the port, attach a client, delete.
+	b.handle(ctx, callbackFrom(42, "o:in:n:0"))
+	b.handle(ctx, privateMessage(42, `{"type":"mixed","tag":"mixed-in","listen":"::","listen_port":2080,"tls_id":0}`))
+	var in model.Inbound
+	if err := database.GetDB().Where("tag = ?", "mixed-in").First(&in).Error; err != nil {
+		t.Fatalf("inbound was not created: %s", lastEdit(t, got))
+	}
+	b.handle(ctx, callbackFrom(42, "o:in:port:"+itoa(int64(in.Id))))
+	b.handle(ctx, privateMessage(42, "2090"))
+	database.GetDB().First(&in, in.Id)
+	if !strings.Contains(string(in.Options), "2090") {
+		t.Fatalf("port not changed: %s", in.Options)
+	}
+	b.handle(ctx, privateMessage(42, "/add dan 1 1"))
+	dan := loadByName(t, "dan")
+	if !strings.Contains(string(dan.Inbounds), itoa(int64(in.Id))) {
+		t.Fatalf("new client was not attached to the inbound: %s", dan.Inbounds)
+	}
+	b.handle(ctx, callbackFrom(42, "c:ti:"+itoa(int64(dan.Id))+":"+itoa(int64(in.Id))))
+	if got := loadByName(t, "dan").Inbounds; strings.Contains(string(got), itoa(int64(in.Id))) {
+		t.Fatalf("toggle did not detach the inbound: %s", got)
+	}
+	b.handle(ctx, callbackFrom(42, "o:in:dy:"+itoa(int64(in.Id))))
+	database.GetDB().Model(model.Inbound{}).Where("tag = ?", "mixed-in").Count(&count)
+	if count != 0 {
+		t.Fatal("inbound was not deleted")
+	}
+}
+
+func TestClientWizardAndFieldPrompts(t *testing.T) {
+	b, _ := testBot(t)
+	ctx := context.Background()
+	b.handle(ctx, callbackFrom(42, "c:new"))
+	b.handle(ctx, privateMessage(42, "wiz1"))
+	b.handle(ctx, callbackFrom(42, "w:vol:20"))
+	b.handle(ctx, callbackFrom(42, "w:days:30"))
+	b.handle(ctx, callbackFrom(42, "w:ip:2"))
+	c := loadByName(t, "wiz1")
+	if c.Volume != 20*gib || c.LimitIp != 2 || c.Expiry == 0 {
+		t.Fatalf("wizard client = %+v", c)
+	}
+	id := itoa(int64(c.Id))
+	for field, answer := range map[string]string{"desc": "vip", "grp": "team", "tg": "555", "vol": "7"} {
+		b.handle(ctx, callbackFrom(42, "c:ask:"+field+":"+id))
+		b.handle(ctx, privateMessage(42, answer))
+	}
+	c = loadByName(t, "wiz1")
+	if c.Desc != "vip" || c.Group != "team" || c.TgId != 555 || c.Volume != 7*gib {
+		t.Fatalf("after prompts = %+v", c)
+	}
+	b.handle(ctx, callbackFrom(42, "c:ask:name:"+id))
+	b.handle(ctx, privateMessage(42, "wiz2"))
+	if loadByName(t, "wiz2").Id != c.Id {
+		t.Fatal("rename failed")
+	}
+	// Depleted clients are removed by the cleanup.
+	database.GetDB().Model(model.Client{}).Where("id = ?", c.Id).Updates(map[string]interface{}{"up": 8 * gib})
+	b.handle(ctx, callbackFrom(42, "c:cleany"))
+	var count int64
+	database.GetDB().Model(model.Client{}).Count(&count)
+	if count != 0 {
+		t.Fatal("cleanup did not delete the depleted client")
+	}
+	b.handle(ctx, privateMessage(42, "/addbulk bulk 3 1 1"))
+	database.GetDB().Model(model.Client{}).Count(&count)
+	if count != 3 {
+		t.Fatalf("bulk created %d clients", count)
+	}
+}
+
+func TestConfigRulesAndSettings(t *testing.T) {
+	b, _ := testBot(t)
+	ctx := context.Background()
+	rules := func() []interface{} {
+		m, err := b.loadConfigMap()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return getPath(m, []string{"route", "rules"})
+	}
+	base := len(rules())
+	b.handle(ctx, callbackFrom(42, "g:rl:n:0"))
+	b.handle(ctx, privateMessage(42, `{"action":"route","outbound":"direct","domain_suffix":["example.com"]}`))
+	if len(rules()) != base+1 {
+		t.Fatalf("rule not added: %d -> %d", base, len(rules()))
+	}
+	last := strconv.Itoa(base)
+	b.handle(ctx, callbackFrom(42, "g:rl:up:"+last))
+	moved := rules()[base-1].(map[string]interface{})
+	if scalar(moved["outbound"]) != "direct" {
+		t.Fatalf("rule not moved up: %v", moved)
+	}
+	b.handle(ctx, callbackFrom(42, "g:rl:dy:"+strconv.Itoa(base-1)))
+	if len(rules()) != base {
+		t.Fatal("rule not deleted")
+	}
+	b.handle(ctx, callbackFrom(42, "g:log:lv:warn"))
+	m, _ := b.loadConfigMap()
+	if scalar(asMap(m["log"])["level"]) != "warn" {
+		t.Fatalf("log level = %v", m["log"])
+	}
+
+	b.handle(ctx, callbackFrom(42, "s:tg:subEncode"))
+	all, _ := (&service.SettingService{}).GetAllSetting()
+	first := (*all)["subEncode"]
+	b.handle(ctx, callbackFrom(42, "s:tg:subEncode"))
+	all, _ = (&service.SettingService{}).GetAllSetting()
+	if (*all)["subEncode"] == first {
+		t.Fatal("boolean setting did not toggle")
+	}
+	b.handle(ctx, callbackFrom(42, "s:ask:subDomain"))
+	b.handle(ctx, privateMessage(42, "sub.example.com"))
+	all, _ = (&service.SettingService{}).GetAllSetting()
+	if (*all)["subDomain"] != "sub.example.com" {
+		t.Fatalf("subDomain = %q", (*all)["subDomain"])
 	}
 }
