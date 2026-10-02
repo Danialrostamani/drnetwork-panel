@@ -6,7 +6,9 @@ import (
 	"crypto/x509"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -48,7 +50,7 @@ var (
 )
 
 const (
-	nodeProbeTimeout    = 4 * time.Second
+	nodeProbeTimeout    = 8 * time.Second
 	nodeProbeParallel   = 8
 	nodeMaxResponseSize = 8 << 20
 	nodeIdleConnTimeout = 90 * time.Second
@@ -165,12 +167,33 @@ func (s *NodeService) nodeGet(n *model.Node, client *http.Client, action string,
 	}
 	return msg.Obj, nil
 }
+func isNodeNetworkError(err error) bool {
+	var ne net.Error
+	if errors.As(err, &ne) {
+		return true
+	}
+	var ue *url.Error
+	return errors.As(err, &ue)
+}
 func (s *NodeService) probe(n *model.Node, client *http.Client) NodeStatus {
 	started := time.Now()
 	st := NodeStatus{CheckedAt: started.Unix()}
 	q := url.Values{}
 	q.Set("r", "cpu,mem,sys,sbd")
 	obj, err := s.nodeGet(n, client, "status", q)
+	if err != nil && isNodeNetworkError(err) {
+		// A stale keep-alive connection (dropped by NAT/firewall) or a single
+		// lost packet should not flip the node to offline: retry once on a
+		// fresh connection.
+		client.CloseIdleConnections()
+		if http.DefaultTransport != nil && client.Transport == nil {
+			if t, ok := http.DefaultTransport.(*http.Transport); ok {
+				t.CloseIdleConnections()
+			}
+		}
+		started = time.Now()
+		obj, err = s.nodeGet(n, client, "status", q)
+	}
 	st.Latency = time.Since(started).Milliseconds()
 	if err != nil {
 		st.State = "offline"
