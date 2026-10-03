@@ -68,7 +68,7 @@ func (b *bot) handlePending(ctx context.Context, chatID, userMsgID int64, text s
 		}
 		showClient(p.id)
 	case p.kind == "wiz":
-		b.wizardStep(ctx, chatID, p, strings.TrimSpace(text))
+		b.wizardStep(ctx, chatID, p, strings.TrimSpace(text), false)
 	case p.kind == "in.port":
 		if err := b.objPortEdit(p.id, text); err != nil {
 			retry(err)
@@ -196,32 +196,40 @@ func (b *bot) wizardPrompt(p *pending) (string, [][]button) {
 	btn := func(label, step, val string) button { return button{Text: label, Data: "w:" + step + ":" + val} }
 	switch p.key {
 	case "vol":
-		return b.header("➕", "2/4") + "\n" + b.tr("حجم کل (GB) را انتخاب کنید یا عدد بفرستید.", "Pick the total volume (GB) or send a number."), [][]button{
+		return b.header("➕", "3/5") + "\n" + b.tr("حجم کل (GB) را انتخاب کنید یا عدد بفرستید.", "Pick the total volume (GB) or send a number."), [][]button{
 			{btn("10", "vol", "10"), btn("20", "vol", "20"), btn("50", "vol", "50")},
 			{btn("100", "vol", "100"), btn("200", "vol", "200"), btn("∞", "vol", "0")},
 			b.cancelRow()}
 	case "days":
-		return b.header("➕", "3/4") + "\n" + b.tr("مدت اعتبار (روز) را انتخاب کنید یا عدد بفرستید.", "Pick the validity (days) or send a number."), [][]button{
+		return b.header("➕", "4/5") + "\n" + b.tr("مدت اعتبار (روز) را انتخاب کنید یا عدد بفرستید.", "Pick the validity (days) or send a number."), [][]button{
 			{btn("7", "days", "7"), btn("30", "days", "30"), btn("60", "days", "60")},
 			{btn("90", "days", "90"), btn("180", "days", "180"), btn("∞", "days", "0")},
 			b.cancelRow()}
+	case "grp":
+		text := b.header("➕", b.tr("گروه — ۲/۵", "Group — 2/5")) + "\n" + b.tr("گروه کلاینت را از دکمه‌ها انتخاب کنید، یا نام یک گروه جدید را بفرستید تا ساخته شود.", "Pick a group below, or send a new group name to create it.")
+		if len(b.clientGroups()) == 0 {
+			text += "\n" + b.tr("(هنوز گروهی وجود ندارد.)", "(There are no groups yet.)")
+		}
+		return text, append(b.groupChoices("w:grp:"), b.cancelRow())
 	case "name":
 		if p.data["rnd"] == "" {
 			p.data["rnd"] = b.randomClientName()
 		}
-		return b.header("➕", b.tr("کلاینت جدید — ۱/۴", "New client — 1/4")) + "\n" +
+		return b.header("➕", b.tr("کلاینت جدید — ۱/۵", "New client — 1/5")) + "\n" +
 				b.tr("نام پیشنهادی (روی آن بزنید تا کپی شود):", "Suggested name (tap to copy):") + " <code>" + esc(p.data["rnd"]) + "</code>\n" +
 				b.tr("• «استفاده از این نام» را بزنید\n• یا نام دلخواه را بفرستید\n• یا با + شروع کنید تا به انتهای نام پیشنهادی اضافه شود؛ مثلاً <code>+_ali</code>", "• Tap “Use this name”\n• or send your own name\n• or start with + to append to the suggestion, e.g. <code>+_ali</code>"), [][]button{
 				{btn(b.tr("✅ استفاده از این نام", "✅ Use this name"), "name", "#ok"), btn(b.tr("🎲 نام دیگر", "🎲 Another"), "name", "#new")},
 				b.cancelRow()}
 	default:
-		return b.header("➕", "4/4") + "\n" + b.tr("محدودیت تعداد IP همزمان؟", "Concurrent IP limit?"), [][]button{
+		return b.header("➕", "5/5") + "\n" + b.tr("محدودیت تعداد IP همزمان؟", "Concurrent IP limit?"), [][]button{
 			{btn("∞", "ip", "0"), btn("1", "ip", "1"), btn("2", "ip", "2"), btn("3", "ip", "3"), btn("5", "ip", "5")},
 			b.cancelRow()}
 	}
 }
 
-func (b *bot) wizardStep(ctx context.Context, chatID int64, p *pending, value string) {
+// wizardStep consumes one answer of the new-client wizard. fromButton tells a
+// pressed button from typed text (a typed group name may be any text).
+func (b *bot) wizardStep(ctx context.Context, chatID int64, p *pending, value string, fromButton bool) {
 	fail := func(err error) {
 		b.pend.set(chatID, p)
 		b.reply(ctx, chatID, p.msgID, b.t("failed", esc(b.errText(err)))+"\n\n"+b.tr("دوباره بفرستید یا انصراف دهید.", "Send it again or cancel."), [][]button{b.cancelRow()})
@@ -230,7 +238,11 @@ func (b *bot) wizardStep(ctx context.Context, chatID int64, p *pending, value st
 		p.key = next
 		b.pend.set(chatID, p)
 		t, kb := b.wizardPrompt(p)
-		b.reply(ctx, chatID, p.msgID, fmt.Sprintf("👤 <b>%s</b>\n%s", esc(p.data["name"]), t), kb)
+		head := "👤 <b>" + esc(p.data["name"]) + "</b>"
+		if g := p.data["grp"]; g != "" {
+			head += "  🏷 " + esc(g)
+		}
+		b.reply(ctx, chatID, p.msgID, head+"\n"+t, kb)
 	}
 	switch p.key {
 	case "name":
@@ -255,6 +267,28 @@ func (b *bot) wizardStep(ctx context.Context, chatID int64, p *pending, value st
 			return
 		}
 		p.data["name"] = value
+		advance("grp")
+	case "grp":
+		group := ""
+		switch {
+		case fromButton && value == "-":
+		case fromButton:
+			groups := b.clientGroups()
+			idx, err := strconv.Atoi(value)
+			if err != nil || idx < 0 || idx >= len(groups) {
+				fail(fmt.Errorf("%s", b.t("notFound")))
+				return
+			}
+			group = groups[idx]
+		default:
+			g, err := b.normalizeGroup(value)
+			if err != nil {
+				fail(err)
+				return
+			}
+			group = g
+		}
+		p.data["grp"] = group
 		advance("vol")
 	case "vol":
 		if _, ok := parseFloatArg(value); !ok {
@@ -278,7 +312,7 @@ func (b *bot) wizardStep(ctx context.Context, chatID int64, p *pending, value st
 		}
 		gb, _ := parseFloatArg(p.data["vol"])
 		days, _ := parseIntArg(p.data["days"])
-		if err := b.createClient(p.data["name"], int64(gb*float64(gib)), days, limit); err != nil {
+		if err := b.createClient(p.data["name"], p.data["grp"], int64(gb*float64(gib)), days, limit); err != nil {
 			fail(err)
 			return
 		}
@@ -297,5 +331,5 @@ func (b *bot) wizardCallback(ctx context.Context, cbID string, chatID int64, par
 		return
 	}
 	b.answer(ctx, cbID, "")
-	b.wizardStep(ctx, chatID, p, parts[2])
+	b.wizardStep(ctx, chatID, p, parts[2], true)
 }

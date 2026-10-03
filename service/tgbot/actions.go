@@ -257,7 +257,7 @@ func (b *bot) bindClient(id uint, tgID int64) error {
 
 // createClient adds a client on every inbound, as the web panel's "new
 // client" form does by default.
-func (b *bot) createClient(name string, volume int64, days int, limitIP int) error {
+func (b *bot) createClient(name, group string, volume int64, days int, limitIP int) error {
 	if !clientNameRe.MatchString(name) {
 		return errors.New("bad name")
 	}
@@ -277,6 +277,7 @@ func (b *bot) createClient(name string, volume int64, days int, limitIP int) err
 		Links:    json.RawMessage(`[]`),
 		Volume:   volume,
 		LimitIp:  limitIP,
+		Group:    group,
 	}
 	if days > 0 {
 		c.Expiry = time.Now().Add(time.Duration(days) * 24 * time.Hour).Unix()

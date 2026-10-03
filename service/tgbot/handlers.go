@@ -237,7 +237,11 @@ func (b *bot) clientLine(c model.Client, now time.Time) string {
 	} else {
 		usage += " / " + b.t("unlimited")
 	}
-	return fmt.Sprintf("%s <b>%s</b> — %s — %s", icon, esc(c.Name), usage, b.expiryText(c, now))
+	line := fmt.Sprintf("%s <b>%s</b> — %s — %s", icon, esc(c.Name), usage, b.expiryText(c, now))
+	if c.Group != "" && c.Group != service.ClusterGroup {
+		line += " · 🏷 " + esc(c.Group)
+	}
+	return line
 }
 
 func (b *bot) clientsView(query string) (string, [][]button) {
@@ -286,7 +290,7 @@ func (b *bot) clientsView(query string) (string, [][]button) {
 			found = []model.Client{c}
 			break
 		}
-		if strings.Contains(strings.ToLower(c.Name), needle) || strings.Contains(strings.ToLower(c.Desc), needle) {
+		if strings.Contains(strings.ToLower(c.Name), needle) || strings.Contains(strings.ToLower(c.Desc), needle) || strings.Contains(strings.ToLower(c.Group), needle) {
 			found = append(found, c)
 		}
 	}

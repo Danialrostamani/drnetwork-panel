@@ -125,10 +125,23 @@ func (b *bot) filterClients(filter string, all []model.Client) []model.Client {
 			online[n] = true
 		}
 	}
+	// "g<i>" selects the i-th group of b.clientGroups(), "u" the clients
+	// that have no group.
+	groupFilter, groupName := false, ""
+	if len(filter) > 1 && filter[0] == 'g' {
+		idx, err := strconv.Atoi(filter[1:])
+		groups := b.clientGroups()
+		if err != nil || idx < 0 || idx >= len(groups) {
+			return nil
+		}
+		groupFilter, groupName = true, groups[idx]
+	}
 	var out []model.Client
 	for _, c := range all {
 		keep := true
 		switch filter {
+		case "u":
+			keep = c.Group == ""
 		case "e":
 			keep = c.Enable
 		case "d":
@@ -144,6 +157,9 @@ func (b *bot) filterClients(filter string, all []model.Client) []model.Client {
 			keep = isDepleted(c, now)
 		case "o":
 			keep = online[c.Name]
+		}
+		if groupFilter {
+			keep = c.Group == groupName
 		}
 		if keep {
 			out = append(out, c)
@@ -178,6 +194,21 @@ func sortClients(list []model.Client, newestFirst bool) {
 	})
 }
 
+// filterLabel names the group filters in the list header ("" for the others).
+func (b *bot) filterLabel(filter string) string {
+	if filter == "u" {
+		return " — " + b.tr("➖ بدون گروه", "➖ no group")
+	}
+	if len(filter) > 1 && filter[0] == 'g' {
+		if idx, err := strconv.Atoi(filter[1:]); err == nil {
+			if groups := b.clientGroups(); idx >= 0 && idx < len(groups) {
+				return " — 🏷 " + esc(groups[idx])
+			}
+		}
+	}
+	return ""
+}
+
 func (b *bot) clientSortLabel() string {
 	if clientsNewestFirst() {
 		return b.tr("جدیدترین اول", "Newest first")
@@ -196,7 +227,7 @@ func (b *bot) clientsScreen(filter string, page int) (string, [][]button) {
 	for _, n := range onlineUsers() {
 		online[n] = true
 	}
-	lines := []string{b.header("👥", fmt.Sprintf("%s (%d/%d)", b.tr("کلاینت‌ها", "Clients"), len(list), len(all))),
+	lines := []string{b.header("👥", fmt.Sprintf("%s%s (%d/%d)", b.tr("کلاینت‌ها", "Clients"), b.filterLabel(filter), len(list), len(all))),
 		"📅 " + b.tr("مرتب‌شده بر اساس تاریخ ساخت — ", "Sorted by creation date — ") + b.clientSortLabel()}
 	if len(list) == 0 {
 		lines = append(lines, b.t("noClients"))
@@ -230,7 +261,7 @@ func (b *bot) clientsScreen(filter string, page int) (string, [][]button) {
 		chips = append(chips, button{Text: text, Data: "c:ls:" + f.code + ":0"})
 	}
 	kb = append(kb, chips[:3], chips[3:])
-	kb = append(kb, []button{{Text: "🔃 " + b.clientSortLabel(), Data: "c:sort:" + filter}})
+	kb = append(kb, []button{{Text: "🔃 " + b.clientSortLabel(), Data: "c:sort:" + filter}, {Text: b.tr("🏷 گروه‌ها", "🏷 Groups"), Data: "c:grps"}})
 	kb = append(kb,
 		[]button{{Text: b.tr("➕ کلاینت جدید", "➕ New client"), Data: "c:new"}, {Text: b.tr("📄 جدید با JSON", "📄 New via JSON"), Data: "c:newj"}},
 		[]button{{Text: b.tr("🔎 جستجو", "🔎 Search"), Data: "c:srch"}, {Text: b.tr("🛠 ویرایش گروهی", "🛠 Bulk edit"), Data: "c:bulk"}, {Text: b.tr("🧹 پاکسازی", "🧹 Cleanup"), Data: "c:clean"}},
@@ -245,7 +276,7 @@ var clientAsks = map[string]struct{ fa, en string }{
 	"days": {"تعداد روز از همین الان تا انقضا را بفرستید (۰ = نامحدود).", "Send the number of days from now until expiry (0 = unlimited)."},
 	"ip":   {"محدودیت تعداد IP همزمان را بفرستید (۰ = نامحدود).", "Send the concurrent IP limit (0 = unlimited)."},
 	"desc": {"توضیح را بفرستید (- برای پاک کردن).", "Send the note (- to clear)."},
-	"grp":  {"نام گروه را بفرستید (- برای پاک کردن).", "Send the group name (- to clear)."},
+	"grp":  {"گروه را از دکمه‌ها انتخاب کنید یا نام گروه جدید را بفرستید تا ساخته شود.", "Pick a group below or send a new group name to create it."},
 	"name": {"نام جدید را بفرستید. توجه: لینک اشتراک کلاینت با نام عوض می‌شود.", "Send the new name. Note: the client's subscription link changes with its name."},
 	"rem":  {"یادداشت (Remark) را بفرستید (- برای پاک کردن).", "Send the remark (- to clear)."},
 	"exp":  {"تاریخ انقضا را به شکل YYYY-MM-DD یا YYYY-MM-DD HH:MM بفرستید (۰ = نامحدود).", "Send the expiry date as YYYY-MM-DD or YYYY-MM-DD HH:MM (0 = unlimited)."},
@@ -264,6 +295,13 @@ func (b *bot) ask(ctx context.Context, chatID, msgID int64, kind, key string, id
 func (b *bot) askClient(ctx context.Context, chatID, msgID int64, field string, id uint) {
 	a, ok := clientAsks[field]
 	if !ok {
+		return
+	}
+	if field == "grp" {
+		// Existing groups as buttons; a typed name creates a new group.
+		sid := strconv.FormatUint(uint64(id), 10)
+		b.pend.set(chatID, &pending{kind: "cl.grp", key: "grp", id: id, msgID: msgID, back: "c:view:" + sid, data: map[string]string{}})
+		b.edit(ctx, chatID, msgID, "🏷 "+b.tr(a.fa, a.en), append(b.groupChoices("c:sg:"+sid+":"), b.cancelRow()))
 		return
 	}
 	b.ask(ctx, chatID, msgID, "cl."+field, field, id, "c:view:"+strconv.FormatUint(uint64(id), 10), b.tr(a.fa, a.en))
@@ -350,11 +388,16 @@ func (b *bot) applyClientAnswer(field string, id uint, text string) error {
 	case "json":
 		return b.applyClientJSON(id, text)
 	case "grp":
-		return b.editClient(id, func(c *model.Client) error {
-			c.Group = text
-			if clear {
-				c.Group = ""
+		group := ""
+		if !clear {
+			g, err := b.normalizeGroup(text)
+			if err != nil {
+				return err
 			}
+			group = g
+		}
+		return b.editClient(id, func(c *model.Client) error {
+			c.Group = group
 			return nil
 		})
 	case "name":
@@ -463,9 +506,16 @@ func (b *bot) deleteClients(ids []uint) error {
 
 // ---- bulk create ----
 
-func (b *bot) createBulk(prefix string, count int, volume int64, days, limitIP int) error {
+func (b *bot) createBulk(prefix, group string, count int, volume int64, days, limitIP int) error {
 	if !clientNameRe.MatchString(prefix) || count < 1 || count > 200 {
 		return fmt.Errorf("%s", b.t("badNumber"))
+	}
+	if strings.TrimSpace(group) != "" {
+		g, err := b.normalizeGroup(group)
+		if err != nil {
+			return err
+		}
+		group = g
 	}
 	var ids []uint
 	if err := database.GetDB().Model(&model.Inbound{}).Order("id").Pluck("id", &ids).Error; err != nil {
@@ -478,7 +528,7 @@ func (b *bot) createBulk(prefix string, count int, volume int64, days, limitIP i
 	var clients []model.Client
 	for i := 1; i <= count; i++ {
 		name := fmt.Sprintf("%s%d", prefix, i)
-		c := model.Client{Enable: true, Name: name, Config: newClientConfig(name), Inbounds: inbounds, Links: json.RawMessage(`[]`), Volume: volume, LimitIp: limitIP}
+		c := model.Client{Enable: true, Name: name, Config: newClientConfig(name), Inbounds: inbounds, Links: json.RawMessage(`[]`), Volume: volume, LimitIp: limitIP, Group: group}
 		if days > 0 {
 			c.Expiry = time.Now().Add(time.Duration(days) * 24 * time.Hour).Unix()
 		}

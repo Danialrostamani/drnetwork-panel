@@ -469,6 +469,7 @@ func TestClientWizardAndFieldPrompts(t *testing.T) {
 	ctx := context.Background()
 	b.handle(ctx, callbackFrom(42, "c:new"))
 	b.handle(ctx, privateMessage(42, "wiz1"))
+	b.handle(ctx, callbackFrom(42, "w:grp:-"))
 	b.handle(ctx, callbackFrom(42, "w:vol:20"))
 	b.handle(ctx, callbackFrom(42, "w:days:30"))
 	b.handle(ctx, callbackFrom(42, "w:ip:2"))
@@ -730,6 +731,7 @@ func TestClientsAreListedInCreationOrderAndWizardSuggestsAName(t *testing.T) {
 	}
 	suggested := b.pend.get(42).data["rnd"]
 	b.handle(ctx, callbackFrom(42, "w:name:#ok"))
+	b.handle(ctx, callbackFrom(42, "w:grp:-"))
 	b.handle(ctx, callbackFrom(42, "w:vol:1"))
 	b.handle(ctx, callbackFrom(42, "w:days:0"))
 	b.handle(ctx, callbackFrom(42, "w:ip:0"))
@@ -739,8 +741,239 @@ func TestClientsAreListedInCreationOrderAndWizardSuggestsAName(t *testing.T) {
 	b.handle(ctx, callbackFrom(42, "c:new"))
 	suggested = b.pend.get(42).data["rnd"]
 	b.handle(ctx, privateMessage(42, "+_ali"))
+	b.handle(ctx, callbackFrom(42, "w:grp:-"))
 	b.handle(ctx, callbackFrom(42, "w:vol:1"))
 	b.handle(ctx, callbackFrom(42, "w:days:0"))
 	b.handle(ctx, callbackFrom(42, "w:ip:0"))
 	loadByName(t, suggested+"_ali")
+}
+
+// callbackData flattens a keyboard into the callback data of its buttons.
+func callbackData(kb [][]button) []string {
+	var out []string
+	for _, row := range kb {
+		for _, btn := range row {
+			out = append(out, btn.Data)
+		}
+	}
+	return out
+}
+
+func hasData(kb [][]button, want string) bool { return indexOf(callbackData(kb), want) >= 0 }
+
+func TestClientGroupsAreShownFilteredAndChosenInTheBot(t *testing.T) {
+	b, got := testBot(t)
+	ctx := context.Background()
+	press := func(data string) { b.handle(ctx, callbackFrom(42, data)) }
+	say := func(text string) { b.handle(ctx, privateMessage(42, text)) }
+	groupOf := func(name string) string { return loadByName(t, name).Group }
+
+	// Groups made in the web panel: two hand-made ones, one client without a
+	// group and one the cluster pushed (reserved group).
+	for _, row := range []struct{ name, group string }{{"a1", "Team"}, {"a2", "vip"}, {"a3", ""}, {"n1", service.ClusterGroup}} {
+		c := model.Client{Enable: true, Name: row.name, Group: row.group, Config: newClientConfig(row.name), Inbounds: json.RawMessage("[]"), Links: json.RawMessage("[]")}
+		if err := database.GetDB().Create(&c).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := strings.Join(b.clientGroups(), ","); got != "Team,vip" {
+		t.Fatalf("groups = %q (sorted, reserved one left out)", got)
+	}
+
+	// The list shows each client's group; the reserved one is hidden.
+	line := func(name string) string { return b.clientLine(loadByName(t, name), time.Now()) }
+	if !strings.Contains(line("a1"), "🏷 Team") || !strings.Contains(line("a2"), "🏷 vip") {
+		t.Fatalf("lines carry no group: %q / %q", line("a1"), line("a2"))
+	}
+	if strings.Contains(line("a3"), "🏷") || strings.Contains(line("n1"), "🏷") {
+		t.Fatalf("no-group / cluster clients show a group: %q / %q", line("a3"), line("n1"))
+	}
+	if text, _ := b.clientsScreen("a", 0); !strings.Contains(text, "🏷 Team") || !strings.Contains(text, "🏷 vip") {
+		t.Fatalf("client list shows no groups:\n%s", text)
+	}
+
+	// Search matches the group name too.
+	if text, _ := b.clientsView("VIP"); !strings.Contains(text, "a2") || strings.Contains(text, "a1") {
+		t.Fatalf("search by group:\n%s", text)
+	}
+
+	// The Groups screen, and the filters behind it.
+	text, kb := b.groupsScreen()
+	if !strings.Contains(text, "Team") || !strings.Contains(text, "vip") || strings.Contains(text, service.ClusterGroup) {
+		t.Fatalf("groups screen:\n%s", text)
+	}
+	for _, want := range []string{"c:ls:g0:0", "c:ls:g1:0", "c:ls:u:0"} {
+		if !hasData(kb, want) {
+			t.Fatalf("groups screen lacks %s: %v", want, callbackData(kb))
+		}
+	}
+	if _, listKB := b.clientsScreen("a", 0); !hasData(listKB, "c:grps") {
+		t.Fatal("client list has no Groups button")
+	}
+	press("c:grps")
+	if !strings.Contains(lastEdit(t, got), "Groups") {
+		t.Fatal("c:grps did not open the groups screen")
+	}
+	names := func(list []model.Client) string {
+		var out []string
+		for _, c := range list {
+			out = append(out, c.Name)
+		}
+		return strings.Join(out, ",")
+	}
+	for filter, want := range map[string]string{"g0": "a1", "g1": "a2", "u": "a3", "g9": "", "gx": ""} {
+		if got := names(b.filterClients(filter, loadClients())); got != want {
+			t.Fatalf("filter %s = %q, want %q", filter, got, want)
+		}
+	}
+	press("c:ls:g0:0")
+	if screen := lastEdit(t, got); !strings.Contains(screen, "🏷 Team") || !strings.Contains(screen, "a1") || strings.Contains(screen, "a2") {
+		t.Fatalf("group filter screen:\n%s", screen)
+	}
+	press("c:ls:u:0")
+	if screen := lastEdit(t, got); !strings.Contains(screen, "a3") || strings.Contains(screen, "a1") {
+		t.Fatalf("no-group filter screen:\n%s", screen)
+	}
+
+	// New-client wizard: the group step offers the existing groups ...
+	press("c:new")
+	say("w1")
+	p := b.pend.get(42)
+	if p == nil || p.key != "grp" {
+		t.Fatalf("wizard did not ask for a group: %+v", p)
+	}
+	prompt, choices := b.wizardPrompt(p)
+	if !strings.Contains(prompt, "2/5") {
+		t.Fatalf("group prompt: %s", prompt)
+	}
+	for _, want := range []string{"w:grp:0", "w:grp:1", "w:grp:-"} {
+		if !hasData(choices, want) {
+			t.Fatalf("group choices lack %s: %v", want, callbackData(choices))
+		}
+	}
+	// ... and a pressed button picks one of them.
+	press("w:grp:1")
+	press("w:vol:1")
+	press("w:days:0")
+	press("w:ip:0")
+	if groupOf("w1") != "vip" {
+		t.Fatalf("w1 group = %q", groupOf("w1"))
+	}
+	// A typed name creates a new group,
+	press("c:new")
+	say("w2")
+	say("  Fresh start ")
+	press("w:vol:1")
+	press("w:days:0")
+	press("w:ip:0")
+	if groupOf("w2") != "Fresh start" {
+		t.Fatalf("w2 group = %q", groupOf("w2"))
+	}
+	if got := strings.Join(b.clientGroups(), ","); got != "Fresh start,Team,vip" {
+		t.Fatalf("groups after creating one = %q", got)
+	}
+	// a name that differs from an existing group only by case reuses it,
+	press("c:new")
+	say("w3")
+	say("TEAM")
+	press("w:vol:1")
+	press("w:days:0")
+	press("w:ip:0")
+	if groupOf("w3") != "Team" {
+		t.Fatalf("w3 group = %q (case-insensitive reuse)", groupOf("w3"))
+	}
+	// the reserved cluster name is refused and the step stays open,
+	press("c:new")
+	say("w4")
+	say("@CLUSTER")
+	if p = b.pend.get(42); p == nil || p.key != "grp" {
+		t.Fatalf("reserved group name was accepted: %+v", p)
+	}
+	// and "no group" leaves it empty.
+	press("w:grp:-")
+	press("w:vol:1")
+	press("w:days:0")
+	press("w:ip:0")
+	if groupOf("w4") != "" {
+		t.Fatalf("w4 group = %q", groupOf("w4"))
+	}
+	// A group button pressed on a later step is stale, not applied.
+	press("c:new")
+	say("w5")
+	press("w:grp:-")
+	press("w:grp:0")
+	if p = b.pend.get(42); p == nil || p.key != "vol" || p.data["grp"] != "" {
+		t.Fatalf("stale group button changed the wizard: %+v", p)
+	}
+	press("x:cancel")
+
+	// Editing a client: the chooser, a typed new group, and clearing.
+	id := itoa(int64(loadByName(t, "a3").Id))
+	press("c:ask:grp:" + id)
+	if p = b.pend.get(42); p == nil || p.kind != "cl.grp" {
+		t.Fatalf("group editor not pending: %+v", p)
+	}
+	press("c:sg:" + id + ":0")
+	if groupOf("a3") != "Fresh start" {
+		t.Fatalf("chooser did not set the group: %q", groupOf("a3"))
+	}
+	if b.pend.get(42) != nil {
+		t.Fatal("the pending prompt survived a button choice")
+	}
+	press("c:sg:" + id + ":-")
+	if groupOf("a3") != "" {
+		t.Fatalf("no-group button left %q", groupOf("a3"))
+	}
+	press("c:sg:" + id + ":99")
+	if groupOf("a3") != "" {
+		t.Fatalf("a stale index changed the group: %q", groupOf("a3"))
+	}
+	press("c:ask:grp:" + id)
+	say("Brand new")
+	if groupOf("a3") != "Brand new" {
+		t.Fatalf("typed group = %q", groupOf("a3"))
+	}
+	press("c:ask:grp:" + id)
+	say("@cluster")
+	if groupOf("a3") != "Brand new" {
+		t.Fatalf("reserved group was accepted: %q", groupOf("a3"))
+	}
+	say("-")
+	if groupOf("a3") != "" {
+		t.Fatalf("typed dash left %q", groupOf("a3"))
+	}
+
+	// /addbulk takes an optional group after the IP limit.
+	say("/addbulk bk 2 1 1 0 Two words")
+	if groupOf("bk1") != "Two words" || groupOf("bk2") != "Two words" {
+		t.Fatalf("bulk groups = %q / %q", groupOf("bk1"), groupOf("bk2"))
+	}
+	say("/addbulk cc 1 1 1 0 @cluster")
+	var count int64
+	database.GetDB().Model(model.Client{}).Where("name = ?", "cc1").Count(&count)
+	if count != 0 {
+		t.Fatal("bulk create accepted the reserved group")
+	}
+	say("/addbulk pl 1 1 1")
+	if groupOf("pl1") != "" {
+		t.Fatalf("bulk without a group = %q", groupOf("pl1"))
+	}
+
+	// JSON create normalises the group the same way and refuses the reserved one.
+	press("c:newj")
+	say(`{"name":"j1","group":"vIp"}`)
+	if groupOf("j1") != "vip" {
+		t.Fatalf("json group = %q", groupOf("j1"))
+	}
+	press("c:newj")
+	say(`{"name":"j2","group":"@cluster"}`)
+	database.GetDB().Model(model.Client{}).Where("name = ?", "j2").Count(&count)
+	if count != 0 {
+		t.Fatal("JSON create accepted the reserved group")
+	}
+	press("c:json:" + id)
+	say(`{"group":"@cluster"}`)
+	if groupOf("a3") != "" {
+		t.Fatalf("JSON edit accepted the reserved group: %q", groupOf("a3"))
+	}
 }

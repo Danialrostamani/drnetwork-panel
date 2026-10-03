@@ -25,6 +25,10 @@ type NodeSyncService struct{ NodeService }
 
 const nodePushTimeout = 15 * time.Second
 
+// ClusterGroup is the client group a master gives the clients it pushes to its
+// nodes. It is reserved: a hand-made group must not use it.
+const ClusterGroup = clusterGroup
+
 type remoteInbound struct {
 	Id      uint   `json:"id"`
 	Type    string `json:"type"`

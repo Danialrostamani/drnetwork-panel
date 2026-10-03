@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Danialrostamani/drnetwork-panel/database"
 	"github.com/Danialrostamani/drnetwork-panel/database/model"
@@ -378,6 +379,9 @@ func (b *bot) applyClientJSON(id uint, text string) error {
 		if err := json.Unmarshal(raw, c); err != nil {
 			return err
 		}
+		if c.Group == service.ClusterGroup {
+			return errors.New(b.tr("این نام گروه رزرو شده است.", "That group name is reserved."))
+		}
 		if c.Name != old {
 			if !clientNameRe.MatchString(c.Name) {
 				return b.clientAnswerErr("badName")
@@ -452,6 +456,13 @@ func (b *bot) createClientFromJSON(text string) (string, error) {
 	if !clientNameRe.MatchString(c.Name) {
 		return "", b.clientAnswerErr("badName")
 	}
+	if c.Group != "" {
+		g, err := b.normalizeGroup(c.Group)
+		if err != nil {
+			return "", err
+		}
+		c.Group = g
+	}
 	if findClientByName(c.Name) != nil {
 		return "", errors.New(b.tr("این نام قبلاً استفاده شده است.", "That name is already in use."))
 	}
@@ -492,17 +503,86 @@ func (b *bot) createClientFromJSON(text string) (string, error) {
 
 // ---- bulk edit (the panel's "edit selected clients" dialog) ----
 
+// clientGroups lists the groups the panel's clients use, sorted. The reserved
+// cluster group (clients pushed to nodes) is not a hand-made group.
 func (b *bot) clientGroups() []string {
 	seen := map[string]bool{}
 	var out []string
 	for _, c := range loadClients() {
-		if c.Group != "" && !seen[c.Group] {
+		if c.Group != "" && c.Group != service.ClusterGroup && !seen[c.Group] {
 			seen[c.Group] = true
 			out = append(out, c.Group)
 		}
 	}
-	sort.Strings(out)
+	sort.Slice(out, func(i, j int) bool { return strings.ToLower(out[i]) < strings.ToLower(out[j]) })
 	return out
+}
+
+// normalizeGroup validates a typed group name. A name that only differs in
+// case from an existing group reuses that group instead of making a twin.
+func (b *bot) normalizeGroup(text string) (string, error) {
+	g := strings.TrimSpace(text)
+	switch {
+	case g == "":
+		return "", errors.New(b.tr("نام گروه خالی است.", "The group name is empty."))
+	case utf8.RuneCountInString(g) > 64 || strings.ContainsAny(g, "\r\n"):
+		return "", errors.New(b.tr("نام گروه باید تک‌خط و حداکثر ۶۴ نویسه باشد.", "A group name is one line of at most 64 characters."))
+	case strings.EqualFold(g, service.ClusterGroup):
+		return "", errors.New(b.tr("این نام گروه رزرو شده است.", "That group name is reserved."))
+	}
+	for _, existing := range b.clientGroups() {
+		if strings.EqualFold(existing, g) {
+			return existing, nil
+		}
+	}
+	return g, nil
+}
+
+// groupChoices builds the group buttons shared by the new-client wizard and
+// the client editor: every existing group with its client count, plus "no
+// group". prefix is the callback data the group index (or "-") is appended to.
+func (b *bot) groupChoices(prefix string) [][]button {
+	counts := map[string]int{}
+	for _, c := range loadClients() {
+		counts[c.Group]++
+	}
+	var btns []button
+	for i, g := range b.clientGroups() {
+		if i == 40 {
+			break
+		}
+		btns = append(btns, button{Text: fmt.Sprintf("🏷 %s (%d)", truncate(g, 20), counts[g]), Data: prefix + strconv.Itoa(i)})
+	}
+	kb := rows2(btns)
+	return append(kb, []button{{Text: b.tr("➖ بدون گروه", "➖ No group"), Data: prefix + "-"}})
+}
+
+// groupsScreen lists the groups with their client counts; each opens the
+// client list filtered to it.
+func (b *bot) groupsScreen() (string, [][]button) {
+	counts := map[string]int{}
+	for _, c := range loadClients() {
+		counts[c.Group]++
+	}
+	groups := b.clientGroups()
+	lines := []string{b.header("🏷", b.tr("گروه‌ها", "Groups"))}
+	var btns []button
+	for i, g := range groups {
+		lines = append(lines, fmt.Sprintf("• <b>%s</b> — %d", esc(g), counts[g]))
+		if i < 40 {
+			btns = append(btns, button{Text: fmt.Sprintf("🏷 %s (%d)", truncate(g, 20), counts[g]), Data: "c:ls:g" + strconv.Itoa(i) + ":0"})
+		}
+	}
+	if len(groups) == 0 {
+		lines = append(lines, b.tr("هنوز گروهی ساخته نشده. هنگام ساخت کلاینت یا از «✏️ ویرایش ← 🏷 گروه» می‌توانید گروه بسازید.", "No groups yet. Create one while adding a client or from ✏️ Edit → 🏷 Group."))
+	}
+	kb := rows2(btns)
+	if n := counts[""]; n > 0 {
+		lines = append(lines, fmt.Sprintf("• %s — %d", b.tr("بدون گروه", "No group"), n))
+		kb = append(kb, []button{{Text: fmt.Sprintf("%s (%d)", b.tr("➖ بدون گروه", "➖ No group"), n), Data: "c:ls:u:0"}})
+	}
+	kb = append(kb, []button{{Text: b.tr("⬅️ کلاینت‌ها", "⬅️ Clients"), Data: "c:ls:a:0"}, {Text: "🏠", Data: "m:menu"}})
+	return strings.Join(lines, "\n"), kb
 }
 
 func (b *bot) scopeName(scope string) string {
@@ -786,6 +866,11 @@ func (b *bot) clientCallbackExt(ctx context.Context, cbID string, chatID, msgID 
 	case "bk":
 		b.bulkCallback(ctx, cbID, chatID, msgID, parts)
 		return true
+	case "grps":
+		b.answer(ctx, cbID, "")
+		t, kb := b.groupsScreen()
+		show(t, kb)
+		return true
 	case "sort":
 		next := "desc"
 		if clientsNewestFirst() {
@@ -811,7 +896,7 @@ func (b *bot) clientCallbackExt(ctx context.Context, cbID string, chatID, msgID 
 			b.tr("این قالب را ویرایش و بفرستید (متن یا فایل .json). فیلدهای حذف‌شده مقدار پیش‌فرض می‌گیرند؛ اگر inbounds خالی باشد به همه اینباندها وصل می‌شود.", "Edit this template and send it back (text or .json file). Omitted fields use defaults; an empty inbounds list attaches the client to every inbound.")+
 			"\n<pre>"+esc(tpl)+"</pre>", [][]button{b.cancelRow()})
 		return true
-	case "edit", "cfg", "cfga", "cfgp", "xl", "xld", "json", "dly", "ar":
+	case "edit", "cfg", "cfga", "cfgp", "xl", "xld", "json", "dly", "ar", "sg":
 	default:
 		return false
 	}
@@ -869,6 +954,27 @@ func (b *bot) clientCallbackExt(ctx context.Context, cbID string, chatID, msgID 
 		show(t, kb)
 	case "xld":
 		mutate(b.deleteClientLink(id, idx), reload(b.clientLinksScreen))
+	case "sg":
+		name := ""
+		if len(parts) < 4 {
+			b.answer(ctx, cbID, "")
+			return true
+		}
+		if parts[3] != "-" {
+			groups := b.clientGroups()
+			if idx < 0 || idx >= len(groups) {
+				b.answer(ctx, cbID, b.t("notFound"))
+				return true
+			}
+			name = groups[idx]
+		}
+		b.pend.clear(chatID)
+		mutate(b.editClient(id, func(c *model.Client) error { c.Group = name; return nil }), func() {
+			if c := clientByID(id); c != nil {
+				t, kb := b.card(*c)
+				show(t, kb)
+			}
+		})
 	case "dly":
 		mutate(b.toggleDelayStart(id), reload(b.clientEditScreen))
 	case "ar":

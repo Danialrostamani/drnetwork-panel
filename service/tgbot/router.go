@@ -516,7 +516,7 @@ func (b *bot) cmdAdd(ctx context.Context, chatID int64, f []string) {
 		b.send(ctx, chatID, b.t("badNumber"))
 		return
 	}
-	if err := b.createClient(f[0], int64(gb*float64(gib)), days, limit); err != nil {
+	if err := b.createClient(f[0], "", int64(gb*float64(gib)), days, limit); err != nil {
 		b.fail(ctx, chatID, err)
 		return
 	}
@@ -722,7 +722,7 @@ func (b *bot) userCallback(ctx context.Context, cbID string, chatID, msgID, from
 
 func (b *bot) cmdAddBulk(ctx context.Context, chatID int64, f []string) {
 	if len(f) < 4 {
-		b.send(ctx, chatID, b.tr("/addbulk <code>پیشوند تعداد GB روز [IP]</code>\nمثال: <code>/addbulk user 10 20 30</code> → user1 تا user10", "/addbulk <code>prefix count GB days [IP]</code>\nExample: <code>/addbulk user 10 20 30</code> → user1 … user10"))
+		b.send(ctx, chatID, b.tr("/addbulk <code>پیشوند تعداد GB روز [IP] [گروه]</code>\nمثال: <code>/addbulk user 10 20 30</code> → user1 تا user10\nبا گروه: <code>/addbulk user 10 20 30 0 vip</code>", "/addbulk <code>prefix count GB days [IP] [group]</code>\nExample: <code>/addbulk user 10 20 30</code> → user1 … user10\nWith a group: <code>/addbulk user 10 20 30 0 vip</code>"))
 		return
 	}
 	count, ok1 := parseIntArg(f[1])
@@ -736,7 +736,11 @@ func (b *bot) cmdAddBulk(ctx context.Context, chatID int64, f []string) {
 		b.send(ctx, chatID, b.t("badNumber"))
 		return
 	}
-	if err := b.createBulk(f[0], count, int64(gb*float64(gib)), days, limit); err != nil {
+	group := ""
+	if len(f) >= 6 {
+		group = strings.Join(f[5:], " ")
+	}
+	if err := b.createBulk(f[0], group, count, int64(gb*float64(gib)), days, limit); err != nil {
 		b.fail(ctx, chatID, err)
 		return
 	}
