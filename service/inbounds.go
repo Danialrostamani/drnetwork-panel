@@ -53,8 +53,6 @@ func (s *InboundService) GetAll() (*[]map[string]interface{}, error) {
 	}
 	var data []map[string]interface{}
 	for _, inbound := range inbounds {
-		var shadowtls_version uint
-		ss_managed := false
 		inbData := map[string]interface{}{
 			"id":     inbound.Id,
 			"type":   inbound.Type,
@@ -71,16 +69,8 @@ func (s *InboundService) GetAll() (*[]map[string]interface{}, error) {
 			}
 			inbData["listen"] = restFields["listen"]
 			inbData["listen_port"] = restFields["listen_port"]
-			if inbound.Type == "shadowtls" {
-				json.Unmarshal(restFields["version"], &shadowtls_version)
-			}
-			if inbound.Type == "shadowsocks" {
-				json.Unmarshal(restFields["managed"], &ss_managed)
-			}
 		}
-		if s.hasUser(inbound.Type) &&
-			!(inbound.Type == "shadowtls" && shadowtls_version < 3) &&
-			!(inbound.Type == "shadowsocks" && ss_managed) {
+		if inboundTakesClients(&inbound) {
 			users := []string{}
 			err = db.Raw("SELECT clients.name FROM clients, json_each(clients.inbounds) as je WHERE je.value = ?", inbound.Id).Scan(&users).Error
 			if err != nil {
@@ -256,11 +246,40 @@ func (s *InboundService) GetAllConfig(db *gorm.DB) ([]json.RawMessage, error) {
 }
 
 func (s *InboundService) hasUser(inboundType string) bool {
+	return inboundTypeHasUsers(inboundType)
+}
+
+func inboundTypeHasUsers(inboundType string) bool {
 	switch inboundType {
 	case "mixed", "socks", "http", "shadowsocks", "vmess", "trojan", "naive", "hysteria", "shadowtls", "tuic", "hysteria2", "vless", "anytls", "snell":
 		return true
 	}
 	return false
+}
+
+// inboundTakesClients reports whether clients can be attached to the inbound:
+// its type has users, except ShadowTLS before version 3 and a Shadowsocks
+// inbound that manages its own keys. The panel's inbound list carries a "users"
+// field for exactly these, and the clients page offers exactly these.
+func inboundTakesClients(inbound *model.Inbound) bool {
+	if !inboundTypeHasUsers(inbound.Type) {
+		return false
+	}
+	var options struct {
+		Version uint `json:"version"`
+		Managed bool `json:"managed"`
+	}
+	if len(inbound.Options) > 0 {
+		// A field of an unexpected type leaves the zero value, as before.
+		_ = json.Unmarshal(inbound.Options, &options)
+	}
+	switch inbound.Type {
+	case "shadowtls":
+		return options.Version >= 3
+	case "shadowsocks":
+		return !options.Managed
+	}
+	return true
 }
 
 func (s *InboundService) fetchUsers(db *gorm.DB, inboundType string, condition string, inbound map[string]interface{}) ([]json.RawMessage, error) {

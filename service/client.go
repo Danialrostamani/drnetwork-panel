@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"encoding/json"
+	"sort"
 	"strings"
 	"time"
 
@@ -71,11 +72,16 @@ func (s *ClientService) GetTrafficSnapshot() (map[string]ClientTraffic, error) {
 	return out, nil
 }
 
+// GetAll is the client list of the panel. The panel's bulk edit posts these
+// rows back, and a save writes every column of the row it is given, so the
+// settings a bulk edit does not touch have to be in the list: without delay
+// start, auto reset, reset days and the next reset, a bulk edit switched them
+// off for every client it covered.
 func (s *ClientService) GetAll() (*[]model.Client, error) {
 	db := database.GetDB()
 	var clients []model.Client
 	err := db.Model(model.Client{}).
-		Select("`id`, `enable`, `name`, `desc`, `group`, `remark`, `inbounds`, `up`, `down`, `volume`, `expiry`, `created_at`, `online_at`, `limit_ip`").
+		Select("`id`, `enable`, `name`, `desc`, `group`, `remark`, `inbounds`, `up`, `down`, `volume`, `expiry`, `created_at`, `online_at`, `limit_ip`, `delay_start`, `auto_reset`, `reset_days`, `next_reset`").
 		Scan(&clients).Error
 	if err != nil {
 		return nil, err
@@ -223,6 +229,11 @@ func (s *ClientService) Save(tx *gorm.DB, act string, data json.RawMessage, host
 		if err != nil {
 			return nil, err
 		}
+	case "attachall":
+		inboundIds, err = s.attachAllInbounds(tx, hostname)
+		if err != nil {
+			return nil, err
+		}
 	case "delbulk":
 		var ids []uint
 		err = json.Unmarshal(data, &ids)
@@ -270,6 +281,121 @@ func (s *ClientService) Save(tx *gorm.DB, act string, data json.RawMessage, host
 	}
 
 	return inboundIds, nil
+}
+
+// attachPlan is what "add every inbound to every client" would do.
+type attachPlan struct {
+	// inbounds are all the inbounds that take clients, ascending.
+	inbounds []uint
+	// changed are the clients that lack some of them, with the complete inbound
+	// list already set.
+	changed []*model.Client
+	// touched are the inbounds that gain at least one client, ascending.
+	touched []uint
+}
+
+// planAttachAll works out which clients lack which inbounds. It writes nothing.
+// The inbounds are those that take clients (see inboundTakesClients; the ones
+// hosted on nodes included). The clients the master pushed to this node (the
+// cluster group) are left out: the master owns them and would put them back on
+// its next sync.
+func (s *ClientService) planAttachAll(tx *gorm.DB) (*attachPlan, error) {
+	plan := &attachPlan{}
+	var inbounds []model.Inbound
+	if err := tx.Model(model.Inbound{}).Select("id", "type", "tag", "options").Order("id").Find(&inbounds).Error; err != nil {
+		return nil, err
+	}
+	for i := range inbounds {
+		if inbounds[i].Tag != "" && inboundTakesClients(&inbounds[i]) {
+			plan.inbounds = append(plan.inbounds, inbounds[i].Id)
+		}
+	}
+	if len(plan.inbounds) == 0 {
+		return plan, nil
+	}
+
+	var clients []model.Client
+	if err := tx.Model(model.Client{}).Order("id").Find(&clients).Error; err != nil {
+		return nil, err
+	}
+	touched := map[uint]bool{}
+	for i := range clients {
+		client := &clients[i]
+		if client.Group == clusterGroup {
+			continue
+		}
+		var have []uint
+		if len(client.Inbounds) > 0 {
+			if err := json.Unmarshal(client.Inbounds, &have); err != nil {
+				return nil, common.NewErrorf("client %q has an unreadable inbound list: %v", client.Name, err)
+			}
+		}
+		owned := make(map[uint]bool, len(have))
+		for _, id := range have {
+			owned[id] = true
+		}
+		added := false
+		for _, id := range plan.inbounds {
+			if !owned[id] {
+				have = append(have, id)
+				touched[id] = true
+				added = true
+			}
+		}
+		if !added {
+			continue
+		}
+		sort.Slice(have, func(a, b int) bool { return have[a] < have[b] })
+		encoded, err := json.MarshalIndent(have, "", "  ")
+		if err != nil {
+			return nil, err
+		}
+		client.Inbounds = encoded
+		plan.changed = append(plan.changed, client)
+	}
+	for _, id := range plan.inbounds {
+		if touched[id] {
+			plan.touched = append(plan.touched, id)
+		}
+	}
+	return plan, nil
+}
+
+// AttachAllPreview counts what attachAllInbounds would change: the clients that
+// lack some inbound, and the inbounds that take clients.
+func (s *ClientService) AttachAllPreview() (clients int, inbounds int, err error) {
+	plan, err := s.planAttachAll(database.GetDB())
+	if err != nil {
+		return 0, 0, err
+	}
+	return len(plan.changed), len(plan.inbounds), nil
+}
+
+// attachAllInbounds adds every inbound that takes clients to every client, so
+// nobody has to open the clients one by one after adding a node or an inbound.
+// A client that already has an inbound keeps it.
+//
+// Only the inbounds and links columns are written, so the traffic counters the
+// stats job keeps updating and the client's other settings are untouched. It
+// returns the inbounds that gained at least one client, for the running core to
+// pick the new users up.
+func (s *ClientService) attachAllInbounds(tx *gorm.DB, hostname string) ([]uint, error) {
+	plan, err := s.planAttachAll(tx)
+	if err != nil {
+		return nil, err
+	}
+	if len(plan.changed) == 0 {
+		return nil, nil
+	}
+	if err := s.updateLinksWithFixedInbounds(tx, plan.changed, hostname); err != nil {
+		return nil, err
+	}
+	for _, client := range plan.changed {
+		if err := tx.Model(client).Select("Inbounds", "Links").Updates(client).Error; err != nil {
+			return nil, err
+		}
+	}
+	return plan.touched, nil
 }
 
 // preserveServerOwnedFields restores the columns the panel maintains itself.

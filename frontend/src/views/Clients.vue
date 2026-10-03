@@ -77,6 +77,40 @@
       </v-card-actions>
     </v-card>
   </v-dialog>
+  <v-dialog
+    v-model="attachAllModal"
+    max-width="480"
+  >
+    <v-card
+      rounded="lg"
+      :title="$t('bulk.attachAll')"
+    >
+      <v-divider />
+      <v-card-text>
+        {{ attachAllPending.clients > 0
+          ? $t('bulk.attachAllConfirm', { clients: attachAllPending.clients, inbounds: attachAllPending.inbounds })
+          : $t('bulk.attachAllNothing') }}
+      </v-card-text>
+      <v-card-actions>
+        <v-btn
+          color="primary"
+          variant="outlined"
+          :loading="attachAllLoading"
+          :disabled="attachAllPending.clients == 0"
+          @click="attachAll"
+        >
+          {{ $t('yes') }}
+        </v-btn>
+        <v-btn
+          color="success"
+          variant="outlined"
+          @click="attachAllModal = false"
+        >
+          {{ $t('no') }}
+        </v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
   <v-row
     justify="center"
     align="center"
@@ -129,6 +163,15 @@
               <v-icon icon="mdi-account-multiple-check" />
             </template>
             <v-list-item-title>{{ $t('actions.editbulk') }}</v-list-item-title>
+          </v-list-item>
+          <v-list-item
+            link
+            @click="confirmAttachAll"
+          >
+            <template #prepend>
+              <v-icon icon="mdi-link-variant-plus" />
+            </template>
+            <v-list-item-title>{{ $t('bulk.attachAll') }}</v-list-item-title>
           </v-list-item>
           <v-list-item
             link
@@ -668,6 +711,31 @@ const editBulk = () => {
 
 const closeEditBulk = () => {
   editBulkModal.value = false
+}
+
+// Add every inbound that takes clients to every client. The server leaves the
+// clients a master pushed to this node (group "@cluster") alone, so the count
+// the operator confirms leaves them out too.
+const clusterGroup = '@cluster'
+const attachAllModal = ref(false)
+const attachAllLoading = ref(false)
+
+const attachAllPending = computed((): { clients: number, inbounds: number } => {
+  const ids = inboundTags.value.map(t => t.value)
+  const missing = clients.value.filter(c => c.group !== clusterGroup && ids.some(id => !(c.inbounds ?? []).includes(id)))
+  return { clients: missing.length, inbounds: ids.length }
+})
+
+const confirmAttachAll = () => {
+  attachAllModal.value = true
+  actionMenu.value = false
+}
+
+const attachAll = async () => {
+  attachAllLoading.value = true
+  const success = await Data().save('clients', 'attachall', {}, undefined, i18n.global.t('bulk.attachAllDone'))
+  attachAllLoading.value = false
+  if (success) attachAllModal.value = false
 }
 
 const resetTrafficModal = ref(false)

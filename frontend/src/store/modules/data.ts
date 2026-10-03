@@ -147,7 +147,9 @@ const Data = defineStore('Data', {
       }
       return <Client>{}
     },
-    async save (object: string, action: string, data: unknown, initUsers?: number[]): Promise<boolean> {
+    // message replaces the "<action> <object>" notice shown after a save, for
+    // actions that read badly in that form.
+    async save (object: string, action: string, data: unknown, initUsers?: number[], message?: string): Promise<boolean> {
       const postData = {
         object: object,
         action: action,
@@ -160,7 +162,7 @@ const Data = defineStore('Data', {
         push.success({
           title: i18n.global.t('success'),
           duration: 5000,
-          message: i18n.global.t('actions.' + action) + " " + i18n.global.t('objects.' + objectName)
+          message: message ?? i18n.global.t('actions.' + action) + " " + i18n.global.t('objects.' + objectName)
         })
         this.setNewData(msg.obj)
       }

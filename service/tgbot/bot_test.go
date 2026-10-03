@@ -977,3 +977,62 @@ func TestClientGroupsAreShownFilteredAndChosenInTheBot(t *testing.T) {
 		t.Fatalf("JSON edit accepted the reserved group: %q", groupOf("a3"))
 	}
 }
+
+// The panel's "add all inbounds to all clients" button is in the bot too, under
+// bulk edit: it asks first, adds what is missing and says how many clients got it.
+func TestAttachAllInboundsToAllClientsFromTheBot(t *testing.T) {
+	b, got := testBot(t)
+	ctx := context.Background()
+	press := func(data string) { b.handle(ctx, callbackFrom(42, data)) }
+
+	var inboundIDs []uint
+	for _, in := range []model.Inbound{
+		{Tag: "in-vless", Type: "vless", Options: json.RawMessage(`{"listen":"::","listen_port":443}`)},
+		{Tag: "in-trojan", Type: "trojan", Options: json.RawMessage(`{"listen":"::","listen_port":8443}`)},
+		{Tag: "in-direct", Type: "direct", Options: json.RawMessage(`{"listen_port":53}`)},
+	} {
+		in.Addrs, in.OutJson = json.RawMessage("[]"), json.RawMessage("{}")
+		if err := database.GetDB().Create(&in).Error; err != nil {
+			t.Fatal(err)
+		}
+		if in.Type != "direct" {
+			inboundIDs = append(inboundIDs, in.Id)
+		}
+	}
+	for _, name := range []string{"c1", "c2", "c3"} {
+		c := model.Client{Enable: true, Name: name, Config: newClientConfig(name), Inbounds: json.RawMessage("[]"), Links: json.RawMessage("[]")}
+		if err := database.GetDB().Create(&c).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if _, kb := b.bulkScopeScreen(); !hasData(kb, "c:att") {
+		t.Fatalf("bulk edit has no attach-all button: %v", callbackData(kb))
+	}
+	press("c:att")
+	screen := lastEdit(t, got)
+	if !strings.Contains(screen, "3 clients lack some of the 2 inbounds") {
+		t.Fatalf("confirmation screen:\n%s", screen)
+	}
+	if _, kb := b.attachAllScreen(); !hasData(kb, "c:att:y") {
+		t.Fatalf("confirmation has no confirm button: %v", callbackData(kb))
+	}
+	// Nothing happens before the confirmation.
+	if got := clientInboundIDs(loadByName(t, "c1")); len(got) != 0 {
+		t.Fatalf("clients changed before the confirmation: %v", got)
+	}
+
+	press("c:att:y")
+	if screen = lastEdit(t, got); !strings.Contains(screen, "Added the missing inbounds to 3 clients") {
+		t.Fatalf("result screen:\n%s", screen)
+	}
+	for _, name := range []string{"c1", "c2", "c3"} {
+		if ids := clientInboundIDs(loadByName(t, name)); !reflect.DeepEqual(ids, inboundIDs) {
+			t.Fatalf("%s inbounds = %v, want %v", name, ids, inboundIDs)
+		}
+	}
+	press("c:att")
+	if screen = lastEdit(t, got); !strings.Contains(screen, "Every client already has every inbound") {
+		t.Fatalf("screen once everything is attached:\n%s", screen)
+	}
+}

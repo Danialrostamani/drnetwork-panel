@@ -648,8 +648,26 @@ func (b *bot) bulkScopeScreen() (string, [][]button) {
 		btns = append(btns, button{Text: "🏷 " + truncate(g, 22), Data: "c:bk:g" + strconv.Itoa(i)})
 	}
 	kb := rows2(btns)
+	kb = append(kb, []button{{Text: b.tr("🔗 افزودن همه اینباندها به همه کلاینت‌ها", "🔗 Add all inbounds to all clients"), Data: "c:att"}})
 	kb = append(kb, b.navRow("c:ls:a:0"))
 	return strings.Join(lines, "\n"), kb
+}
+
+// attachAllScreen asks before every inbound that takes clients is added to
+// every client, the button the panel has in its clients tools menu.
+func (b *bot) attachAllScreen() (string, [][]button) {
+	head := b.header("🔗", b.tr("افزودن همه اینباندها به همه کلاینت‌ها", "Add all inbounds to all clients"))
+	n, m, err := (&service.ClientService{}).AttachAllPreview()
+	if err != nil {
+		return head + "\n" + b.t("failed", esc(b.errText(err))), [][]button{b.navRow("c:bulk")}
+	}
+	if n == 0 {
+		return head + "\n" + b.tr("همهٔ کلاینت‌ها از قبل همهٔ اینباندها را دارند.", "Every client already has every inbound."), [][]button{b.navRow("c:bulk")}
+	}
+	text := head + "\n" + b.tr(
+		fmt.Sprintf("به %d کلاینت بعضی از %d اینباندی که کلاینت می‌پذیرند (اینباندهای روی نودها هم) اضافه نشده است. موارد کم‌شده اضافه می‌شود؛ اینباندهایی که کلاینت از قبل دارد دست‌نخورده می‌ماند.", n, m),
+		fmt.Sprintf("%d clients lack some of the %d inbounds that take clients (inbounds hosted on nodes included). The missing ones are added; inbounds a client already has stay as they are.", n, m))
+	return text, [][]button{{{Text: b.t("btnConfirm"), Data: "c:att:y"}, {Text: b.tr("✖️ انصراف", "✖️ Cancel"), Data: "c:bulk"}}}
 }
 
 func (b *bot) bulkActionsScreen(scope, note string) (string, [][]button) {
@@ -869,6 +887,24 @@ func (b *bot) clientCallbackExt(ctx context.Context, cbID string, chatID, msgID 
 	case "grps":
 		b.answer(ctx, cbID, "")
 		t, kb := b.groupsScreen()
+		show(t, kb)
+		return true
+	case "att":
+		if len(parts) > 2 && parts[2] == "y" {
+			n, _, err := (&service.ClientService{}).AttachAllPreview()
+			if err == nil {
+				err = b.save("attachall", struct{}{})
+			}
+			if err != nil {
+				b.answer(ctx, cbID, b.t("failed", b.errText(err)))
+				return true
+			}
+			b.answer(ctx, cbID, b.t("done"))
+			show("✅ "+b.tr(fmt.Sprintf("اینباندهای کم‌شده به %d کلاینت اضافه شد.", n), fmt.Sprintf("Added the missing inbounds to %d clients.", n)), [][]button{b.navRow("c:bulk")})
+			return true
+		}
+		b.answer(ctx, cbID, "")
+		t, kb := b.attachAllScreen()
 		show(t, kb)
 		return true
 	case "sort":
