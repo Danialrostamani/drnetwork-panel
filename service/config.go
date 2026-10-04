@@ -294,10 +294,17 @@ func (s *ConfigService) RestartCore() error {
 	return s.startCoreLocked(true)
 }
 
-func (s *ConfigService) restartCoreWithConfig(config json.RawMessage) error {
-	if !lifecycleMu.TryLock() {
-		return nil
-	}
+// restartCoreWithSavedConfig restarts the core from what is stored now, after a
+// save that the running core could not take in place. It never drops a request:
+// asked while a start or restart is in flight it waits its turn instead of
+// returning, and the restart it then runs reads the database afresh, so it
+// carries every change saved up to that moment. See restartGate.
+func (s *ConfigService) restartCoreWithSavedConfig() error {
+	return coreRestarts.run(s.restartCoreNow)
+}
+
+func (s *ConfigService) restartCoreNow() error {
+	lifecycleMu.Lock()
 	defer lifecycleMu.Unlock()
 
 	if s.inMaintenance() {
@@ -306,21 +313,29 @@ func (s *ConfigService) restartCoreWithConfig(config json.RawMessage) error {
 		return nil
 	}
 
+	// Built before the core is touched: a stored config that cannot be turned
+	// into a sing-box one must not take down a core that is running fine.
+	rawConfig, err := s.GetConfig("")
+	if err != nil {
+		logger.Error("restart sing-box err (get config):", err.Error())
+		return err
+	}
 	if corePtr.IsRunning() {
 		if err := corePtr.Stop(); err != nil {
 			logger.Error("restart sing-box err (stop):", err.Error())
 			return err
 		}
 	}
-	rawConfig, err := s.GetConfig(string(config))
-	if err != nil {
-		logger.Error("restart sing-box err (get config):", err.Error())
-		return err
-	}
 	if err := corePtr.Start(*rawConfig); err != nil {
+		failMu.Lock()
+		lastStartFailTime = time.Now()
+		failMu.Unlock()
 		logger.Error("restart sing-box err (start):", err.Error())
 		return err
 	}
+	failMu.Lock()
+	lastStartFailTime = time.Time{}
+	failMu.Unlock()
 	logger.Info("sing-box restarted with new config")
 	return nil
 }
@@ -372,12 +387,27 @@ func (s *ConfigService) CheckOutbound(tag string, link string) core.CheckOutboun
 	return corePtr.CheckOutbound(tag, link)
 }
 
+// restartCoreInBackground is detached: a restart takes seconds and the caller
+// is an HTTP handler. The recover is required -- a panic here is outside gin's
+// reach.
+func (s *ConfigService) restartCoreInBackground() {
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logger.Error("panic while restarting core with new config: ", r)
+			}
+		}()
+		_ = s.restartCoreWithSavedConfig()
+	}()
+}
+
 func (s *ConfigService) Save(obj string, act string, data json.RawMessage, initUsers string, loginUser string, hostname string) ([]string, error) {
 	var err error
 	var objs []string = []string{obj}
-	// Set when the config object changed. The restart waits for the commit, or
-	// a later rollback leaves the core running a config that was never saved.
-	var restartWith json.RawMessage
+	// What the running core needs once this is over. The restart waits for the
+	// commit, or a later rollback leaves the core running a config that was
+	// never saved.
+	var live coreSync
 
 	db := database.GetDB()
 	tx := db.Begin()
@@ -386,27 +416,28 @@ func (s *ConfigService) Save(obj string, act string, data json.RawMessage, initU
 		// transaction while gin tells the operator the save failed.
 		if r := recover(); r != nil {
 			tx.Rollback()
+			if live.diverged {
+				s.restartCoreInBackground()
+			}
 			panic(r)
 		}
 		if err != nil {
 			tx.Rollback()
+			if live.diverged {
+				// The core was changed before the save failed.
+				s.restartCoreInBackground()
+			}
 			return
 		}
 		if cErr := tx.Commit().Error; cErr != nil {
 			logger.Error("failed to commit config save: ", cErr)
+			if live.diverged {
+				s.restartCoreInBackground()
+			}
 			return
 		}
-		if restartWith != nil {
-			// Detached: a restart takes seconds and this is an HTTP handler.
-			// The recover is required -- a panic here is outside gin's reach.
-			go func() {
-				defer func() {
-					if r := recover(); r != nil {
-						logger.Error("panic while restarting core with new config: ", r)
-					}
-				}()
-				_ = s.restartCoreWithConfig(restartWith)
-			}()
+		if live.restart {
+			s.restartCoreInBackground()
 			return
 		}
 		// Try to start core if it is not running
@@ -433,19 +464,17 @@ func (s *ConfigService) Save(obj string, act string, data json.RawMessage, initU
 		err = s.InboundService.Save(tx, act, data, initUsers, hostname)
 		objs = append(objs, "clients")
 	case "outbounds":
-		err = s.OutboundService.Save(tx, act, data)
+		live, err = s.OutboundService.save(tx, act, data)
 	case "services":
 		err = s.ServicesService.Save(tx, act, data)
 	case "endpoints":
-		err = s.EndpointService.Save(tx, act, data)
+		live, err = s.EndpointService.save(tx, act, data)
 	case "config":
 		err = s.SettingService.SaveConfig(tx, data)
 		if err != nil {
 			return nil, err
 		}
-		configData := make(json.RawMessage, len(data))
-		copy(configData, data)
-		restartWith = configData
+		live.restart = true
 	case "settings":
 		err = s.SettingService.Save(tx, data)
 	case "nodes":

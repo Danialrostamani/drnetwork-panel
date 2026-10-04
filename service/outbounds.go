@@ -2,7 +2,6 @@ package service
 
 import (
 	"encoding/json"
-	"os"
 
 	"github.com/Danialrostamani/drnetwork-panel/database"
 	"github.com/Danialrostamani/drnetwork-panel/database/model"
@@ -59,6 +58,13 @@ func (o *OutboundService) GetAllConfig(db *gorm.DB) ([]json.RawMessage, error) {
 }
 
 func (s *OutboundService) Save(tx *gorm.DB, act string, data json.RawMessage) error {
+	_, err := s.save(tx, act, data)
+	return err
+}
+
+// save is EndpointService.save for an outbound.
+func (s *OutboundService) save(tx *gorm.DB, act string, data json.RawMessage) (coreSync, error) {
+	var live coreSync
 	var err error
 
 	switch act {
@@ -66,53 +72,56 @@ func (s *OutboundService) Save(tx *gorm.DB, act string, data json.RawMessage) er
 		var outbound model.Outbound
 		err = outbound.UnmarshalJSON(data)
 		if err != nil {
-			return err
+			return live, err
 		}
 
 		if corePtr.IsRunning() {
 			configData, err := outbound.MarshalJSON()
 			if err != nil {
-				return err
+				return live, err
 			}
-			if act == "edit" {
-				var oldTag string
-				err = tx.Model(model.Outbound{}).Select("tag").Where("id = ?", outbound.Id).Find(&oldTag).Error
+			if act == "new" {
+				live, err = addLive(outboundOps(), configData)
+			} else {
+				var old model.Outbound
+				err = tx.Where("id = ?", outbound.Id).Limit(1).Find(&old).Error
 				if err != nil {
-					return err
+					return live, err
 				}
-				err = corePtr.RemoveOutbound(oldTag)
-				if err != nil && err != os.ErrInvalid {
-					return err
+				var oldConfig []byte
+				if old.Id != 0 {
+					// Best effort: it only matters if the edit is rejected.
+					oldConfig, _ = old.MarshalJSON()
 				}
+				live, err = replaceLive(outboundOps(), old.Tag, oldConfig, configData)
 			}
-			err = corePtr.AddOutbound(configData)
 			if err != nil {
-				return err
+				return live, err
 			}
 		}
 
 		err = tx.Save(&outbound).Error
 		if err != nil {
-			return err
+			return live, err
 		}
 	case "del":
 		var tag string
 		err = json.Unmarshal(data, &tag)
 		if err != nil {
-			return err
-		}
-		if corePtr.IsRunning() {
-			err = corePtr.RemoveOutbound(tag)
-			if err != nil && err != os.ErrInvalid {
-				return err
-			}
+			return live, err
 		}
 		err = tx.Where("tag = ?", tag).Delete(model.Outbound{}).Error
 		if err != nil {
-			return err
+			return live, err
+		}
+		if corePtr.IsRunning() {
+			live, err = removeLive(outboundOps(), tag)
+			if err != nil {
+				return live, err
+			}
 		}
 	default:
-		return common.NewErrorf("unknown action: %s", act)
+		return live, common.NewErrorf("unknown action: %s", act)
 	}
-	return nil
+	return live, nil
 }

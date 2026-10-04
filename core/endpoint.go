@@ -1,10 +1,15 @@
 package core
 
 import (
+	"context"
+
 	"github.com/Danialrostamani/drnetwork-panel/logger"
 
 	"github.com/sagernet/sing-box/adapter"
 	"github.com/sagernet/sing-box/option"
+	"github.com/sagernet/sing/common"
+	E "github.com/sagernet/sing/common/exceptions"
+	"github.com/sagernet/sing/service"
 )
 
 // Each method below takes the live box once via running() and then works from
@@ -83,12 +88,110 @@ func (c *Core) AddEndpoint(config []byte) error {
 	}
 
 	return box.endpoint.Create(
-		box.ctx,
+		endpointContext(box.ctx, endpoint_config.Tag),
 		box.router,
 		box.logFactory.NewLogger("endpoint/"+endpoint_config.Type+"["+endpoint_config.Tag+"]"),
 		endpoint_config.Tag,
 		endpoint_config.Type,
 		endpoint_config.Options)
+}
+
+// endpointContext is the context sing-box builds an endpoint with at start-up:
+// it carries the endpoint's own tag as the outbound the endpoint's traffic
+// belongs to, which is how its DNS lookups (a peer given as a host name) are
+// told apart from everyone else's. An endpoint added while the core runs used
+// to get the bare context instead, and so behaved differently from the same
+// endpoint after a restart.
+func endpointContext(ctx context.Context, tag string) context.Context {
+	if tag == "" {
+		return ctx
+	}
+	return adapter.WithContext(ctx, &adapter.InboundContext{Outbound: tag})
+}
+
+// ValidateEndpoint builds the endpoint the way a start would, then discards it
+// without starting or registering anything, so a save can be refused before it
+// touches the running core or leaves a configuration the next start would
+// choke on. replacing is the tag of the object this one is to take the place
+// of, if any: it is about to disappear, so nothing may depend on it.
+func (c *Core) ValidateEndpoint(config []byte, replacing string) (err error) {
+	box, err := c.running()
+	if err != nil {
+		return err
+	}
+	var endpoint_config option.Endpoint
+	if err = endpoint_config.UnmarshalJSONContext(box.ctx, config); err != nil {
+		return err
+	}
+	registry := service.FromContext[adapter.EndpointRegistry](box.ctx)
+	if registry == nil {
+		return E.New("missing endpoint registry")
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = E.New("invalid endpoint[", endpoint_config.Tag, "]: ", r)
+		}
+	}()
+	built, err := registry.Create(
+		endpointContext(box.ctx, endpoint_config.Tag),
+		box.router,
+		box.logFactory.NewLogger("endpoint/"+endpoint_config.Type+"["+endpoint_config.Tag+"]"),
+		endpoint_config.Tag,
+		endpoint_config.Type,
+		endpoint_config.Options)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = common.Close(built) }()
+	return box.checkDependencies(endpoint_config.Tag, built.Dependencies(), replacing)
+}
+
+// ValidateOutbound is ValidateEndpoint for an outbound.
+func (c *Core) ValidateOutbound(config []byte, replacing string) (err error) {
+	box, err := c.running()
+	if err != nil {
+		return err
+	}
+	var outbound_config option.Outbound
+	if err = outbound_config.UnmarshalJSONContext(box.ctx, config); err != nil {
+		return err
+	}
+	registry := service.FromContext[adapter.OutboundRegistry](box.ctx)
+	if registry == nil {
+		return E.New("missing outbound registry")
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = E.New("invalid outbound[", outbound_config.Tag, "]: ", r)
+		}
+	}()
+	built, err := registry.CreateOutbound(
+		endpointContext(box.ctx, outbound_config.Tag),
+		box.router,
+		box.logFactory.NewLogger("outbound/"+outbound_config.Type+"["+outbound_config.Tag+"]"),
+		outbound_config.Tag,
+		outbound_config.Type,
+		outbound_config.Options)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = common.Close(built) }()
+	return box.checkDependencies(outbound_config.Tag, built.Dependencies(), replacing)
+}
+
+// checkDependencies makes sure every outbound or endpoint tag the object
+// depends on exists, which sing-box insists on at start but not when an object
+// is added to a running core.
+func (box *Box) checkDependencies(tag string, dependencies []string, replacing string) error {
+	for _, dependency := range dependencies {
+		if dependency == tag {
+			return E.New("circular dependency: ", tag, " depends on itself")
+		}
+		if _, found := box.outbound.Outbound(dependency); !found || (dependency == replacing && replacing != "") {
+			return E.New("dependency[", dependency, "] not found for outbound[", tag, "]")
+		}
+	}
+	return nil
 }
 
 func (c *Core) RemoveEndpoint(tag string) error {

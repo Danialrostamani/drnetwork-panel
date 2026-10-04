@@ -2,7 +2,6 @@ package service
 
 import (
 	"encoding/json"
-	"os"
 
 	"github.com/Danialrostamani/drnetwork-panel/database"
 	"github.com/Danialrostamani/drnetwork-panel/database/model"
@@ -62,6 +61,16 @@ func (o *EndpointService) GetAllConfig(db *gorm.DB) ([]json.RawMessage, error) {
 }
 
 func (s *EndpointService) Save(tx *gorm.DB, act string, data json.RawMessage) error {
+	_, err := s.save(tx, act, data)
+	return err
+}
+
+// save applies one change to the transaction and to the running core, and says
+// what the core still needs: see coreSync. The new configuration reaches the
+// core first, so one sing-box would reject is refused before it is stored; the
+// delete goes to the database first, because it has nothing to validate.
+func (s *EndpointService) save(tx *gorm.DB, act string, data json.RawMessage) (coreSync, error) {
+	var live coreSync
 	var err error
 
 	switch act {
@@ -69,23 +78,23 @@ func (s *EndpointService) Save(tx *gorm.DB, act string, data json.RawMessage) er
 		var endpoint model.Endpoint
 		err = endpoint.UnmarshalJSON(data)
 		if err != nil {
-			return err
+			return live, err
 		}
 		if endpoint.Type == "warp" {
 			if act == "new" {
 				err = s.WarpService.RegisterWarp(&endpoint)
 				if err != nil {
-					return err
+					return live, err
 				}
 			} else {
 				var old_license string
 				err = tx.Model(model.Endpoint{}).Select("json_extract(ext, '$.license_key')").Where("id = ?", endpoint.Id).Find(&old_license).Error
 				if err != nil {
-					return err
+					return live, err
 				}
 				err = s.WarpService.SetWarpLicense(old_license, &endpoint)
 				if err != nil {
-					return err
+					return live, err
 				}
 			}
 		}
@@ -93,47 +102,50 @@ func (s *EndpointService) Save(tx *gorm.DB, act string, data json.RawMessage) er
 		if corePtr.IsRunning() {
 			configData, err := endpoint.MarshalJSON()
 			if err != nil {
-				return err
+				return live, err
 			}
-			if act == "edit" {
-				var oldTag string
-				err = tx.Model(model.Endpoint{}).Select("tag").Where("id = ?", endpoint.Id).Find(&oldTag).Error
+			if act == "new" {
+				live, err = addLive(endpointOps(), configData)
+			} else {
+				var old model.Endpoint
+				err = tx.Where("id = ?", endpoint.Id).Limit(1).Find(&old).Error
 				if err != nil {
-					return err
+					return live, err
 				}
-				err = corePtr.RemoveEndpoint(oldTag)
-				if err != nil && err != os.ErrInvalid {
-					return err
+				var oldConfig []byte
+				if old.Id != 0 {
+					// Best effort: it only matters if the edit is rejected.
+					oldConfig, _ = old.MarshalJSON()
 				}
+				live, err = replaceLive(endpointOps(), old.Tag, oldConfig, configData)
 			}
-			err = corePtr.AddEndpoint(configData)
 			if err != nil {
-				return err
+				return live, err
 			}
 		}
 
 		err = tx.Save(&endpoint).Error
 		if err != nil {
-			return err
+			return live, err
 		}
 	case "del":
 		var tag string
 		err = json.Unmarshal(data, &tag)
 		if err != nil {
-			return err
-		}
-		if corePtr.IsRunning() {
-			err = corePtr.RemoveEndpoint(tag)
-			if err != nil && err != os.ErrInvalid {
-				return err
-			}
+			return live, err
 		}
 		err = tx.Where("tag = ?", tag).Delete(model.Endpoint{}).Error
 		if err != nil {
-			return err
+			return live, err
+		}
+		if corePtr.IsRunning() {
+			live, err = removeLive(endpointOps(), tag)
+			if err != nil {
+				return live, err
+			}
 		}
 	default:
-		return common.NewErrorf("unknown action: %s", act)
+		return live, common.NewErrorf("unknown action: %s", act)
 	}
-	return nil
+	return live, nil
 }

@@ -55,8 +55,8 @@ func TestRestartCoreRefusedInMaintenance(t *testing.T) {
 // the config is still saved; it just does not take effect yet.
 func TestRestartCoreWithConfigStopsAtMaintenance(t *testing.T) {
 	s := maintenanceService(t, true)
-	if err := s.restartCoreWithConfig([]byte(`{"log":{"level":"info"}}`)); err != nil {
-		t.Fatalf("restartCoreWithConfig: %v", err)
+	if err := s.restartCoreWithSavedConfig(); err != nil {
+		t.Fatalf("restartCoreWithSavedConfig: %v", err)
 	}
 }
 
