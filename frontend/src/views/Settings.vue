@@ -435,6 +435,20 @@
               cols="12"
               md="6"
             >
+              <v-textarea
+                v-model="settings.tgBotScopes"
+                :label="$t('setting.tgBotScopes')"
+                :hint="$t('setting.tgBotScopesHint')"
+                persistent-hint
+                rows="2"
+                auto-grow
+                placeholder="12345678=Sales"
+              />
+            </v-col>
+            <v-col
+              cols="12"
+              md="6"
+            >
               <v-text-field
                 v-model="settings.tgBotProxy"
                 :label="$t('setting.tgBotProxy')"
@@ -517,6 +531,7 @@ const settings = ref({
   tgBotEnable: "false",
   tgBotToken: "",
   tgBotAdmins: "",
+  tgBotScopes: "",
   tgBotProxy: "",
   tgBotLang: "fa",
   tgBotNotify: "true",

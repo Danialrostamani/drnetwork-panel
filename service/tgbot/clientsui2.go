@@ -44,7 +44,7 @@ func clientInboundIDs(c model.Client) []uint {
 func (b *bot) randomClientName() string {
 	for i := 0; i < 20; i++ {
 		n := randomSeq(8)
-		if findClientByName(n) == nil {
+		if rawFindClientByName(n) == nil {
 			return n
 		}
 	}
@@ -88,9 +88,14 @@ func (b *bot) clientEditScreen(c model.Client) (string, [][]button) {
 	}
 	id := sid(c.Id)
 	a := func(fa, en, f string) button { return button{Text: b.tr(fa, en), Data: "c:ask:" + f + ":" + id} }
+	// A limited administrator cannot move a client to another group.
+	volRow := []button{a("🏷 گروه", "🏷 Group", "grp"), a("📦 حجم", "📦 Volume", "vol"), a("📱 IP", "📱 IP limit", "ip")}
+	if b.scope != "" {
+		volRow = volRow[1:]
+	}
 	kb := [][]button{
 		{a("👤 نام", "👤 Name", "name"), a("📝 توضیح", "📝 Description", "desc"), a("🗒 یادداشت", "🗒 Remark", "rem")},
-		{a("🏷 گروه", "🏷 Group", "grp"), a("📦 حجم", "📦 Volume", "vol"), a("📱 IP", "📱 IP limit", "ip")},
+		volRow,
 		{a("⏳ روز تا انقضا", "⏳ Days left", "days"), a("📅 تاریخ انقضا", "📅 Expiry date", "exp")},
 		{{Text: onOff(c.DelayStart) + " " + b.tr("شروع با اولین مصرف", "Delay start"), Data: "c:dly:" + id}, {Text: onOff(c.AutoReset) + " " + b.tr("ریست خودکار", "Auto reset"), Data: "c:ar:" + id}},
 	}
@@ -386,7 +391,7 @@ func (b *bot) applyClientJSON(id uint, text string) error {
 			if !clientNameRe.MatchString(c.Name) {
 				return b.clientAnswerErr("badName")
 			}
-			if o := findClientByName(c.Name); o != nil && o.Id != id {
+			if o := rawFindClientByName(c.Name); o != nil && o.Id != id {
 				return errors.New(b.tr("این نام قبلاً استفاده شده است.", "That name is already in use."))
 			}
 		}
@@ -456,14 +461,21 @@ func (b *bot) createClientFromJSON(text string) (string, error) {
 	if !clientNameRe.MatchString(c.Name) {
 		return "", b.clientAnswerErr("badName")
 	}
-	if c.Group != "" {
+	if b.scope != "" {
+		// A limited administrator's clients all go to their group.
+		g, err := b.groupForCreate(c.Group)
+		if err != nil {
+			return "", err
+		}
+		c.Group = g
+	} else if c.Group != "" {
 		g, err := b.normalizeGroup(c.Group)
 		if err != nil {
 			return "", err
 		}
 		c.Group = g
 	}
-	if findClientByName(c.Name) != nil {
+	if rawFindClientByName(c.Name) != nil {
 		return "", errors.New(b.tr("این نام قبلاً استفاده شده است.", "That name is already in use."))
 	}
 	if hasGB && gb > 0 {
@@ -508,7 +520,7 @@ func (b *bot) createClientFromJSON(text string) (string, error) {
 func (b *bot) clientGroups() []string {
 	seen := map[string]bool{}
 	var out []string
-	for _, c := range loadClients() {
+	for _, c := range b.loadClients() {
 		if c.Group != "" && c.Group != service.ClusterGroup && !seen[c.Group] {
 			seen[c.Group] = true
 			out = append(out, c.Group)
@@ -525,7 +537,7 @@ func (b *bot) normalizeGroup(text string) (string, error) {
 	switch {
 	case g == "":
 		return "", errors.New(b.tr("نام گروه خالی است.", "The group name is empty."))
-	case utf8.RuneCountInString(g) > 64 || strings.ContainsAny(g, "\r\n"):
+	case utf8.RuneCountInString(g) > maxGroupRunes || strings.ContainsAny(g, "\r\n"):
 		return "", errors.New(b.tr("نام گروه باید تک‌خط و حداکثر ۶۴ نویسه باشد.", "A group name is one line of at most 64 characters."))
 	case strings.EqualFold(g, service.ClusterGroup):
 		return "", errors.New(b.tr("این نام گروه رزرو شده است.", "That group name is reserved."))
@@ -543,7 +555,7 @@ func (b *bot) normalizeGroup(text string) (string, error) {
 // group". prefix is the callback data the group index (or "-") is appended to.
 func (b *bot) groupChoices(prefix string) [][]button {
 	counts := map[string]int{}
-	for _, c := range loadClients() {
+	for _, c := range b.loadClients() {
 		counts[c.Group]++
 	}
 	var btns []button
@@ -557,11 +569,27 @@ func (b *bot) groupChoices(prefix string) [][]button {
 	return append(kb, []button{{Text: b.tr("➖ بدون گروه", "➖ No group"), Data: prefix + "-"}})
 }
 
+// groupPicker is the group chooser of the new-client wizard and the client
+// editor: the existing groups, "no group", and a button to create a new group
+// (which then asks for its name). prefix is as for groupChoices.
+func (b *bot) groupPicker(prefix string) [][]button {
+	kb := b.groupChoices(prefix)
+	kb = append(kb, []button{{Text: b.tr("➕ گروه جدید", "➕ New group"), Data: prefix + "#new"}})
+	return append(kb, b.cancelRow())
+}
+
+// newGroupPrompt asks for the name of a group to create; back returns to the
+// chooser it was opened from.
+func (b *bot) newGroupPrompt(back string) (string, [][]button) {
+	return "🏷 " + b.tr("نام گروه جدید را بفرستید (حداکثر ۶۴ نویسه). گروه با اولین کلاینتی که در آن قرار بگیرد ساخته می‌شود.", "Send the name of the new group (up to 64 characters). The group exists once a client is in it."),
+		[][]button{{{Text: b.tr("⬅️ گروه‌ها", "⬅️ Groups"), Data: back}}, b.cancelRow()}
+}
+
 // groupsScreen lists the groups with their client counts; each opens the
 // client list filtered to it.
 func (b *bot) groupsScreen() (string, [][]button) {
 	counts := map[string]int{}
-	for _, c := range loadClients() {
+	for _, c := range b.loadClients() {
 		counts[c.Group]++
 	}
 	groups := b.clientGroups()
@@ -604,7 +632,7 @@ func (b *bot) scopeName(scope string) string {
 
 // scopeClients resolves a scope ("fa", "fe", … or "g<i>") to full client rows.
 func (b *bot) scopeClients(scope string) []model.Client {
-	all := loadClients()
+	all := b.loadClients()
 	var picked []model.Client
 	switch {
 	case strings.HasPrefix(scope, "g"):
@@ -648,7 +676,9 @@ func (b *bot) bulkScopeScreen() (string, [][]button) {
 		btns = append(btns, button{Text: "🏷 " + truncate(g, 22), Data: "c:bk:g" + strconv.Itoa(i)})
 	}
 	kb := rows2(btns)
-	kb = append(kb, []button{{Text: b.tr("🔗 افزودن همه اینباندها به همه کلاینت‌ها", "🔗 Add all inbounds to all clients"), Data: "c:att"}})
+	if b.scope == "" {
+		kb = append(kb, []button{{Text: b.tr("🔗 افزودن همه اینباندها به همه کلاینت‌ها", "🔗 Add all inbounds to all clients"), Data: "c:att"}})
+	}
 	kb = append(kb, b.navRow("c:ls:a:0"))
 	return strings.Join(lines, "\n"), kb
 }
@@ -890,6 +920,11 @@ func (b *bot) clientCallbackExt(ctx context.Context, cbID string, chatID, msgID 
 		show(t, kb)
 		return true
 	case "att":
+		if b.scope != "" {
+			// It would reach every client of the panel.
+			b.answer(ctx, cbID, b.t("scopeDenied"))
+			return true
+		}
 		if len(parts) > 2 && parts[2] == "y" {
 			n, _, err := (&service.ClientService{}).AttachAllPreview()
 			if err == nil {
@@ -928,6 +963,10 @@ func (b *bot) clientCallbackExt(ctx context.Context, cbID string, chatID, msgID 
 		b.answer(ctx, cbID, "")
 		b.pend.set(chatID, &pending{kind: "cl.newj", msgID: msgID, back: "c:ls:a:0", data: map[string]string{}})
 		tpl := strings.Replace(newClientTemplate, `"user1"`, `"`+b.randomClientName()+`"`, 1)
+		if b.scope != "" {
+			g, _ := json.Marshal(b.scopeGroup())
+			tpl = strings.Replace(tpl, `"group": ""`, `"group": `+string(g), 1)
+		}
 		show(b.header("➕", b.tr("کلاینت جدید با JSON", "New client from JSON"))+"\n"+
 			b.tr("این قالب را ویرایش و بفرستید (متن یا فایل .json). فیلدهای حذف‌شده مقدار پیش‌فرض می‌گیرند؛ اگر inbounds خالی باشد به همه اینباندها وصل می‌شود.", "Edit this template and send it back (text or .json file). Omitted fields use defaults; an empty inbounds list attaches the client to every inbound.")+
 			"\n<pre>"+esc(tpl)+"</pre>", [][]button{b.cancelRow()})
@@ -946,7 +985,7 @@ func (b *bot) clientCallbackExt(ctx context.Context, cbID string, chatID, msgID 
 		return true
 	}
 	id := uint(id64)
-	client := clientByID(id)
+	client := b.clientByID(id)
 	if client == nil {
 		b.answer(ctx, cbID, b.t("notFound"))
 		return true
@@ -961,7 +1000,7 @@ func (b *bot) clientCallbackExt(ctx context.Context, cbID string, chatID, msgID 
 	}
 	reload := func(f func(model.Client) (string, [][]button)) func() {
 		return func() {
-			if c := clientByID(id); c != nil {
+			if c := b.clientByID(id); c != nil {
 				t, kb := f(*c)
 				show(t, kb)
 			}
@@ -996,6 +1035,19 @@ func (b *bot) clientCallbackExt(ctx context.Context, cbID string, chatID, msgID 
 			b.answer(ctx, cbID, "")
 			return true
 		}
+		if b.scope != "" {
+			b.answer(ctx, cbID, b.t("scopeDenied"))
+			return true
+		}
+		if parts[3] == "#new" {
+			// The router drops a pending input on any navigation; arm it again
+			// so the next text message is the new group's name.
+			b.answer(ctx, cbID, "")
+			b.pend.set(chatID, &pending{kind: "cl.grp", key: "grp", id: id, msgID: msgID, back: "c:view:" + sid(id), data: map[string]string{}})
+			text, kb := b.newGroupPrompt("c:ask:grp:" + sid(id))
+			show(text, kb)
+			return true
+		}
 		if parts[3] != "-" {
 			groups := b.clientGroups()
 			if idx < 0 || idx >= len(groups) {
@@ -1006,7 +1058,7 @@ func (b *bot) clientCallbackExt(ctx context.Context, cbID string, chatID, msgID 
 		}
 		b.pend.clear(chatID)
 		mutate(b.editClient(id, func(c *model.Client) error { c.Group = name; return nil }), func() {
-			if c := clientByID(id); c != nil {
+			if c := b.clientByID(id); c != nil {
 				t, kb := b.card(*c)
 				show(t, kb)
 			}
@@ -1017,7 +1069,7 @@ func (b *bot) clientCallbackExt(ctx context.Context, cbID string, chatID, msgID 
 		mutate(b.toggleAutoReset(id), reload(b.clientEditScreen))
 	case "json":
 		b.answer(ctx, cbID, "")
-		full, err := fullClient(id)
+		full, err := b.fullClient(id)
 		if err != nil {
 			b.fail(ctx, chatID, err)
 			return true

@@ -11,7 +11,6 @@ import (
 	"github.com/Danialrostamani/drnetwork-panel/config"
 	"github.com/Danialrostamani/drnetwork-panel/database"
 	"github.com/Danialrostamani/drnetwork-panel/database/model"
-	"github.com/Danialrostamani/drnetwork-panel/logger"
 	"github.com/Danialrostamani/drnetwork-panel/service"
 )
 
@@ -79,19 +78,9 @@ func toFloat(v interface{}) float64 {
 	return 0
 }
 
-func loadClients() []model.Client {
-	var clients []model.Client
-	err := database.GetDB().Model(model.Client{}).
-		Select("`id`, `enable`, `name`, `desc`, `group`, `up`, `down`, `volume`, `expiry`, `created_at`, `online_at`, `limit_ip`, `tg_id`, `delay_start`, `reset_days`").
-		Scan(&clients).Error
-	if err != nil {
-		logger.Warning("telegram bot: load clients: ", err)
-		return nil
-	}
-	return clients
-}
-
-func onlineUsers() []string {
+// allOnlineUsers lists every online client name; the bot's onlineUsers narrows
+// it to what an administrator may see. A variable so tests can set who is online.
+var allOnlineUsers = func() []string {
 	o, err := (&service.StatsService{}).GetClusterOnlines()
 	if err != nil {
 		return nil
@@ -130,7 +119,7 @@ func (b *bot) statusText() string {
 	if len(nodes) > 0 {
 		lines = append(lines, b.t("nodesLine", up, len(nodes)))
 	}
-	clients := loadClients()
+	clients := b.loadClients()
 	enabled := 0
 	var upBytes, downBytes int64
 	for _, c := range clients {
@@ -140,7 +129,7 @@ func (b *bot) statusText() string {
 		upBytes += c.Up
 		downBytes += c.Down
 	}
-	lines = append(lines, b.t("clientsLine", len(clients), enabled, len(onlineUsers())))
+	lines = append(lines, b.t("clientsLine", len(clients), enabled, len(b.onlineUsers())))
 	lines = append(lines, b.t("trafficLine", humanBytes(upBytes), humanBytes(downBytes)))
 	return strings.Join(lines, "\n")
 }
@@ -185,7 +174,7 @@ func (b *bot) nodesText() string {
 }
 
 func (b *bot) onlineText() string {
-	users := onlineUsers()
+	users := b.onlineUsers()
 	if len(users) == 0 {
 		return b.t("noOnline")
 	}
@@ -245,7 +234,7 @@ func (b *bot) clientLine(c model.Client, now time.Time) string {
 }
 
 func (b *bot) clientsView(query string) (string, [][]button) {
-	clients := loadClients()
+	clients := b.loadClients()
 	now := time.Now()
 	if query == "" {
 		type scored struct {
@@ -300,7 +289,7 @@ func (b *bot) clientsView(query string) (string, [][]button) {
 		return b.t("noClients"), nil
 	case 1:
 		online := false
-		for _, u := range onlineUsers() {
+		for _, u := range b.onlineUsers() {
 			if u == found[0].Name {
 				online = true
 			}
@@ -322,14 +311,7 @@ func (b *bot) ipsText(name string) string {
 	if name == "" {
 		return b.t("ipsUsage")
 	}
-	var client *model.Client
-	for _, c := range loadClients() {
-		if strings.EqualFold(c.Name, name) {
-			c := c
-			client = &c
-			break
-		}
-	}
+	client := b.findClientByName(name)
 	if client == nil {
 		return b.t("noClients")
 	}
@@ -382,7 +364,7 @@ func (b *bot) inboundsText() string {
 }
 
 func (b *bot) trafficText() string {
-	clients := loadClients()
+	clients := b.loadClients()
 	var up, down int64
 	for _, c := range clients {
 		up += c.Up

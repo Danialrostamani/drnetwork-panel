@@ -98,6 +98,7 @@ var defaultValueMap = map[string]string{
 	"tgBotEnable":        "false",
 	"tgBotToken":         "",
 	"tgBotAdmins":        "",
+	"tgBotScopes":        "",
 	"tgBotProxy":         "",
 	"tgBotLang":          "fa",
 	"tgBotNotify":        "true",
@@ -396,6 +397,9 @@ type TgBotSettings struct {
 	Enable bool
 	Token  string
 	Admins string
+	// Scopes holds one "TelegramID=Group name" line per administrator that is
+	// limited to the clients of one group.
+	Scopes string
 	Proxy  string
 	Lang   string
 	Notify bool
@@ -417,6 +421,9 @@ func (s *SettingService) GetTgBotSettings() (TgBotSettings, error) {
 		return out, err
 	}
 	if out.Admins, err = s.getString("tgBotAdmins"); err != nil {
+		return out, err
+	}
+	if out.Scopes, err = s.getString("tgBotScopes"); err != nil {
 		return out, err
 	}
 	if out.Proxy, err = s.getString("tgBotProxy"); err != nil {

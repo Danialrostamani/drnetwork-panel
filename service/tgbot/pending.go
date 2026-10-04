@@ -22,6 +22,11 @@ func (b *bot) reply(ctx context.Context, chatID, msgID int64, text string, kb []
 // prompt stays open so it can be retried; on success the screen is refreshed.
 func (b *bot) handlePending(ctx context.Context, chatID, userMsgID int64, text string, p *pending) {
 	b.deleteMessage(ctx, chatID, userMsgID)
+	if b.scope != "" && !scopedPendingKind(p.kind) {
+		// A limited administrator only ever answers client prompts.
+		b.pend.clear(chatID)
+		return
+	}
 	retry := func(err error) {
 		b.pend.set(chatID, p)
 		b.reply(ctx, chatID, p.msgID, b.t("failed", esc(b.errText(err)))+"\n\n"+b.tr("دوباره بفرستید یا انصراف دهید.", "Send it again or cancel."), [][]button{b.cancelRow()})
@@ -31,7 +36,7 @@ func (b *bot) handlePending(ctx context.Context, chatID, userMsgID int64, text s
 		b.reply(ctx, chatID, p.msgID, text, kb)
 	}
 	showClient := func(id uint) {
-		if c := clientByID(id); c != nil {
+		if c := b.clientByID(id); c != nil {
 			t, kb := b.card(*c)
 			finish(b.t("done")+"\n\n"+t, kb)
 			return
@@ -46,7 +51,7 @@ func (b *bot) handlePending(ctx context.Context, chatID, userMsgID int64, text s
 			retry(err)
 			return
 		}
-		if c := findClientByName(name); c != nil {
+		if c := b.findClientByName(name); c != nil {
 			t, kb := b.card(*c)
 			finish(b.t("created", esc(c.Name))+"\n\n"+t, kb)
 			return
@@ -192,36 +197,57 @@ func (b *bot) cfgPending(ctx context.Context, chatID int64, p *pending, text str
 
 // ---- new-client wizard ----
 
+// stepNo numbers a step of the new-client wizard. A limited administrator has
+// no group step (every client goes to their group), so theirs has one step less.
+func (b *bot) stepNo(n int) string {
+	total := 5
+	if b.scope != "" {
+		total = 4
+		if n > 2 {
+			n--
+		}
+	}
+	return fmt.Sprintf("%d/%d", n, total)
+}
+
+// scopedPendingKind tells which prompts a group-limited administrator may
+// answer: the client ones. Settings, objects and the sing-box config are not
+// theirs.
+func scopedPendingKind(kind string) bool {
+	return strings.HasPrefix(kind, "cl.") || strings.HasPrefix(kind, "bk.") || kind == "wiz"
+}
+
 func (b *bot) wizardPrompt(p *pending) (string, [][]button) {
 	btn := func(label, step, val string) button { return button{Text: label, Data: "w:" + step + ":" + val} }
 	switch p.key {
 	case "vol":
-		return b.header("➕", "3/5") + "\n" + b.tr("حجم کل (GB) را انتخاب کنید یا عدد بفرستید.", "Pick the total volume (GB) or send a number."), [][]button{
-			{btn("10", "vol", "10"), btn("20", "vol", "20"), btn("50", "vol", "50")},
-			{btn("100", "vol", "100"), btn("200", "vol", "200"), btn("∞", "vol", "0")},
+		return b.header("➕", b.stepNo(3)) + "\n" + b.tr("حجم کل (GB) را انتخاب کنید یا عدد بفرستید.", "Pick the total volume (GB) or send a number."), [][]button{
+			{btn("10", "vol", "10"), btn("20", "vol", "20"), btn("30", "vol", "30")},
+			{btn("50", "vol", "50"), btn("100", "vol", "100"), btn("200", "vol", "200")},
+			{btn("300", "vol", "300"), btn("∞", "vol", "0"), btn(b.tr("✏️ دلخواه", "✏️ Custom"), "vol", "#c")},
 			b.cancelRow()}
 	case "days":
-		return b.header("➕", "4/5") + "\n" + b.tr("مدت اعتبار (روز) را انتخاب کنید یا عدد بفرستید.", "Pick the validity (days) or send a number."), [][]button{
+		return b.header("➕", b.stepNo(4)) + "\n" + b.tr("مدت اعتبار (روز) را انتخاب کنید یا عدد بفرستید.", "Pick the validity (days) or send a number."), [][]button{
 			{btn("7", "days", "7"), btn("30", "days", "30"), btn("60", "days", "60")},
 			{btn("90", "days", "90"), btn("180", "days", "180"), btn("∞", "days", "0")},
 			b.cancelRow()}
 	case "grp":
-		text := b.header("➕", b.tr("گروه — ۲/۵", "Group — 2/5")) + "\n" + b.tr("گروه کلاینت را از دکمه‌ها انتخاب کنید، یا نام یک گروه جدید را بفرستید تا ساخته شود.", "Pick a group below, or send a new group name to create it.")
+		text := b.header("➕", b.tr("گروه — ", "Group — ")+b.stepNo(2)) + "\n" + b.tr("گروه کلاینت را از دکمه‌ها انتخاب کنید، یا نام یک گروه جدید را بفرستید تا ساخته شود.", "Pick a group below, or send a new group name to create it.")
 		if len(b.clientGroups()) == 0 {
 			text += "\n" + b.tr("(هنوز گروهی وجود ندارد.)", "(There are no groups yet.)")
 		}
-		return text, append(b.groupChoices("w:grp:"), b.cancelRow())
+		return text, b.groupPicker("w:grp:")
 	case "name":
 		if p.data["rnd"] == "" {
 			p.data["rnd"] = b.randomClientName()
 		}
-		return b.header("➕", b.tr("کلاینت جدید — ۱/۵", "New client — 1/5")) + "\n" +
+		return b.header("➕", b.tr("کلاینت جدید — ", "New client — ")+b.stepNo(1)) + "\n" +
 				b.tr("نام پیشنهادی (روی آن بزنید تا کپی شود):", "Suggested name (tap to copy):") + " <code>" + esc(p.data["rnd"]) + "</code>\n" +
 				b.tr("• «استفاده از این نام» را بزنید\n• یا نام دلخواه را بفرستید\n• یا با + شروع کنید تا به انتهای نام پیشنهادی اضافه شود؛ مثلاً <code>+_ali</code>", "• Tap “Use this name”\n• or send your own name\n• or start with + to append to the suggestion, e.g. <code>+_ali</code>"), [][]button{
 				{btn(b.tr("✅ استفاده از این نام", "✅ Use this name"), "name", "#ok"), btn(b.tr("🎲 نام دیگر", "🎲 Another"), "name", "#new")},
 				b.cancelRow()}
 	default:
-		return b.header("➕", "5/5") + "\n" + b.tr("محدودیت تعداد IP همزمان؟", "Concurrent IP limit?"), [][]button{
+		return b.header("➕", b.stepNo(5)) + "\n" + b.tr("محدودیت تعداد IP همزمان؟", "Concurrent IP limit?"), [][]button{
 			{btn("∞", "ip", "0"), btn("1", "ip", "1"), btn("2", "ip", "2"), btn("3", "ip", "3"), btn("5", "ip", "5")},
 			b.cancelRow()}
 	}
@@ -234,15 +260,20 @@ func (b *bot) wizardStep(ctx context.Context, chatID int64, p *pending, value st
 		b.pend.set(chatID, p)
 		b.reply(ctx, chatID, p.msgID, b.t("failed", esc(b.errText(err)))+"\n\n"+b.tr("دوباره بفرستید یا انصراف دهید.", "Send it again or cancel."), [][]button{b.cancelRow()})
 	}
-	advance := func(next string) {
-		p.key = next
+	// render shows a prompt of the current step under the client's name (and
+	// group, once chosen) and keeps the wizard pending.
+	render := func(t string, kb [][]button) {
 		b.pend.set(chatID, p)
-		t, kb := b.wizardPrompt(p)
 		head := "👤 <b>" + esc(p.data["name"]) + "</b>"
 		if g := p.data["grp"]; g != "" {
 			head += "  🏷 " + esc(g)
 		}
 		b.reply(ctx, chatID, p.msgID, head+"\n"+t, kb)
+	}
+	advance := func(next string) {
+		p.key = next
+		t, kb := b.wizardPrompt(p)
+		render(t, kb)
 	}
 	switch p.key {
 	case "name":
@@ -262,13 +293,31 @@ func (b *bot) wizardStep(ctx context.Context, chatID int64, p *pending, value st
 			fail(fmt.Errorf("bad name"))
 			return
 		}
-		if findClientByName(value) != nil {
+		if rawFindClientByName(value) != nil {
 			fail(fmt.Errorf("%s", b.tr("این نام قبلاً استفاده شده است.", "That name is already in use.")))
 			return
 		}
 		p.data["name"] = value
+		if b.scope != "" {
+			// Every client of a limited administrator goes to their group.
+			p.data["grp"] = b.scopeGroup()
+			advance("vol")
+			return
+		}
 		advance("grp")
 	case "grp":
+		if fromButton && value == "#new" {
+			// The "New group" button: ask for the name; the typed text is
+			// handled below like any typed group.
+			t, kb := b.newGroupPrompt("w:grp:#b")
+			render(t, kb)
+			return
+		}
+		if fromButton && value == "#b" {
+			t, kb := b.wizardPrompt(p)
+			render(t, kb)
+			return
+		}
 		group := ""
 		switch {
 		case fromButton && value == "-":
@@ -291,6 +340,17 @@ func (b *bot) wizardStep(ctx context.Context, chatID int64, p *pending, value st
 		p.data["grp"] = group
 		advance("vol")
 	case "vol":
+		if fromButton && value == "#c" {
+			// The "Custom" button: ask for the number; typed text is handled below.
+			render(b.header("➕", b.stepNo(3))+"\n✏️ "+b.tr("حجم را به گیگابایت بفرستید؛ مثلاً 75 یا 2.5 (۰ = نامحدود).", "Send the volume in GB, e.g. 75 or 2.5 (0 = unlimited)."),
+				[][]button{{{Text: b.tr("⬅️ حجم‌های آماده", "⬅️ Presets"), Data: "w:vol:#b"}}, b.cancelRow()})
+			return
+		}
+		if fromButton && value == "#b" {
+			t, kb := b.wizardPrompt(p)
+			render(t, kb)
+			return
+		}
 		if _, ok := parseFloatArg(value); !ok {
 			fail(fmt.Errorf("%s", b.t("badNumber")))
 			return
@@ -317,7 +377,7 @@ func (b *bot) wizardStep(ctx context.Context, chatID int64, p *pending, value st
 			return
 		}
 		b.pend.clear(chatID)
-		if c := findClientByName(p.data["name"]); c != nil {
+		if c := b.findClientByName(p.data["name"]); c != nil {
 			t, kb := b.card(*c)
 			b.reply(ctx, chatID, p.msgID, b.t("created", esc(c.Name))+"\n\n"+t, kb)
 		}

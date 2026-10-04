@@ -60,6 +60,9 @@ func (b *bot) meter(icon, label string, cur, total uint64) string {
 
 // homeText is the panel's Home page: server resources, the core, and totals.
 func (b *bot) homeText() string {
+	if b.scope != "" {
+		return b.scopedHomeText()
+	}
 	st := *(&service.ServerService{}).GetStatus("cpu,mem,dsk,swp,net,sys,sbd,db")
 	sys := asMap(st["sys"])
 	mem, dsk, swp := asMap(st["mem"]), asMap(st["dsk"]), asMap(st["swp"])
@@ -107,14 +110,14 @@ func (b *bot) homeText() string {
 
 	lines = append(lines, "", b.header("📋", b.tr("خلاصه", "Summary")))
 	lines = append(lines, fmt.Sprintf("📡 %v · 📤 %v · 🔌 %v · 🛠 %v", dbi["inbounds"], dbi["outbounds"], dbi["endpoints"], dbi["services"]))
-	clients := loadClients()
+	clients := b.loadClients()
 	enabled := 0
 	for _, c := range clients {
 		if c.Enable {
 			enabled++
 		}
 	}
-	lines = append(lines, fmt.Sprintf("👥 %s: %d (%s: %d) · 🟢 %s: %d", b.tr("کلاینت", "Clients"), len(clients), b.tr("فعال", "active"), enabled, b.tr("آنلاین", "online"), len(onlineUsers())))
+	lines = append(lines, fmt.Sprintf("👥 %s: %d (%s: %d) · 🟢 %s: %d", b.tr("کلاینت", "Clients"), len(clients), b.tr("فعال", "active"), enabled, b.tr("آنلاین", "online"), len(b.onlineUsers())))
 	lines = append(lines, fmt.Sprintf("📈 %s: ↑ %s ↓ %s", b.tr("مصرف کل", "Total"), humanBytes(int64(toFloat(dbi["clientUp"]))), humanBytes(int64(toFloat(dbi["clientDown"])))))
 	var nodes []model.Node
 	_ = database.GetDB().Where("enable = ?", true).Find(&nodes).Error
@@ -132,6 +135,9 @@ func (b *bot) homeText() string {
 }
 
 func (b *bot) homeKeyboard() [][]button {
+	if b.scope != "" {
+		return b.scopedHomeKeyboard()
+	}
 	return [][]button{
 		{{Text: b.tr("🔄 به‌روزرسانی", "🔄 Refresh"), Data: "h:home"}, {Text: b.tr("🏠 منو", "🏠 Menu"), Data: "m:menu"}},
 		{{Text: b.tr("♻️ ریستارت هسته", "♻️ Restart core"), Data: "m:restart"}, {Text: b.tr("🚧 نگهداری", "🚧 Maintenance"), Data: "m:maint"}},

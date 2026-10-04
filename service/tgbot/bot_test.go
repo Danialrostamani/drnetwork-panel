@@ -72,6 +72,9 @@ type sent struct {
 	ChatID int64  `json:"chat_id"`
 	Text   string `json:"text"`
 	Method string `json:"-"`
+	Markup *struct {
+		Keyboard [][]button `json:"inline_keyboard"`
+	} `json:"reply_markup"`
 }
 
 func fakeTelegram(t *testing.T) (*bot, func() []sent) {
@@ -697,12 +700,12 @@ func TestClientsAreListedInCreationOrderAndWizardSuggestsAName(t *testing.T) {
 		return strings.Join(out, ",")
 	}
 	// Default: the order the clients were created in, oldest first.
-	if got := names(b.filterClients("a", loadClients())); got != "leg1,leg2,xq1,bq2,aq3" {
+	if got := names(b.filterClients("a", b.loadClients())); got != "leg1,leg2,xq1,bq2,aq3" {
 		t.Fatalf("default order = %s", got)
 	}
 	// The toggle button flips it, the choice is saved, and search follows it.
 	b.handle(ctx, callbackFrom(42, "c:sort:a"))
-	if got := names(b.filterClients("a", loadClients())); got != "aq3,bq2,xq1,leg2,leg1" {
+	if got := names(b.filterClients("a", b.loadClients())); got != "aq3,bq2,xq1,leg2,leg1" {
 		t.Fatalf("newest first = %s", got)
 	}
 	text, _ := b.clientsView("q")
@@ -714,7 +717,7 @@ func TestClientsAreListedInCreationOrderAndWizardSuggestsAName(t *testing.T) {
 		t.Fatalf("list lines carry no creation date:\n%s", screen)
 	}
 	b.handle(ctx, callbackFrom(42, "c:sort:a"))
-	if got := names(b.filterClients("a", loadClients())); got != "leg1,leg2,xq1,bq2,aq3" {
+	if got := names(b.filterClients("a", b.loadClients())); got != "leg1,leg2,xq1,bq2,aq3" {
 		t.Fatalf("order after toggling back = %s", got)
 	}
 
@@ -822,7 +825,7 @@ func TestClientGroupsAreShownFilteredAndChosenInTheBot(t *testing.T) {
 		return strings.Join(out, ",")
 	}
 	for filter, want := range map[string]string{"g0": "a1", "g1": "a2", "u": "a3", "g9": "", "gx": ""} {
-		if got := names(b.filterClients(filter, loadClients())); got != want {
+		if got := names(b.filterClients(filter, b.loadClients())); got != want {
 			t.Fatalf("filter %s = %q, want %q", filter, got, want)
 		}
 	}

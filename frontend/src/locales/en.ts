@@ -186,6 +186,8 @@ export default {
     tgBotToken: "Bot token",
     tgBotAdmins: "Admin Telegram IDs",
     tgBotAdminsHint: "Numeric IDs, comma separated",
+    tgBotScopes: "Admin group limits",
+    tgBotScopesHint: "One line per admin: TelegramID=Group name. That admin only sees and manages the clients of that group, with no inbounds, settings, backups or server access. They do not need to be in the list above. Admins without a line keep full access; a line that cannot be used (no group, wrong format) locks that admin out.",
     tgBotProxy: "Proxy (optional)",
     tgBotProxyHint: "Use when the server cannot reach api.telegram.org, e.g. http://host:port or socks5://host:port",
     tgBotReport: "Scheduled report (cron)",

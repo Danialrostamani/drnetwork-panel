@@ -98,14 +98,6 @@ func (b *bot) clientKeyboard(c model.Client) [][]button {
 	}
 }
 
-func clientByID(id uint) *model.Client {
-	c, err := fullClient(id)
-	if err != nil {
-		return nil
-	}
-	return c
-}
-
 func isDepleted(c model.Client, now time.Time) bool {
 	return (c.Volume > 0 && c.Up+c.Down >= c.Volume) || (c.Expiry > 0 && c.Expiry <= now.Unix())
 }
@@ -121,7 +113,7 @@ func (b *bot) filterClients(filter string, all []model.Client) []model.Client {
 	now := time.Now()
 	online := map[string]bool{}
 	if filter == "o" {
-		for _, n := range onlineUsers() {
+		for _, n := range b.onlineUsers() {
 			online[n] = true
 		}
 	}
@@ -219,12 +211,12 @@ func (b *bot) clientSortLabel() string {
 const clientsPageSize = 10
 
 func (b *bot) clientsScreen(filter string, page int) (string, [][]button) {
-	all := loadClients()
+	all := b.loadClients()
 	list := b.filterClients(filter, all)
 	from, to, page, pages := pageSlice(len(list), page, clientsPageSize)
 	now := time.Now()
 	online := map[string]bool{}
-	for _, n := range onlineUsers() {
+	for _, n := range b.onlineUsers() {
 		online[n] = true
 	}
 	lines := []string{b.header("👥", fmt.Sprintf("%s%s (%d/%d)", b.tr("کلاینت‌ها", "Clients"), b.filterLabel(filter), len(list), len(all))),
@@ -261,7 +253,11 @@ func (b *bot) clientsScreen(filter string, page int) (string, [][]button) {
 		chips = append(chips, button{Text: text, Data: "c:ls:" + f.code + ":0"})
 	}
 	kb = append(kb, chips[:3], chips[3:])
-	kb = append(kb, []button{{Text: "🔃 " + b.clientSortLabel(), Data: "c:sort:" + filter}, {Text: b.tr("🏷 گروه‌ها", "🏷 Groups"), Data: "c:grps"}})
+	sortRow := []button{{Text: "🔃 " + b.clientSortLabel(), Data: "c:sort:" + filter}}
+	if b.scope == "" {
+		sortRow = append(sortRow, button{Text: b.tr("🏷 گروه‌ها", "🏷 Groups"), Data: "c:grps"})
+	}
+	kb = append(kb, sortRow)
 	kb = append(kb,
 		[]button{{Text: b.tr("➕ کلاینت جدید", "➕ New client"), Data: "c:new"}, {Text: b.tr("📄 جدید با JSON", "📄 New via JSON"), Data: "c:newj"}},
 		[]button{{Text: b.tr("🔎 جستجو", "🔎 Search"), Data: "c:srch"}, {Text: b.tr("🛠 ویرایش گروهی", "🛠 Bulk edit"), Data: "c:bulk"}, {Text: b.tr("🧹 پاکسازی", "🧹 Cleanup"), Data: "c:clean"}},
@@ -298,10 +294,16 @@ func (b *bot) askClient(ctx context.Context, chatID, msgID int64, field string, 
 		return
 	}
 	if field == "grp" {
-		// Existing groups as buttons; a typed name creates a new group.
+		if b.scope != "" {
+			// A limited administrator cannot move a client to another group.
+			b.edit(ctx, chatID, msgID, b.t("scopeDenied"), [][]button{b.menuRow()})
+			return
+		}
+		// Existing groups as buttons; a typed name, or the "New group"
+		// button, creates a new group.
 		sid := strconv.FormatUint(uint64(id), 10)
 		b.pend.set(chatID, &pending{kind: "cl.grp", key: "grp", id: id, msgID: msgID, back: "c:view:" + sid, data: map[string]string{}})
-		b.edit(ctx, chatID, msgID, "🏷 "+b.tr(a.fa, a.en), append(b.groupChoices("c:sg:"+sid+":"), b.cancelRow()))
+		b.edit(ctx, chatID, msgID, "🏷 "+b.tr(a.fa, a.en), b.groupPicker("c:sg:"+sid+":"))
 		return
 	}
 	b.ask(ctx, chatID, msgID, "cl."+field, field, id, "c:view:"+strconv.FormatUint(uint64(id), 10), b.tr(a.fa, a.en))
@@ -419,7 +421,7 @@ func (b *bot) applyClientAnswer(field string, id uint, text string) error {
 
 func (b *bot) clientInboundsScreen(c model.Client) (string, [][]button) {
 	var assigned []uint
-	_ = json.Unmarshal(mustFullInbounds(c.Id), &assigned)
+	_ = json.Unmarshal(b.mustFullInbounds(c.Id), &assigned)
 	has := map[uint]bool{}
 	for _, id := range assigned {
 		has[id] = true
@@ -437,14 +439,6 @@ func (b *bot) clientInboundsScreen(c model.Client) (string, [][]button) {
 	text := b.header("📡", b.tr("اینباندهای ", "Inbounds of ")+esc(c.Name)) + "\n" + b.tr("برای افزودن یا حذف روی هر اینباند بزنید.", "Tap an inbound to add or remove it.")
 	kb := append(rows2(btns), []button{{Text: b.tr("⬅️ کلاینت", "⬅️ Client"), Data: "c:view:" + cid}, {Text: "🏠", Data: "m:menu"}})
 	return text, kb
-}
-
-func mustFullInbounds(id uint) []byte {
-	c, err := fullClient(id)
-	if err != nil || len(c.Inbounds) == 0 {
-		return []byte("[]")
-	}
-	return c.Inbounds
 }
 
 func (b *bot) toggleClientInbound(clientID, inboundID uint) error {
@@ -470,7 +464,7 @@ func (b *bot) toggleClientInbound(clientID, inboundID uint) error {
 }
 
 func (b *bot) sendLinks(ctx context.Context, chatID int64, id uint) {
-	c, err := fullClient(id)
+	c, err := b.fullClient(id)
 	if err != nil {
 		b.fail(ctx, chatID, err)
 		return
@@ -497,7 +491,7 @@ func (b *bot) sendLinks(ctx context.Context, chatID int64, id uint) {
 // ---- cleanup ----
 
 func (b *bot) depletedClients() []model.Client {
-	return b.filterClients("x", loadClients())
+	return b.filterClients("x", b.loadClients())
 }
 
 func (b *bot) deleteClients(ids []uint) error {
@@ -510,7 +504,11 @@ func (b *bot) createBulk(prefix, group string, count int, volume int64, days, li
 	if !clientNameRe.MatchString(prefix) || count < 1 || count > 200 {
 		return fmt.Errorf("%s", b.t("badNumber"))
 	}
-	if strings.TrimSpace(group) != "" {
+	group, err := b.groupForCreate(group)
+	if err != nil {
+		return err
+	}
+	if b.scope == "" && strings.TrimSpace(group) != "" {
 		g, err := b.normalizeGroup(group)
 		if err != nil {
 			return err
@@ -619,13 +617,13 @@ func (b *bot) clientCallback(ctx context.Context, cbID string, chatID, msgID int
 		return
 	}
 	id := uint(id64)
-	client := clientByID(id)
+	client := b.clientByID(id)
 	if client == nil {
 		b.answer(ctx, cbID, b.t("notFound"))
 		return
 	}
 	showCard := func(note string) {
-		if c := clientByID(id); c != nil {
+		if c := b.clientByID(id); c != nil {
 			text, kb := b.card(*c)
 			if note != "" {
 				text = note + "\n\n" + text
@@ -654,7 +652,7 @@ func (b *bot) clientCallback(ctx context.Context, cbID string, chatID, msgID int
 		mutate(err, func() {
 			note := ""
 			if !client.Enable {
-				if c, _ := fullClient(id); c != nil && isDepleted(*c, time.Now()) {
+				if c, _ := b.fullClient(id); c != nil && isDepleted(*c, time.Now()) {
 					note = strings.TrimSpace(b.t("stillDepleted"))
 				}
 			}
@@ -690,7 +688,7 @@ func (b *bot) clientCallback(ctx context.Context, cbID string, chatID, msgID int
 	case "ti":
 		inb, _ := strconv.ParseUint(arg(3), 10, 32)
 		mutate(b.toggleClientInbound(id, uint(inb)), func() {
-			if c := clientByID(id); c != nil {
+			if c := b.clientByID(id); c != nil {
 				text, kb := b.clientInboundsScreen(*c)
 				show(text, kb)
 			}

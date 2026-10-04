@@ -22,9 +22,9 @@ const (
 	expiryAlertDays     = 3
 )
 
-// announce tells the administrators the bot is up.
+// announce tells every administrator the bot is up.
 func (b *bot) announce(ctx context.Context) {
-	b.broadcast(ctx, b.t("started"))
+	b.broadcastAll(ctx, b.t("started"))
 }
 
 type nodeWatch struct {
@@ -81,7 +81,8 @@ type reportSchedule struct {
 func (b *bot) sendReport(ctx context.Context) {
 	b.broadcast(ctx, b.t("reportTitle")+"\n\n"+b.statusText()+"\n\n"+b.trafficText())
 	if b.cfg.ReportBackup {
-		for _, id := range b.cfg.Admins {
+		// The database holds every group's clients: only for full administrators.
+		for _, id := range b.fullAdmins() {
 			b.sendBackup(ctx, id)
 		}
 	}
@@ -163,23 +164,29 @@ func (b *bot) checkNodes(ctx context.Context, watched map[uint]*nodeWatch) {
 	}
 }
 
+// clientAlert is one line of the client alert; group tells which group-limited
+// administrators it is for.
+type clientAlert struct {
+	group, line string
+}
+
 func (b *bot) checkClients(ctx context.Context, reported map[string]bool) {
 	now := time.Now()
 	current := map[string]bool{}
-	var fresh []string
+	var fresh []clientAlert
 	var owner model.Client
 	add := func(key, reason string) {
 		current[key] = true
 		if reported[key] {
 			return
 		}
-		fresh = append(fresh, fmt.Sprintf("• <b>%s</b> — %s", esc(owner.Name), reason))
+		fresh = append(fresh, clientAlert{owner.Group, fmt.Sprintf("• <b>%s</b> — %s", esc(owner.Name), reason)})
 		// A client bound to Telegram hears about its own limits directly.
 		if owner.TgId != 0 && !b.cfg.isAdmin(owner.TgId) {
 			b.send(ctx, owner.TgId, b.t("userAlertTitle", esc(owner.Name))+"\n"+reason)
 		}
 	}
-	for _, c := range loadClients() {
+	for _, c := range b.loadClients() {
 		if !c.Enable {
 			continue
 		}
@@ -209,9 +216,23 @@ func (b *bot) checkClients(ctx context.Context, reported map[string]bool) {
 	if len(fresh) == 0 {
 		return
 	}
+	// Full administrators get every line; a group-limited one only the lines
+	// of their own group.
 	const maxLines = 40
-	if len(fresh) > maxLines {
-		fresh = append(fresh[:maxLines], b.t("andMore", len(fresh)-maxLines))
+	for _, id := range b.cfg.Admins {
+		group, limited := b.cfg.Scopes[id]
+		var lines []string
+		for _, a := range fresh {
+			if !limited || sameGroup(a.group, group) {
+				lines = append(lines, a.line)
+			}
+		}
+		if len(lines) == 0 {
+			continue
+		}
+		if len(lines) > maxLines {
+			lines = append(lines[:maxLines], b.t("andMore", len(lines)-maxLines))
+		}
+		b.send(ctx, id, b.t("alertTitle")+"\n"+strings.Join(lines, "\n"))
 	}
-	b.broadcast(ctx, b.t("alertTitle")+"\n"+strings.Join(fresh, "\n"))
 }

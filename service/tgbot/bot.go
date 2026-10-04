@@ -14,10 +14,12 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Danialrostamani/drnetwork-panel/logger"
 	"github.com/Danialrostamani/drnetwork-panel/service"
@@ -95,6 +97,9 @@ func supervise(ctx context.Context, configService *service.ConfigService) {
 		} else if key := cfg.fingerprint(); key != current {
 			halt()
 			current = key
+			if len(cfg.Locked) > 0 {
+				logger.Warning("telegram bot: the group limit of admin ", cfg.Locked, " is not usable (it needs a line like ID=Group); they get no access until it is fixed")
+			}
 			if cfg.Enable && cfg.Token != "" {
 				botCtx, cancel := context.WithCancel(ctx)
 				finished := make(chan struct{})
@@ -119,6 +124,12 @@ type botConfig struct {
 	Enable bool
 	Token  string
 	Admins []int64
+	// Scopes limits an administrator to the clients of one group: admin ID ->
+	// group name. Administrators without an entry have full access.
+	Scopes map[int64]string
+	// Locked are IDs whose limit line in the scope setting is unusable; they
+	// are not administrators until it is fixed.
+	Locked []int64
 	Proxy  string
 	Lang   string
 	Notify bool
@@ -128,17 +139,11 @@ type botConfig struct {
 }
 
 func (c botConfig) fingerprint() string {
-	return fmt.Sprint(c.Enable, "|", c.Token, "|", c.Admins, "|", c.Proxy, "|", c.Lang, "|", c.Notify, "|", c.Report, "|", c.ReportBackup)
+	// fmt prints maps in key order, so the same scopes always give the same key.
+	return fmt.Sprint(c.Enable, "|", c.Token, "|", c.Admins, "|", c.Scopes, "|", c.Locked, "|", c.Proxy, "|", c.Lang, "|", c.Notify, "|", c.Report, "|", c.ReportBackup)
 }
 
-func (c botConfig) isAdmin(id int64) bool {
-	for _, a := range c.Admins {
-		if a == id {
-			return true
-		}
-	}
-	return false
-}
+func (c botConfig) isAdmin(id int64) bool { return hasID(c.Admins, id) }
 
 func parseAdmins(raw string) []int64 {
 	var out []int64
@@ -154,6 +159,79 @@ func parseAdmins(raw string) []int64 {
 	return out
 }
 
+// maxGroupRunes is the longest group name the bot creates.
+const maxGroupRunes = 64
+
+// parseScopes reads the "admin ID = group" lines of the scope setting. The
+// first usable line of an ID wins, and the reserved cluster group is never
+// usable: the master owns those clients.
+//
+// A line that starts with an ID but cannot be used (no "=", no group, an
+// over-long or reserved one) shows the operator meant to limit that person.
+// Treating it as "no limit" would hand them the whole server because of a typo,
+// so such an ID is returned in locked instead, and gets no access at all until
+// the line is fixed. Lines that do not start with an ID are ignored.
+func parseScopes(raw string) (scopes map[int64]string, locked []int64) {
+	scopes = map[int64]string{}
+	bad := map[int64]bool{}
+	for _, line := range strings.Split(raw, "\n") {
+		head, group, hasEquals := strings.Cut(line, "=")
+		fields := strings.Fields(head)
+		if len(fields) == 0 {
+			continue
+		}
+		n, err := strconv.ParseInt(fields[0], 10, 64)
+		if err != nil || n == 0 {
+			continue
+		}
+		group = strings.TrimSpace(group)
+		if !hasEquals || len(fields) > 1 || group == "" || utf8.RuneCountInString(group) > maxGroupRunes || strings.EqualFold(group, service.ClusterGroup) {
+			bad[n] = true
+			continue
+		}
+		if _, dup := scopes[n]; !dup {
+			scopes[n] = group
+		}
+	}
+	for n := range bad {
+		if _, ok := scopes[n]; !ok {
+			locked = append(locked, n)
+		}
+	}
+	sort.Slice(locked, func(i, j int) bool { return locked[i] < locked[j] })
+	return scopes, locked
+}
+
+func hasID(list []int64, id int64) bool {
+	for _, v := range list {
+		if v == id {
+			return true
+		}
+	}
+	return false
+}
+
+// withScopedAdmins adds the administrators that only appear in the scope list:
+// a line there is enough to make someone a (limited) administrator, so a
+// forgotten entry in the admin list cannot leave anyone without their limit.
+// Locked IDs are dropped from the admin list for the opposite reason: a limit
+// that cannot be applied must not leave them with full access.
+func withScopedAdmins(admins []int64, scopes map[int64]string, locked []int64) []int64 {
+	var out, extra []int64
+	for _, a := range admins {
+		if !hasID(locked, a) {
+			out = append(out, a)
+		}
+	}
+	for id := range scopes {
+		if !hasID(out, id) {
+			extra = append(extra, id)
+		}
+	}
+	sort.Slice(extra, func(i, j int) bool { return extra[i] < extra[j] })
+	return append(out, extra...)
+}
+
 func loadConfig() (botConfig, error) {
 	s, err := (&service.SettingService{}).GetTgBotSettings()
 	if err != nil {
@@ -163,10 +241,13 @@ func loadConfig() (botConfig, error) {
 	if lang != "en" {
 		lang = "fa"
 	}
+	scopes, locked := parseScopes(s.Scopes)
 	return botConfig{
 		Enable: s.Enable,
 		Token:  strings.TrimSpace(s.Token),
-		Admins: parseAdmins(s.Admins),
+		Admins: withScopedAdmins(parseAdmins(s.Admins), scopes, locked),
+		Scopes: scopes,
+		Locked: locked,
 		Proxy:  strings.TrimSpace(s.Proxy),
 		Lang:   lang,
 		Notify: s.Notify,
@@ -181,7 +262,12 @@ type bot struct {
 	client        *http.Client
 	loc           *time.Location
 	configService *service.ConfigService
-	pend          pendingStore
+	pend          *pendingStore
+
+	// scope is the one client group the administrator being served may see and
+	// manage; empty means full access. It is only ever set on the per-update
+	// copy that as returns, never on the bot the supervisor and the watcher use.
+	scope string
 }
 
 func newBot(cfg botConfig) *bot {
@@ -201,6 +287,7 @@ func newBot(cfg botConfig) *bot {
 		cfg:    cfg,
 		client: &http.Client{Timeout: (pollTimeoutSeconds + 20) * time.Second, Transport: transport},
 		loc:    loc,
+		pend:   &pendingStore{},
 	}
 }
 
@@ -435,7 +522,17 @@ func (b *bot) upload(ctx context.Context, method, field string, chatID int64, fi
 	return nil
 }
 
+// broadcast sends a panel-wide notice (nodes, core, reports) to the
+// administrators with full access; group-limited ones only hear about their own
+// clients.
 func (b *bot) broadcast(ctx context.Context, text string) {
+	for _, id := range b.fullAdmins() {
+		b.send(ctx, id, text)
+	}
+}
+
+// broadcastAll reaches every administrator, limited ones included.
+func (b *bot) broadcastAll(ctx context.Context, text string) {
 	for _, id := range b.cfg.Admins {
 		b.send(ctx, id, text)
 	}

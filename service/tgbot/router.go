@@ -22,6 +22,9 @@ func (b *bot) btn(key, data string, args ...interface{}) button {
 }
 
 func (b *bot) mainMenu() [][]button {
+	if b.scope != "" {
+		return b.scopedMenu()
+	}
 	t := b.tr
 	return [][]button{
 		{{Text: t("🏠 خانه", "🏠 Home"), Data: "h:home"}, {Text: t("👥 کلاینت‌ها", "👥 Clients"), Data: "c:ls:a:0"}},
@@ -116,8 +119,18 @@ func (b *bot) registerCommands(ctx context.Context) {
 		logger.Warning("telegram bot: set commands: ", err)
 	}
 	for _, id := range b.cfg.Admins {
+		list := append([]commandInfo{}, adminCommands...)
+		if _, limited := b.cfg.Scopes[id]; limited {
+			// A group-limited administrator only sees the commands they can use.
+			list = list[:0]
+			for _, c := range adminCommands {
+				if scopedCommands[c.name] {
+					list = append(list, c)
+				}
+			}
+		}
 		_ = b.call(ctx, "setMyCommands", map[string]any{
-			"commands": build(append(append([]commandInfo{}, adminCommands...), userCommands[2])),
+			"commands": build(append(list, userCommands[2])),
 			"scope":    map[string]any{"type": "chat", "chat_id": id},
 		}, nil)
 	}
@@ -138,6 +151,7 @@ func (b *bot) handle(ctx context.Context, u update) {
 		return
 	}
 	chatID, from := m.Chat.ID, m.From.ID
+	b = b.as(from)
 	text := m.Text
 	if text == "" && m.Document != nil && b.cfg.isAdmin(from) {
 		if p := b.pend.get(chatID); p != nil {
@@ -182,7 +196,7 @@ func (b *bot) handle(ctx context.Context, u update) {
 
 func boundClients(tgID int64) []model.Client {
 	var out []model.Client
-	for _, c := range loadClients() {
+	for _, c := range allClients() {
 		if c.TgId == tgID {
 			out = append(out, c)
 		}
@@ -196,7 +210,7 @@ func (b *bot) userView(c model.Client) (string, [][]button) {
 	c.Desc, c.Group = "", ""
 	c.TgId = 0
 	online := false
-	for _, n := range onlineUsers() {
+	for _, n := range allOnlineUsers() {
 		if n == c.Name {
 			online = true
 		}
@@ -255,11 +269,11 @@ func parseIntArg(s string) (int, bool) {
 }
 
 func (b *bot) card(c model.Client) (string, [][]button) {
-	if full, err := fullClient(c.Id); err == nil {
+	if full, err := b.fullClient(c.Id); err == nil {
 		c = *full
 	}
 	online := false
-	for _, n := range onlineUsers() {
+	for _, n := range b.onlineUsers() {
 		if n == c.Name {
 			online = true
 		}
@@ -268,7 +282,7 @@ func (b *bot) card(c model.Client) (string, [][]button) {
 }
 
 func (b *bot) sendCard(ctx context.Context, chatID int64, prefix string, id uint) {
-	for _, c := range loadClients() {
+	for _, c := range b.loadClients() {
 		if c.Id == id {
 			text, kb := b.card(c)
 			if prefix != "" {
@@ -302,6 +316,11 @@ func (b *bot) logsText(level string) string {
 }
 
 func (b *bot) sendBackup(ctx context.Context, chatID int64) {
+	if b.scope != "" {
+		// The database holds every group's clients and the panel's secrets.
+		b.send(ctx, chatID, b.t("scopeDenied"))
+		return
+	}
 	data, err := database.GetDb("")
 	if err != nil {
 		b.send(ctx, chatID, b.t("failed", esc(err.Error())))
@@ -330,6 +349,10 @@ func (b *bot) errText(err error) string {
 }
 
 func (b *bot) adminCommand(ctx context.Context, chatID int64, cmd, arg string) {
+	if b.scope != "" && !scopedCommands[cmd] {
+		b.send(ctx, chatID, b.t("scopeDenied"))
+		return
+	}
 	fields := strings.Fields(arg)
 	nameArg := ""
 	if len(fields) > 0 {
@@ -345,7 +368,7 @@ func (b *bot) adminCommand(ctx context.Context, chatID int64, cmd, arg string) {
 			}
 			return nil
 		}
-		c := findClientByName(nameArg)
+		c := b.findClientByName(nameArg)
 		if c == nil {
 			b.send(ctx, chatID, b.t("notFound"))
 		}
@@ -362,6 +385,10 @@ func (b *bot) adminCommand(ctx context.Context, chatID int64, cmd, arg string) {
 	case "start", "menu":
 		b.sendKeyboard(ctx, chatID, b.t("menuTitle"), b.mainMenu())
 	case "help":
+		if b.scope != "" {
+			b.send(ctx, chatID, b.t("helpScoped", esc(b.scopeGroup())))
+			break
+		}
 		b.send(ctx, chatID, b.t("help")+b.t("helpAdmin2"))
 	case "status", "home":
 		b.sendKeyboard(ctx, chatID, b.homeText(), b.homeKeyboard())
@@ -520,7 +547,7 @@ func (b *bot) cmdAdd(ctx context.Context, chatID int64, f []string) {
 		b.fail(ctx, chatID, err)
 		return
 	}
-	if c := findClientByName(f[0]); c != nil {
+	if c := b.findClientByName(f[0]); c != nil {
 		b.sendCard(ctx, chatID, b.t("created", esc(c.Name)), c.Id)
 	}
 }
@@ -561,6 +588,11 @@ func (b *bot) handleCallback(ctx context.Context, u update) {
 	}
 	if !b.cfg.isAdmin(cb.From.ID) {
 		b.answer(ctx, cb.ID, b.t("denied"))
+		return
+	}
+	b = b.as(cb.From.ID)
+	if b.scope != "" && !scopedCallbackAllowed(parts) {
+		b.answer(ctx, cb.ID, b.t("scopeDenied"))
 		return
 	}
 	show := func(text string, kb [][]button) {
@@ -722,6 +754,10 @@ func (b *bot) userCallback(ctx context.Context, cbID string, chatID, msgID, from
 
 func (b *bot) cmdAddBulk(ctx context.Context, chatID int64, f []string) {
 	if len(f) < 4 {
+		if b.scope != "" {
+			b.send(ctx, chatID, b.tr("/addbulk <code>پیشوند تعداد GB روز [IP]</code>\nمثال: <code>/addbulk user 10 20 30</code> → user1 تا user10", "/addbulk <code>prefix count GB days [IP]</code>\nExample: <code>/addbulk user 10 20 30</code> → user1 … user10"))
+			return
+		}
 		b.send(ctx, chatID, b.tr("/addbulk <code>پیشوند تعداد GB روز [IP] [گروه]</code>\nمثال: <code>/addbulk user 10 20 30</code> → user1 تا user10\nبا گروه: <code>/addbulk user 10 20 30 0 vip</code>", "/addbulk <code>prefix count GB days [IP] [group]</code>\nExample: <code>/addbulk user 10 20 30</code> → user1 … user10\nWith a group: <code>/addbulk user 10 20 30 0 vip</code>"))
 		return
 	}

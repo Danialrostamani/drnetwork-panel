@@ -136,24 +136,6 @@ func qrPNG(text string) ([]byte, error) {
 	return qrcode.Encode(text, qrcode.Medium, 512)
 }
 
-func fullClient(id uint) (*model.Client, error) {
-	var c model.Client
-	if err := database.GetDB().Where("id = ?", id).First(&c).Error; err != nil {
-		return nil, err
-	}
-	return &c, nil
-}
-
-func findClientByName(name string) *model.Client {
-	for _, c := range loadClients() {
-		if strings.EqualFold(c.Name, name) {
-			c := c
-			return &c
-		}
-	}
-	return nil
-}
-
 func (b *bot) fanOut() {
 	ns := &service.NodeSyncService{}
 	ns.MarkAllDirty()
@@ -163,6 +145,9 @@ func (b *bot) fanOut() {
 func (b *bot) save(act string, payload interface{}) error {
 	if b.configService == nil {
 		return errors.New("config service unavailable")
+	}
+	if err := b.guardSave(act, payload); err != nil {
+		return err
 	}
 	data, err := json.Marshal(payload)
 	if err != nil {
@@ -178,7 +163,7 @@ func (b *bot) save(act string, payload interface{}) error {
 // edit loads the whole client row, applies fn and saves it through the same
 // path as the web panel, so inbound users, links and the nodes follow.
 func (b *bot) editClient(id uint, fn func(c *model.Client) error) error {
-	c, err := fullClient(id)
+	c, err := b.fullClient(id)
 	if err != nil {
 		return err
 	}
@@ -252,6 +237,9 @@ func (b *bot) deleteClient(id uint) error {
 }
 
 func (b *bot) bindClient(id uint, tgID int64) error {
+	if b.scope != "" && !b.storedInScope(id) {
+		return b.outOfScope()
+	}
 	return database.GetDB().Model(&model.Client{}).Where("id = ?", id).Update("tg_id", tgID).Error
 }
 
@@ -260,6 +248,10 @@ func (b *bot) bindClient(id uint, tgID int64) error {
 func (b *bot) createClient(name, group string, volume int64, days int, limitIP int) error {
 	if !clientNameRe.MatchString(name) {
 		return errors.New("bad name")
+	}
+	group, err := b.groupForCreate(group)
+	if err != nil {
+		return err
 	}
 	var ids []uint
 	if err := database.GetDB().Model(&model.Inbound{}).Order("id").Pluck("id", &ids).Error; err != nil {
