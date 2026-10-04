@@ -1,6 +1,7 @@
 package service
 
 import (
+	"encoding/json"
 	"net/url"
 	"sort"
 	"strconv"
@@ -190,6 +191,151 @@ func (s *StatsService) nodeInboundStats(tag string, limit int, start, end int64)
 	return raw, true, nil
 }
 
+// nodeStatsTimeout bounds how long one unreachable node can hold up a chart.
+const nodeStatsTimeout = 8 * time.Second
+
+// nodeUserStats gathers a client's traffic samples from the managed nodes that
+// serve it. What a client moves through an inbound hosted on a node is counted
+// by that node's core and never by the master's, so the master's own stats
+// table only covers the inbounds its own core runs: the usage chart of anyone
+// served by a node came out empty (or far too short). The nodes hold a mirror
+// of the client under the same name, so every node that hosts one of its
+// inbounds is asked for the same window and its buckets are returned as rows,
+// ready to be folded in with the master's own.
+//
+// A node that cannot answer is skipped, so a chart still draws what is known.
+// The error is only returned when nodes were asked and not one of them
+// answered, so the caller can tell a chart that is empty from one that could
+// not be fetched.
+func (s *StatsService) nodeUserStats(name string, startTime, endTime int64) ([]model.Stats, error) {
+	if endTime <= startTime {
+		return nil, nil
+	}
+	db := database.GetDB()
+	var clients []model.Client
+	if err := db.Select("id", "inbounds").Where("name = ?", name).Find(&clients).Error; err != nil {
+		return nil, err
+	}
+	var inboundIds []uint
+	for _, client := range clients {
+		var own []uint
+		if json.Unmarshal(client.Inbounds, &own) == nil {
+			inboundIds = common.UnionUintArray(inboundIds, own)
+		}
+	}
+	if len(inboundIds) == 0 {
+		return nil, nil
+	}
+	var nodeIds []uint
+	if err := db.Model(model.Inbound{}).Distinct().Where("id IN ? AND node_id IS NOT NULL", inboundIds).Pluck("node_id", &nodeIds).Error; err != nil {
+		return nil, err
+	}
+	if len(nodeIds) == 0 {
+		return nil, nil
+	}
+	var nodes []model.Node
+	if err := db.Where("id IN ?", nodeIds).Order("id").Find(&nodes).Error; err != nil {
+		return nil, err
+	}
+
+	// The window is fixed here and sent as it is, so every node buckets the
+	// same span; limit is only for a node too old to read start and end.
+	q := url.Values{
+		"resource": {"user"}, "tag": {name},
+		"limit": {strconv.FormatInt((endTime-startTime+3599)/3600, 10)},
+		"start": {strconv.FormatInt(startTime, 10)}, "end": {strconv.FormatInt(endTime, 10)},
+	}
+	type answer struct {
+		rows []model.Stats
+		err  error
+	}
+	answers := make([]answer, len(nodes))
+	var wg sync.WaitGroup
+	for i := range nodes {
+		node := nodes[i]
+		if !node.Enable {
+			answers[i].err = common.NewErrorf("node %s is disabled", node.Name)
+			continue
+		}
+		wg.Add(1)
+		go func(slot *answer) {
+			defer wg.Done()
+			client := nodePushClient(&node)
+			client.Timeout = nodeStatsTimeout
+			defer closeNodeIdle(client)
+			raw, err := (&NodeService{}).nodeGet(&node, client, "stats", q)
+			if err == nil {
+				slot.rows, err = nodeChartRows(raw, name, startTime, endTime)
+			}
+			if err != nil {
+				slot.err = common.NewErrorf("node %s: %v", node.Name, err)
+			}
+		}(&answers[i])
+	}
+	wg.Wait()
+
+	var rows []model.Stats
+	var firstErr error
+	answered := 0
+	for _, a := range answers {
+		if a.err != nil {
+			if firstErr == nil {
+				firstErr = a.err
+			}
+			continue
+		}
+		answered++
+		rows = append(rows, a.rows...)
+	}
+	if answered == 0 {
+		return nil, firstErr
+	}
+	return rows, nil
+}
+
+// nodeChartRows turns the answer of a node's api/stats back into samples: one
+// per direction and bucket, dated at the middle of the bucket it came from, so
+// they can be bucketed again with the master's own span.
+func nodeChartRows(raw json.RawMessage, user string, startTime, endTime int64) ([]model.Stats, error) {
+	var chart struct {
+		Stats      map[string][]int64 `json:"stats"`
+		StartTime  int64              `json:"startTime"`
+		BucketSpan int64              `json:"bucketSpan"`
+	}
+	if err := json.Unmarshal(raw, &chart); err != nil {
+		return nil, common.NewError("unexpected stats answer from node")
+	}
+	origin := chart.StartTime
+	if origin == 0 {
+		origin = startTime
+	}
+	span := chart.BucketSpan
+	if span < 1 {
+		span = 1
+	}
+	rows := make([]model.Stats, 0, 2*len(chart.Stats))
+	for key, pair := range chart.Stats {
+		idx, err := strconv.ParseInt(key, 10, 64)
+		if err != nil || idx < 0 || idx > 1<<20 || len(pair) < 2 {
+			continue
+		}
+		at := origin + idx*span + span/2
+		if at <= startTime {
+			at = startTime + 1
+		}
+		if at > endTime {
+			at = endTime
+		}
+		if pair[0] > 0 {
+			rows = append(rows, model.Stats{DateTime: at, Resource: "user", Tag: user, Direction: true, Traffic: pair[0]})
+		}
+		if pair[1] > 0 {
+			rows = append(rows, model.Stats{DateTime: at, Resource: "user", Tag: user, Direction: false, Traffic: pair[1]})
+		}
+	}
+	return rows, nil
+}
+
 func (s *StatsService) GetStats(resource string, tag string, limit int, start int64, end int64) (any, error) {
 	var err error
 	var result []model.Stats
@@ -218,6 +364,15 @@ func (s *StatsService) GetStats(resource string, tag string, limit int, start in
 	err = db.Model(model.Stats{}).Where("resource in ? AND tag = ? AND date_time > ? AND date_time <= ?", resources, tag, startTime, endTime).Order("date_time ASC").Scan(&result).Error
 	if err != nil {
 		return nil, err
+	}
+	if resource == "user" && tag != "" {
+		// Whatever the client moved through inbounds hosted on nodes was
+		// counted there, not here.
+		nodeRows, nodeErr := s.nodeUserStats(tag, startTime, endTime)
+		if nodeErr != nil && len(result) == 0 {
+			return nil, nodeErr
+		}
+		result = append(result, nodeRows...)
 	}
 
 	bucketSeconds, _ := (&SettingService{}).GetStatsBucketSeconds()
