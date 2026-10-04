@@ -103,39 +103,6 @@ var userCommands = []commandInfo{
 	{"id", "شناسه تلگرام من", "My Telegram ID"},
 }
 
-func (b *bot) registerCommands(ctx context.Context) {
-	build := func(list []commandInfo) []map[string]string {
-		out := make([]map[string]string, 0, len(list))
-		for _, c := range list {
-			desc := c.en
-			if b.cfg.Lang == "fa" {
-				desc = c.fa
-			}
-			out = append(out, map[string]string{"command": c.name, "description": desc})
-		}
-		return out
-	}
-	if err := b.call(ctx, "setMyCommands", map[string]any{"commands": build(userCommands)}, nil); err != nil && ctx.Err() == nil {
-		logger.Warning("telegram bot: set commands: ", err)
-	}
-	for _, id := range b.cfg.Admins {
-		list := append([]commandInfo{}, adminCommands...)
-		if _, limited := b.cfg.Scopes[id]; limited {
-			// A group-limited administrator only sees the commands they can use.
-			list = list[:0]
-			for _, c := range adminCommands {
-				if scopedCommands[c.name] {
-					list = append(list, c)
-				}
-			}
-		}
-		_ = b.call(ctx, "setMyCommands", map[string]any{
-			"commands": build(append(list, userCommands[2])),
-			"scope":    map[string]any{"type": "chat", "chat_id": id},
-		}, nil)
-	}
-}
-
 func (b *bot) handle(ctx context.Context, u update) {
 	if u.Callback != nil {
 		b.handleCallback(ctx, u)
@@ -153,7 +120,7 @@ func (b *bot) handle(ctx context.Context, u update) {
 	chatID, from := m.Chat.ID, m.From.ID
 	b = b.as(from)
 	text := m.Text
-	if text == "" && m.Document != nil && b.cfg.isAdmin(from) {
+	if text == "" && m.Document != nil && b.isAdmin(from) {
 		if p := b.pend.get(chatID); p != nil {
 			data, err := b.download(ctx, m.Document.FileID)
 			if err != nil {
@@ -166,19 +133,19 @@ func (b *bot) handle(ctx context.Context, u update) {
 	}
 	cmd, arg := parseCommand(text)
 	if cmd == "" {
-		if p := b.pend.get(chatID); p != nil && b.cfg.isAdmin(from) && text != "" {
+		if p := b.pend.get(chatID); p != nil && b.isAdmin(from) && text != "" {
 			b.handlePending(ctx, chatID, m.MessageID, text, p)
 		}
 		return
 	}
-	if b.cfg.isAdmin(from) {
+	if b.isAdmin(from) {
 		b.pend.clear(chatID)
 	}
 	if cmd == "id" {
 		b.send(ctx, chatID, b.t("yourId", from))
 		return
 	}
-	if b.cfg.isAdmin(from) {
+	if b.isAdmin(from) {
 		b.adminCommand(ctx, chatID, cmd, arg)
 		return
 	}
@@ -316,9 +283,9 @@ func (b *bot) logsText(level string) string {
 }
 
 func (b *bot) sendBackup(ctx context.Context, chatID int64) {
-	if b.scope != "" {
+	if !b.can("backup") {
 		// The database holds every group's clients and the panel's secrets.
-		b.send(ctx, chatID, b.t("scopeDenied"))
+		b.send(ctx, chatID, b.denied())
 		return
 	}
 	data, err := database.GetDb("")
@@ -345,12 +312,15 @@ func (b *bot) errText(err error) string {
 	case "bad name":
 		return b.t("badName")
 	}
+	if text := b.accessErrText(err); text != "" {
+		return text
+	}
 	return err.Error()
 }
 
 func (b *bot) adminCommand(ctx context.Context, chatID int64, cmd, arg string) {
-	if b.scope != "" && !scopedCommands[cmd] {
-		b.send(ctx, chatID, b.t("scopeDenied"))
+	if !b.allowedCommand(cmd) {
+		b.send(ctx, chatID, b.denied())
 		return
 	}
 	fields := strings.Fields(arg)
@@ -383,13 +353,17 @@ func (b *bot) adminCommand(ctx context.Context, chatID int64, cmd, arg string) {
 	}
 	switch cmd {
 	case "start", "menu":
-		b.sendKeyboard(ctx, chatID, b.t("menuTitle"), b.mainMenu())
+		text, kb := b.menuScreen()
+		b.sendKeyboard(ctx, chatID, text, kb)
 	case "help":
-		if b.scope != "" {
+		switch {
+		case b.scope != "":
 			b.send(ctx, chatID, b.t("helpScoped", esc(b.scopeGroup())))
-			break
+		case b.sections != nil:
+			b.send(ctx, chatID, b.restrictedHelp())
+		default:
+			b.send(ctx, chatID, b.t("help")+b.t("helpAdmin2"))
 		}
-		b.send(ctx, chatID, b.t("help")+b.t("helpAdmin2"))
 	case "status", "home":
 		b.sendKeyboard(ctx, chatID, b.homeText(), b.homeKeyboard())
 	case "nodes":
@@ -586,13 +560,13 @@ func (b *bot) handleCallback(ctx context.Context, u update) {
 		b.userCallback(ctx, cb.ID, chatID, msgID, cb.From.ID, parts)
 		return
 	}
-	if !b.cfg.isAdmin(cb.From.ID) {
+	if !b.isAdmin(cb.From.ID) {
 		b.answer(ctx, cb.ID, b.t("denied"))
 		return
 	}
 	b = b.as(cb.From.ID)
-	if b.scope != "" && !scopedCallbackAllowed(parts) {
-		b.answer(ctx, cb.ID, b.t("scopeDenied"))
+	if !b.allowed(parts) {
+		b.answer(ctx, cb.ID, b.denied())
 		return
 	}
 	show := func(text string, kb [][]button) {
@@ -621,8 +595,7 @@ func (b *bot) handleCallback(ctx context.Context, u update) {
 	case "h":
 		show(b.homeText(), b.homeKeyboard())
 	case "a":
-		text, kb := b.adminsScreen()
-		show(text, kb)
+		b.adminsCallback(ctx, cb.ID, chatID, msgID, parts)
 	case "t":
 		text, kb := b.statsScreen(parts[1])
 		show(text, kb)
@@ -656,7 +629,8 @@ func (b *bot) menuCallback(ctx context.Context, cbID string, chatID, msgID int64
 	}
 	switch action {
 	case "menu":
-		show(b.t("menuTitle"), b.mainMenu())
+		text, kb := b.menuScreen()
+		show(text, kb)
 	case "status":
 		show(b.homeText(), b.homeKeyboard())
 	case "nodes":

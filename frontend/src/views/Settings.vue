@@ -435,6 +435,18 @@
               cols="12"
               md="6"
             >
+              <v-text-field
+                v-model="settings.tgBotOwner"
+                :label="$t('setting.tgBotOwner')"
+                :hint="$t('setting.tgBotOwnerHint')"
+                persistent-hint
+                placeholder="12345678"
+              />
+            </v-col>
+            <v-col
+              cols="12"
+              md="6"
+            >
               <v-textarea
                 v-model="settings.tgBotScopes"
                 :label="$t('setting.tgBotScopes')"
@@ -443,6 +455,20 @@
                 rows="2"
                 auto-grow
                 placeholder="12345678=Sales"
+              />
+            </v-col>
+            <v-col
+              cols="12"
+              md="6"
+            >
+              <v-textarea
+                v-model="settings.tgBotPerms"
+                :label="$t('setting.tgBotPerms')"
+                :hint="$t('setting.tgBotPermsHint')"
+                persistent-hint
+                rows="2"
+                auto-grow
+                placeholder="12345678=clients,stats"
               />
             </v-col>
             <v-col
@@ -531,7 +557,9 @@ const settings = ref({
   tgBotEnable: "false",
   tgBotToken: "",
   tgBotAdmins: "",
+  tgBotOwner: "",
   tgBotScopes: "",
+  tgBotPerms: "",
   tgBotProxy: "",
   tgBotLang: "fa",
   tgBotNotify: "true",

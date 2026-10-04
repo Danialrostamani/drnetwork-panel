@@ -99,6 +99,8 @@ var defaultValueMap = map[string]string{
 	"tgBotToken":         "",
 	"tgBotAdmins":        "",
 	"tgBotScopes":        "",
+	"tgBotOwner":         "",
+	"tgBotPerms":         "",
 	"tgBotProxy":         "",
 	"tgBotLang":          "fa",
 	"tgBotNotify":        "true",
@@ -400,6 +402,12 @@ type TgBotSettings struct {
 	// Scopes holds one "TelegramID=Group name" line per administrator that is
 	// limited to the clients of one group.
 	Scopes string
+	// Owner is the Telegram ID of the bot's owner: the only administrator who
+	// can edit the other administrators from the bot. Empty means nobody can.
+	Owner string
+	// Perms holds one "TelegramID=section,section" line per administrator whose
+	// access is limited to some sections of the bot.
+	Perms  string
 	Proxy  string
 	Lang   string
 	Notify bool
@@ -424,6 +432,12 @@ func (s *SettingService) GetTgBotSettings() (TgBotSettings, error) {
 		return out, err
 	}
 	if out.Scopes, err = s.getString("tgBotScopes"); err != nil {
+		return out, err
+	}
+	if out.Owner, err = s.getString("tgBotOwner"); err != nil {
+		return out, err
+	}
+	if out.Perms, err = s.getString("tgBotPerms"); err != nil {
 		return out, err
 	}
 	if out.Proxy, err = s.getString("tgBotProxy"); err != nil {
@@ -571,6 +585,13 @@ func (s *SettingService) Save(tx *gorm.DB, data json.RawMessage) error {
 		if key == "globalReset" && obj != "" && obj != "off" {
 			if _, err = CronParser.Parse(obj); err != nil {
 				return common.NewError("invalid cron spec <", obj, ">: ", err)
+			}
+		}
+		// The owner is a Telegram ID. Anything else would silently leave the bot
+		// without an owner, so say so.
+		if key == "tgBotOwner" && obj != "" {
+			if n, perr := strconv.ParseInt(obj, 10, 64); perr != nil || n <= 0 {
+				return common.NewError("invalid Telegram ID for the bot owner <", obj, ">: use the number /id shows")
 			}
 		}
 		if key == "tgBotReport" && obj != "" {

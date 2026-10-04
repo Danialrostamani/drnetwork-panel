@@ -45,8 +45,7 @@ type scopeEnv struct {
 func newScopeEnv(t *testing.T) *scopeEnv {
 	t.Helper()
 	b, got := testBot(t)
-	b.cfg.Admins = []int64{fullAdmin, salesAdmin}
-	b.cfg.Scopes = map[int64]string{salesAdmin: salesGroup}
+	useAccess(b, botConfig{Admins: []int64{fullAdmin, salesAdmin}, Scopes: map[int64]string{salesAdmin: salesGroup}})
 	e := &scopeEnv{t: t, b: b, got: got, id: map[string]uint{}}
 	for _, row := range []struct {
 		name, group string
@@ -140,25 +139,45 @@ func TestParseScopesAndConfig(t *testing.T) {
 	}
 
 	// A line in the scope list is enough to make someone an administrator,
-	// so a forgotten entry in the admin list cannot leave a limit off; a
-	// locked ID is not an administrator even when it is in the admin list.
-	admins := withScopedAdmins([]int64{42, 77, 99}, map[int64]string{88: "B", 77: "A", 12: "C"}, []int64{99})
-	if fmt.Sprint(admins) != "[42 77 12 88]" {
-		t.Fatalf("admins = %v", admins)
+	// so a forgotten entry in the admin list cannot leave a limit off; an ID
+	// whose line is unusable is an administrator with no access at all, even
+	// when it is in the admin list.
+	acc := buildAccess(0, []int64{42, 77, 99}, map[int64]string{88: "B", 77: "A", 12: "C"}, nil, []int64{99})
+	if fmt.Sprint(acc.order) != "[42 77 99 12 88]" {
+		t.Fatalf("administrators = %v", acc.order)
+	}
+	if r := acc.roleOf(77); r.group != "A" || r.sections != nil {
+		t.Fatalf("role of 77 = %+v", r)
+	}
+	if r := acc.roleOf(99); r.sections == nil || len(r.sections) != 0 || r.group != "" {
+		t.Fatalf("a locked admin has access: %+v", r)
+	}
+	if r := acc.roleOf(42); !r.full() {
+		t.Fatalf("role of 42 = %+v", r)
 	}
 
-	a := botConfig{Admins: []int64{1}, Scopes: map[int64]string{1: "A", 2: "B"}}
-	b := botConfig{Admins: []int64{1}, Scopes: map[int64]string{2: "B", 1: "A"}}
-	if a.fingerprint() != b.fingerprint() {
-		t.Fatal("the fingerprint depends on map order")
+	// The fingerprint says when the bot has to be restarted: not when only
+	// who may do what changed, which the running bot takes over live.
+	a := botConfig{Token: "1:a", Admins: []int64{1}, Scopes: map[int64]string{1: "A", 2: "B"}}
+	b := botConfig{Token: "1:a", Admins: []int64{1}, Scopes: map[int64]string{2: "B", 1: "A"}}
+	if a.fingerprint() != b.fingerprint() || a.accessKey() != b.accessKey() {
+		t.Fatal("a key depends on map order")
 	}
 	b.Scopes[2] = "C"
-	if a.fingerprint() == b.fingerprint() {
-		t.Fatal("a changed scope did not change the fingerprint, so the bot would keep the old limit")
+	if a.fingerprint() != b.fingerprint() {
+		t.Fatal("a changed group limit would restart the bot")
 	}
-	b = botConfig{Admins: []int64{1}, Scopes: map[int64]string{2: "B", 1: "A"}, Locked: []int64{7}}
+	if a.accessKey() == b.accessKey() {
+		t.Fatal("a changed scope did not change the access key, so the bot would keep the old limit")
+	}
+	b = botConfig{Token: "1:a", Admins: []int64{1}, Scopes: map[int64]string{2: "B", 1: "A"}, Locked: []int64{7}}
+	if a.accessKey() == b.accessKey() {
+		t.Fatal("a newly locked admin did not change the access key")
+	}
+	b = a
+	b.Token = "2:b"
 	if a.fingerprint() == b.fingerprint() {
-		t.Fatal("a newly locked admin did not change the fingerprint")
+		t.Fatal("a new token did not change the fingerprint")
 	}
 }
 
@@ -180,32 +199,36 @@ func TestScopeSettingReachesTheBotConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if fmt.Sprint(cfg.Admins) != "[42 77 88]" || cfg.Scopes[77] != "Sales" || cfg.Scopes[88] != "Team A" {
+	if fmt.Sprint(cfg.Admins) != "[42]" || cfg.Scopes[77] != "Sales" || cfg.Scopes[88] != "Team A" || fmt.Sprint(cfg.access().order) != "[42 77 88]" {
 		t.Fatalf("config = %+v", cfg)
 	}
-	before := cfg.fingerprint()
+	before, beforeAccess := cfg.fingerprint(), cfg.accessKey()
 	save(map[string]string{"tgBotScopes": "77=Support"})
 	cfg, _ = loadConfig()
-	if cfg.fingerprint() == before || cfg.Scopes[77] != "Support" || len(cfg.Scopes) != 1 {
+	if cfg.fingerprint() != before || cfg.accessKey() == beforeAccess || cfg.Scopes[77] != "Support" || len(cfg.Scopes) != 1 {
 		t.Fatalf("edited scopes not picked up: %+v", cfg)
 	}
 
 	// A typo in a limit must not turn an administrator into a full one: the
-	// ID is locked out of the bot until the line is fixed.
+	// ID has no access at all until the line is fixed.
 	save(map[string]string{"tgBotAdmins": "42, 77", "tgBotScopes": "77 Sales"})
 	cfg, _ = loadConfig()
-	if cfg.isAdmin(77) || !cfg.isAdmin(42) || fmt.Sprint(cfg.Locked) != "[77]" || len(cfg.Scopes) != 0 {
+	if r := cfg.access().roleOf(77); !cfg.access().isMember(77) || r.group != "" || r.sections == nil || len(r.sections) != 0 || fmt.Sprint(cfg.Locked) != "[77]" || len(cfg.Scopes) != 0 {
 		t.Fatalf("a malformed limit line left admin 77 with access: %+v", cfg)
 	}
 	b, got := fakeTelegram(t)
-	b.cfg = cfg
+	useAccess(b, cfg)
 	b.handle(context.Background(), privateMessage(77, "/clients"))
-	if len(got()) != 1 || strings.Contains(lastText(got(), "sendMessage"), "Sales") {
-		t.Fatalf("a locked-out admin got more than their ID: %v", got())
+	if len(got()) != 1 || lastText(got(), "sendMessage") != b.t("noAccess") {
+		t.Fatalf("a locked admin got more than a refusal: %v", got())
+	}
+	b.handle(context.Background(), callbackFrom(77, "c:ls:a:0"))
+	if lastText(got(), "answerCallbackQuery") != b.t("noAccess") {
+		t.Fatalf("a locked admin pressed a button: %v", got())
 	}
 	b.handle(context.Background(), callbackFrom(42, "a:ls"))
 	if txt := lastText(got(), "editMessageText", "sendMessage"); !strings.Contains(txt, "77") || !strings.Contains(txt, "⛔") {
-		t.Fatalf("the admins screen does not list the locked-out admin: %q", txt)
+		t.Fatalf("the admins screen does not list the locked admin: %q", txt)
 	}
 }
 
@@ -782,7 +805,7 @@ func TestAlertsAreRoutedByGroup(t *testing.T) {
 
 	// Panel-wide notices and backups go to full administrators only.
 	n := len(e.got())
-	e.b.broadcast(ctx, "core down")
+	e.b.broadcast(ctx, "core down", "home")
 	e.b.announce(ctx)
 	got := map[int64][]string{}
 	for _, m := range e.since(n) {
@@ -791,8 +814,8 @@ func TestAlertsAreRoutedByGroup(t *testing.T) {
 	if len(got[fullAdmin]) != 2 || len(got[salesAdmin]) != 1 || got[salesAdmin][0] != e.b.t("started") {
 		t.Fatalf("broadcast / announce routing: %v", got)
 	}
-	if fmt.Sprint(e.b.fullAdmins()) != "[42]" {
-		t.Fatalf("full admins = %v", e.b.fullAdmins())
+	if fmt.Sprint(e.b.access().with("home")) != "[42]" {
+		t.Fatalf("admins with the home section = %v", e.b.access().with("home"))
 	}
 	n = len(e.got())
 	e.b.as(salesAdmin).sendBackup(ctx, salesAdmin)

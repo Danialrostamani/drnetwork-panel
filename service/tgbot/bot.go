@@ -75,42 +75,16 @@ func Stop() {
 }
 
 func supervise(ctx context.Context, configService *service.ConfigService) {
-	var (
-		current string
-		stop    context.CancelFunc
-		done    chan struct{}
-	)
-	halt := func() {
-		if stop != nil {
-			stop()
-			<-done
-			stop, done = nil, nil
-		}
-	}
-	defer halt()
+	sv := &supervisor{ctx: ctx, configService: configService}
+	defer sv.halt()
 	ticker := time.NewTicker(reloadInterval)
 	defer ticker.Stop()
 	for {
 		cfg, err := loadConfig()
 		if err != nil {
 			logger.Warning("telegram bot: read settings: ", err)
-		} else if key := cfg.fingerprint(); key != current {
-			halt()
-			current = key
-			if len(cfg.Locked) > 0 {
-				logger.Warning("telegram bot: the group limit of admin ", cfg.Locked, " is not usable (it needs a line like ID=Group); they get no access until it is fixed")
-			}
-			if cfg.Enable && cfg.Token != "" {
-				botCtx, cancel := context.WithCancel(ctx)
-				finished := make(chan struct{})
-				stop, done = cancel, finished
-				b := newBot(cfg)
-				b.configService = configService
-				go func() {
-					defer close(finished)
-					b.run(botCtx)
-				}()
-			}
+		} else {
+			sv.apply(cfg)
 		}
 		select {
 		case <-ctx.Done():
@@ -120,15 +94,86 @@ func supervise(ctx context.Context, configService *service.ConfigService) {
 	}
 }
 
+// supervisor keeps the running bot in line with the settings.
+type supervisor struct {
+	ctx           context.Context
+	configService *service.ConfigService
+
+	current       string // fingerprint of the running configuration
+	currentAccess string // accessKey of the running configuration
+	running       *bot
+	runCtx        context.Context
+	stop          context.CancelFunc
+	done          chan struct{}
+}
+
+func (sv *supervisor) halt() {
+	if sv.stop != nil {
+		sv.stop()
+		<-sv.done
+		sv.stop, sv.done, sv.running, sv.runCtx = nil, nil, nil, nil
+	}
+}
+
+// apply makes the bot match a freshly read configuration: a change of the token,
+// proxy, language or alerts restarts it; a change of who may do what is handed
+// to the running bot, which keeps its connection to Telegram.
+func (sv *supervisor) apply(cfg botConfig) {
+	if key := cfg.fingerprint(); key != sv.current {
+		sv.halt()
+		sv.current, sv.currentAccess = key, cfg.accessKey()
+		warnLocked(cfg)
+		if cfg.Enable && cfg.Token != "" {
+			botCtx, cancel := context.WithCancel(sv.ctx)
+			finished := make(chan struct{})
+			sv.stop, sv.done = cancel, finished
+			b := newBot(cfg)
+			b.configService = sv.configService
+			sv.running, sv.runCtx = b, botCtx
+			go func() {
+				defer close(finished)
+				b.run(botCtx)
+			}()
+		}
+		return
+	}
+	if key := cfg.accessKey(); key != sv.currentAccess {
+		sv.currentAccess = key
+		warnLocked(cfg)
+		if sv.running != nil {
+			if err := sv.running.reloadAccess(); err != nil {
+				logger.Warning("telegram bot: reload admins: ", err)
+				return
+			}
+			go sv.running.syncCommandMenus(sv.runCtx)
+		}
+	}
+}
+
+// warnLocked logs the IDs whose limit lines cannot be used.
+func warnLocked(cfg botConfig) {
+	if len(cfg.Locked) > 0 {
+		logger.Warning("telegram bot: the limit of admin ", cfg.Locked, " is not usable (it needs a line like ID=Group or ID=section,section); they get no access until it is fixed")
+	}
+}
+
 type botConfig struct {
 	Enable bool
 	Token  string
+	// Owner is the one Telegram ID that may edit the other administrators from
+	// the bot's Admins screen; 0 means nobody can.
+	Owner int64
+	// Admins are the IDs of the admin list. Who else is an administrator, and
+	// what each may do, is worked out by access.
 	Admins []int64
 	// Scopes limits an administrator to the clients of one group: admin ID ->
-	// group name. Administrators without an entry have full access.
+	// group name.
 	Scopes map[int64]string
-	// Locked are IDs whose limit line in the scope setting is unusable; they
-	// are not administrators until it is fixed.
+	// Perms limits an administrator to some sections of the bot: admin ID ->
+	// the sections.
+	Perms map[int64]sectionSet
+	// Locked are IDs whose line in the scope or section setting is unusable;
+	// they are administrators without any access until it is fixed.
 	Locked []int64
 	Proxy  string
 	Lang   string
@@ -138,12 +183,18 @@ type botConfig struct {
 	ReportBackup bool
 }
 
+// fingerprint identifies the settings that need the bot to be restarted. Who
+// may do what is not among them: accessKey covers it, and a change there is
+// applied to the running bot.
 func (c botConfig) fingerprint() string {
-	// fmt prints maps in key order, so the same scopes always give the same key.
-	return fmt.Sprint(c.Enable, "|", c.Token, "|", c.Admins, "|", c.Scopes, "|", c.Locked, "|", c.Proxy, "|", c.Lang, "|", c.Notify, "|", c.Report, "|", c.ReportBackup)
+	return fmt.Sprint(c.Enable, "|", c.Token, "|", c.Proxy, "|", c.Lang, "|", c.Notify, "|", c.Report, "|", c.ReportBackup)
 }
 
-func (c botConfig) isAdmin(id int64) bool { return hasID(c.Admins, id) }
+// accessKey identifies the settings that say who may do what. fmt prints maps
+// in key order, so the same rights always give the same key.
+func (c botConfig) accessKey() string {
+	return fmt.Sprint(c.Owner, "|", c.Admins, "|", c.Scopes, "|", c.Perms, "|", c.Locked)
+}
 
 func parseAdmins(raw string) []int64 {
 	var out []int64
@@ -161,6 +212,12 @@ func parseAdmins(raw string) []int64 {
 
 // maxGroupRunes is the longest group name the bot creates.
 const maxGroupRunes = 64
+
+// scopeGroupUsable tells whether a group name can stand in a limit line: one
+// line of at most maxGroupRunes characters, and not the reserved cluster group.
+func scopeGroupUsable(group string) bool {
+	return group != "" && utf8.RuneCountInString(group) <= maxGroupRunes && !strings.ContainsAny(group, "\r\n") && !strings.EqualFold(group, service.ClusterGroup)
+}
 
 // parseScopes reads the "admin ID = group" lines of the scope setting. The
 // first usable line of an ID wins, and the reserved cluster group is never
@@ -185,7 +242,7 @@ func parseScopes(raw string) (scopes map[int64]string, locked []int64) {
 			continue
 		}
 		group = strings.TrimSpace(group)
-		if !hasEquals || len(fields) > 1 || group == "" || utf8.RuneCountInString(group) > maxGroupRunes || strings.EqualFold(group, service.ClusterGroup) {
+		if !hasEquals || len(fields) > 1 || !scopeGroupUsable(group) {
 			bad[n] = true
 			continue
 		}
@@ -211,25 +268,29 @@ func hasID(list []int64, id int64) bool {
 	return false
 }
 
-// withScopedAdmins adds the administrators that only appear in the scope list:
-// a line there is enough to make someone a (limited) administrator, so a
-// forgotten entry in the admin list cannot leave anyone without their limit.
-// Locked IDs are dropped from the admin list for the opposite reason: a limit
-// that cannot be applied must not leave them with full access.
-func withScopedAdmins(admins []int64, scopes map[int64]string, locked []int64) []int64 {
-	var out, extra []int64
-	for _, a := range admins {
-		if !hasID(locked, a) {
-			out = append(out, a)
+// parseOwner reads the owner's Telegram ID; anything else means no owner.
+func parseOwner(raw string) int64 {
+	n, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
+	if err != nil || n <= 0 {
+		return 0
+	}
+	return n
+}
+
+// mergeIDs joins lists of IDs: sorted, without duplicates.
+func mergeIDs(lists ...[]int64) []int64 {
+	seen := map[int64]bool{}
+	var out []int64
+	for _, list := range lists {
+		for _, id := range list {
+			if !seen[id] {
+				seen[id] = true
+				out = append(out, id)
+			}
 		}
 	}
-	for id := range scopes {
-		if !hasID(out, id) {
-			extra = append(extra, id)
-		}
-	}
-	sort.Slice(extra, func(i, j int) bool { return extra[i] < extra[j] })
-	return append(out, extra...)
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
 }
 
 func loadConfig() (botConfig, error) {
@@ -241,13 +302,16 @@ func loadConfig() (botConfig, error) {
 	if lang != "en" {
 		lang = "fa"
 	}
-	scopes, locked := parseScopes(s.Scopes)
+	scopes, badScopes := parseScopes(s.Scopes)
+	perms, badPerms := parsePerms(s.Perms)
 	return botConfig{
 		Enable: s.Enable,
 		Token:  strings.TrimSpace(s.Token),
-		Admins: withScopedAdmins(parseAdmins(s.Admins), scopes, locked),
+		Owner:  parseOwner(s.Owner),
+		Admins: parseAdmins(s.Admins),
 		Scopes: scopes,
-		Locked: locked,
+		Perms:  perms,
+		Locked: mergeIDs(badScopes, badPerms),
 		Proxy:  strings.TrimSpace(s.Proxy),
 		Lang:   lang,
 		Notify: s.Notify,
@@ -264,10 +328,21 @@ type bot struct {
 	configService *service.ConfigService
 	pend          *pendingStore
 
-	// scope is the one client group the administrator being served may see and
-	// manage; empty means full access. It is only ever set on the per-update
-	// copy that as returns, never on the bot the supervisor and the watcher use.
-	scope string
+	// acc is who may do what. It is live: the supervisor and the owner's edits
+	// replace it while the bot runs, and every copy of the bot shares it.
+	acc *accessState
+
+	// The fields below describe the administrator being served. They are only
+	// ever set on the per-update copy that as returns, never on the bot the
+	// supervisor and the watcher use, which can reach everything.
+	//
+	// scope is the one client group the administrator may see and manage;
+	// sections, when not nil, are the only sections they may use; owner tells
+	// the owner; self is their Telegram ID.
+	scope    string
+	sections sectionSet
+	owner    bool
+	self     int64
 }
 
 func newBot(cfg botConfig) *bot {
@@ -288,6 +363,7 @@ func newBot(cfg botConfig) *bot {
 		client: &http.Client{Timeout: (pollTimeoutSeconds + 20) * time.Second, Transport: transport},
 		loc:    loc,
 		pend:   &pendingStore{},
+		acc:    newAccessState(cfg.access()),
 	}
 }
 
@@ -437,6 +513,7 @@ func (b *bot) send(ctx context.Context, chatID int64, text string) {
 }
 
 func (b *bot) sendKeyboard(ctx context.Context, chatID int64, text string, keyboard [][]button) {
+	keyboard = b.filterKeyboard(keyboard)
 	parts := splitMessage(text, maxMessageRunes)
 	for i, chunk := range parts {
 		params := map[string]any{
@@ -458,6 +535,7 @@ func (b *bot) sendKeyboard(ctx context.Context, chatID int64, text string, keybo
 // edit rewrites a message in place, which keeps button presses from piling up
 // new messages. An unchanged message is not an error worth logging.
 func (b *bot) edit(ctx context.Context, chatID, messageID int64, text string, keyboard [][]button) {
+	keyboard = b.filterKeyboard(keyboard)
 	parts := splitMessage(text, maxMessageRunes)
 	if len(parts) == 0 {
 		return
@@ -523,17 +601,17 @@ func (b *bot) upload(ctx context.Context, method, field string, chatID int64, fi
 }
 
 // broadcast sends a panel-wide notice (nodes, core, reports) to the
-// administrators with full access; group-limited ones only hear about their own
-// clients.
-func (b *bot) broadcast(ctx context.Context, text string) {
-	for _, id := range b.fullAdmins() {
+// administrators who may use one of the sections. Group-limited ones only hear
+// about their own clients.
+func (b *bot) broadcast(ctx context.Context, text string, sections ...string) {
+	for _, id := range b.access().with(sections...) {
 		b.send(ctx, id, text)
 	}
 }
 
 // broadcastAll reaches every administrator, limited ones included.
 func (b *bot) broadcastAll(ctx context.Context, text string) {
-	for _, id := range b.cfg.Admins {
+	for _, id := range b.access().order {
 		b.send(ctx, id, text)
 	}
 }

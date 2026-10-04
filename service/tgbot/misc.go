@@ -146,43 +146,6 @@ func (b *bot) settingsCallback(ctx context.Context, cbID string, chatID, msgID i
 	}
 }
 
-// ---- admins ----
-
-func (b *bot) adminsScreen() (string, [][]button) {
-	users, err := (&service.UserService{}).GetUsers()
-	if err != nil {
-		return b.t("failed", esc(err.Error())), [][]button{b.menuRow()}
-	}
-	lines := []string{b.header("👮", b.tr("مدیران پنل", "Panel admins"))}
-	for _, u := range *users {
-		line := "👤 <b>" + esc(u.Username) + "</b>"
-		if u.LastLogins != "" {
-			line += " — " + esc(truncate(u.LastLogins, 60))
-		}
-		lines = append(lines, line)
-	}
-	lines = append(lines, "", b.tr("🔒 نام کاربری و رمز عبور فقط از پنل وب تغییر می‌کند (برای امنیت، رمز از طریق تلگرام فرستاده نمی‌شود).", "🔒 Credentials are changed in the web panel only (passwords are never sent through Telegram)."))
-	var admins []string
-	for _, id := range b.fullAdmins() {
-		admins = append(admins, fmt.Sprintf("<code>%d</code>", id))
-	}
-	lines = append(lines, "", "🤖 "+b.tr("ادمین‌های ربات", "Bot admins")+": "+strings.Join(admins, ", "))
-	if limited := b.scopeLines(); len(limited) > 0 {
-		lines = append(lines, "🏷 "+b.tr("ادمین‌های محدود به یک گروه", "Group-limited admins")+":")
-		for _, l := range limited {
-			lines = append(lines, "   "+l)
-		}
-	}
-	if len(b.cfg.Locked) > 0 {
-		var ids []string
-		for _, id := range b.cfg.Locked {
-			ids = append(ids, fmt.Sprintf("<code>%d</code>", id))
-		}
-		lines = append(lines, "⛔ "+b.tr("بدون دسترسی (خط محدودیتشان در تنظیمات نامعتبر است)", "No access (their limit line in the settings is not valid)")+": "+strings.Join(ids, ", "))
-	}
-	return strings.Join(lines, "\n"), [][]button{b.menuRow()}
-}
-
 // ---- stats ----
 
 var statRanges = []struct {

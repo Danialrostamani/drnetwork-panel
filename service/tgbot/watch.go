@@ -79,10 +79,25 @@ type reportSchedule struct {
 
 // sendReport posts the status and traffic summary, and the database when asked.
 func (b *bot) sendReport(ctx context.Context) {
-	b.broadcast(ctx, b.t("reportTitle")+"\n\n"+b.statusText()+"\n\n"+b.trafficText())
+	status, traffic := b.statusText(), b.trafficText()
+	a := b.access()
+	for _, id := range a.order {
+		// Everybody gets the parts of the report their sections cover.
+		var parts []string
+		if a.allows(id, "home") {
+			parts = append(parts, status)
+		}
+		if a.allows(id, "stats") {
+			parts = append(parts, traffic)
+		}
+		if len(parts) > 0 {
+			b.send(ctx, id, b.t("reportTitle")+"\n\n"+strings.Join(parts, "\n\n"))
+		}
+	}
 	if b.cfg.ReportBackup {
-		// The database holds every group's clients: only for full administrators.
-		for _, id := range b.fullAdmins() {
+		// The database holds every group's clients: only for administrators
+		// with the Backup section.
+		for _, id := range a.with("backup") {
 			b.sendBackup(ctx, id)
 		}
 	}
@@ -107,7 +122,7 @@ func (b *bot) checkCore(ctx context.Context, w *coreWatch) {
 	}
 	if running {
 		if w.alerted {
-			b.broadcast(ctx, b.t("coreUp"))
+			b.broadcast(ctx, b.t("coreUp"), "home", "core")
 		}
 		*w = coreWatch{}
 		return
@@ -115,7 +130,7 @@ func (b *bot) checkCore(ctx context.Context, w *coreWatch) {
 	w.failures++
 	if w.failures >= nodeDownAfterChecks && !w.alerted {
 		w.alerted = true
-		b.broadcast(ctx, b.t("coreDown"))
+		b.broadcast(ctx, b.t("coreDown"), "home", "core")
 	}
 }
 
@@ -139,7 +154,7 @@ func (b *bot) checkNodes(ctx context.Context, watched map[uint]*nodeWatch) {
 		}
 		if st.State == "online" {
 			if w.alerted {
-				b.broadcast(ctx, b.t("nodeUp", esc(n.Name), b.humanDuration(time.Since(w.downAt))))
+				b.broadcast(ctx, b.t("nodeUp", esc(n.Name), b.humanDuration(time.Since(w.downAt))), "nodes")
 			}
 			*w = nodeWatch{}
 			continue
@@ -154,7 +169,7 @@ func (b *bot) checkNodes(ctx context.Context, watched map[uint]*nodeWatch) {
 			if st.Error != "" {
 				reason = st.Error
 			}
-			b.broadcast(ctx, b.t("nodeDown", esc(n.Name), esc(reason)))
+			b.broadcast(ctx, b.t("nodeDown", esc(n.Name), esc(reason)), "nodes")
 		}
 	}
 	for id := range watched {
@@ -182,7 +197,7 @@ func (b *bot) checkClients(ctx context.Context, reported map[string]bool) {
 		}
 		fresh = append(fresh, clientAlert{owner.Group, fmt.Sprintf("• <b>%s</b> — %s", esc(owner.Name), reason)})
 		// A client bound to Telegram hears about its own limits directly.
-		if owner.TgId != 0 && !b.cfg.isAdmin(owner.TgId) {
+		if owner.TgId != 0 && !b.isAdmin(owner.TgId) {
 			b.send(ctx, owner.TgId, b.t("userAlertTitle", esc(owner.Name))+"\n"+reason)
 		}
 	}
@@ -216,14 +231,18 @@ func (b *bot) checkClients(ctx context.Context, reported map[string]bool) {
 	if len(fresh) == 0 {
 		return
 	}
-	// Full administrators get every line; a group-limited one only the lines
-	// of their own group.
+	// Administrators with the Clients section get every line; a group-limited
+	// one only the lines of their own group; the others none.
 	const maxLines = 40
-	for _, id := range b.cfg.Admins {
-		group, limited := b.cfg.Scopes[id]
+	acc := b.access()
+	for _, id := range acc.order {
+		r := acc.roleOf(id)
+		if r.group == "" && !acc.allows(id, "clients") {
+			continue
+		}
 		var lines []string
 		for _, a := range fresh {
-			if !limited || sameGroup(a.group, group) {
+			if r.group == "" || sameGroup(a.group, r.group) {
 				lines = append(lines, a.line)
 			}
 		}

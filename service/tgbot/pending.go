@@ -22,8 +22,10 @@ func (b *bot) reply(ctx context.Context, chatID, msgID int64, text string, kb []
 // prompt stays open so it can be retried; on success the screen is refreshed.
 func (b *bot) handlePending(ctx context.Context, chatID, userMsgID int64, text string, p *pending) {
 	b.deleteMessage(ctx, chatID, userMsgID)
-	if b.scope != "" && !scopedPendingKind(p.kind) {
-		// A limited administrator only ever answers client prompts.
+	if !b.pendingAllowed(p) {
+		// The prompt is not (or no longer) the administrator's to answer: a
+		// group-limited one only answers client prompts, and rights can be
+		// taken away between the question and the answer.
 		b.pend.clear(chatID)
 		return
 	}
@@ -121,6 +123,8 @@ func (b *bot) handlePending(ctx context.Context, chatID, userMsgID int64, text s
 		finish(b.t("done")+"\n\n"+t, kb)
 	case strings.HasPrefix(p.kind, "cfg."):
 		b.cfgPending(ctx, chatID, p, text, retry, finish)
+	case strings.HasPrefix(p.kind, "ad."):
+		b.adminPending(ctx, chatID, p, text, retry, finish)
 	case p.kind == "set":
 		v := strings.TrimSpace(text)
 		if v == "-" {

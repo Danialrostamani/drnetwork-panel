@@ -77,10 +77,41 @@ type sent struct {
 	} `json:"reply_markup"`
 }
 
+// menuCall is a setMyCommands / deleteMyCommands call the fake Telegram got.
+type menuCall struct {
+	Method   string
+	ChatID   int64
+	Commands []string
+}
+
+// The command-menu calls and the names getChat knows are kept apart from the
+// messages, so tests that count messages do not see them.
+var fakeAPI struct {
+	sync.Mutex
+	menus []menuCall
+	chats map[int64]string
+}
+
+func fakeMenuCalls() []menuCall {
+	fakeAPI.Lock()
+	defer fakeAPI.Unlock()
+	return append([]menuCall(nil), fakeAPI.menus...)
+}
+
+// fakeChat teaches the fake Telegram a user's name, as getChat reports it.
+func fakeChat(id int64, name string) {
+	fakeAPI.Lock()
+	defer fakeAPI.Unlock()
+	fakeAPI.chats[id] = name
+}
+
 func fakeTelegram(t *testing.T) (*bot, func() []sent) {
 	t.Helper()
 	var mu sync.Mutex
 	var messages []sent
+	fakeAPI.Lock()
+	fakeAPI.menus, fakeAPI.chats = nil, map[int64]string{}
+	fakeAPI.Unlock()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		method := r.URL.Path[strings.LastIndex(r.URL.Path, "/")+1:]
 		switch method {
@@ -95,6 +126,37 @@ func fakeTelegram(t *testing.T) (*bot, func() []sent) {
 			mu.Lock()
 			messages = append(messages, sent{Method: method})
 			mu.Unlock()
+		case "setMyCommands", "deleteMyCommands":
+			var req struct {
+				Commands []struct {
+					Command string `json:"command"`
+				} `json:"commands"`
+				Scope struct {
+					ChatID int64 `json:"chat_id"`
+				} `json:"scope"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&req)
+			call := menuCall{Method: method, ChatID: req.Scope.ChatID}
+			for _, c := range req.Commands {
+				call.Commands = append(call.Commands, c.Command)
+			}
+			fakeAPI.Lock()
+			fakeAPI.menus = append(fakeAPI.menus, call)
+			fakeAPI.Unlock()
+		case "getChat":
+			var req struct {
+				ChatID int64 `json:"chat_id"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&req)
+			fakeAPI.Lock()
+			name, known := fakeAPI.chats[req.ChatID]
+			fakeAPI.Unlock()
+			if !known {
+				_, _ = w.Write([]byte(`{"ok":false,"description":"Bad Request: chat not found"}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"ok":true,"result":{"id":` + itoa(req.ChatID) + `,"type":"private","first_name":` + mustJSON(name) + `}}`))
+			return
 		}
 		_, _ = w.Write([]byte(`{"ok":true,"result":true}`))
 	}))

@@ -2,7 +2,6 @@ package tgbot
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/Danialrostamani/drnetwork-panel/database"
@@ -66,27 +65,21 @@ func scopedCallbackAllowed(parts []string) bool {
 	return false
 }
 
-// as returns the bot as seen by one administrator: a copy that carries the
-// group that administrator is limited to, if any. The copy shares the HTTP
-// client and the pending-input store with the original.
+// as returns the bot as seen by one administrator: a copy that carries what
+// that administrator may do (their group, their sections, whether they are the
+// owner). The copy shares the HTTP client, the pending-input store and the
+// live access with the original. Somebody who is not an administrator gets a
+// copy with no access at all.
 func (b *bot) as(id int64) *bot {
 	sb := *b
-	sb.scope = ""
-	if group, limited := b.cfg.Scopes[id]; limited && b.cfg.isAdmin(id) {
-		sb.scope = group
+	sb.scope, sb.sections, sb.owner, sb.self = "", sectionSet{}, false, id
+	a := b.access()
+	if a.isMember(id) {
+		r := a.roleOf(id)
+		sb.scope, sb.sections = r.group, r.sections
+		sb.owner = a.isOwner(id)
 	}
 	return &sb
-}
-
-// fullAdmins are the administrators without a group limit.
-func (b *bot) fullAdmins() []int64 {
-	var out []int64
-	for _, id := range b.cfg.Admins {
-		if _, limited := b.cfg.Scopes[id]; !limited {
-			out = append(out, id)
-		}
-	}
-	return out
 }
 
 func sameGroup(a, b string) bool {
@@ -371,19 +364,4 @@ func (b *bot) scopedHomeKeyboard() [][]button {
 		{{Text: b.tr("🔄 به‌روزرسانی", "🔄 Refresh"), Data: "h:home"}, {Text: b.tr("🏠 منو", "🏠 Menu"), Data: "m:menu"}},
 		{{Text: b.tr("👥 کلاینت‌ها", "👥 Clients"), Data: "c:ls:a:0"}, {Text: b.tr("➕ کلاینت جدید", "➕ New client"), Data: "c:new"}},
 	}
-}
-
-// scopeLines lists the limited administrators for the full administrators'
-// Admins screen: "<id> → group".
-func (b *bot) scopeLines() []string {
-	ids := make([]int64, 0, len(b.cfg.Scopes))
-	for id := range b.cfg.Scopes {
-		ids = append(ids, id)
-	}
-	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
-	lines := make([]string, 0, len(ids))
-	for _, id := range ids {
-		lines = append(lines, fmt.Sprintf("<code>%d</code> → 🏷 %s", id, esc(b.cfg.Scopes[id])))
-	}
-	return lines
 }

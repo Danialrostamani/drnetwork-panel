@@ -65,6 +65,8 @@ var extra = map[string][2]string{
 	"coreDown":       {"🔴 <b>هسته sing-box روی master متوقف شد</b>", "🔴 <b>The sing-box core stopped on the master</b>"},
 	"coreUp":         {"🟢 هسته sing-box دوباره فعال شد.", "🟢 The sing-box core is running again."},
 	"userAlertTitle": {"⚠️ هشدار اشتراک <b>%s</b>", "⚠️ Subscription alert for <b>%s</b>"},
+	"noAccess":       {"شما به این بخش دسترسی ندارید.", "You don't have access to this."},
+	"noAccessYet":    {"🔒 هنوز به هیچ بخشی دسترسی ندارید. از مالک ربات بخواهید دسترسی شما را فعال کند.", "🔒 You don't have access to any section yet. Ask the bot owner to switch some on for you."},
 	"scopeDenied":    {"این بخش برای ادمین‌های محدود به یک گروه در دسترس نیست.", "This is not available to group-limited admins."},
 	"helpScoped": {
 		"🤖 <b>ربات مدیریت DrNetwork</b>\n🏷 شما فقط کلاینت‌های گروه «%s» را می‌بینید و مدیریت می‌کنید.\n\n/menu — منوی دکمه‌ای\n/home — خلاصه گروه شما\n/clients — کلاینت‌های نزدیک به اتمام\n/clients <code>نام</code> — جستجو یا جزئیات یک کلاینت\n/online — کاربران آنلاین\n/ips <code>نام</code> — IP های آنلاین یک کلاینت\n\n<b>کلاینت</b>\n/add <code>نام GB روز [IP]</code> — ساخت کلاینت\n/addbulk <code>پیشوند تعداد GB روز [IP]</code> — ساخت گروهی\n/enable /disable <code>نام</code>\n/reset <code>نام</code> — ریست ترافیک\n/volume /expiry /limitip <code>نام مقدار</code>\n/del <code>نام</code> — حذف\n/sub <code>نام</code> — لینک اشتراک و QR\n/bind /unbind — اتصال کلاینت به تلگرام\n/id — شناسه تلگرام شما",
