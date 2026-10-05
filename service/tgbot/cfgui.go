@@ -65,7 +65,7 @@ func (b *bot) saveConfigMap(m map[string]interface{}) error {
 	if err != nil {
 		return err
 	}
-	_, err = b.configService.Save("config", "", raw, "", "telegram", b.host())
+	_, err = b.configService.Save("config", "", raw, "", b.actor(), b.host())
 	return err
 }
 

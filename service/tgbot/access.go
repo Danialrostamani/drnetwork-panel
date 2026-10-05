@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Danialrostamani/drnetwork-panel/logger"
+	"github.com/Danialrostamani/drnetwork-panel/service"
 )
 
 // Who may do what in the bot.
@@ -427,6 +428,17 @@ func pendingSection(p *pending) string {
 // restricted tells whether the administrator being served has less than full
 // access.
 func (b *bot) restricted() bool { return b.scope != "" || b.sections != nil }
+
+// actor is the name the change history records for what the administrator
+// being served does: "telegram:<their Telegram ID>", so the history shows who
+// made a change from the bot. It is plain "telegram" when no administrator is
+// known. ConfigService.GetChanges("telegram") finds both spellings.
+func (b *bot) actor() string {
+	if b.self > 0 {
+		return service.TelegramActor + ":" + strconv.FormatInt(b.self, 10)
+	}
+	return service.TelegramActor
+}
 
 // can reports whether the administrator being served may use a section. A
 // group-limited administrator only has the clients, and only of their group.

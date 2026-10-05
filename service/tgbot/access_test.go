@@ -545,9 +545,10 @@ func TestOwnerManagesAdminsFromTheBot(t *testing.T) {
 	if !strings.Contains(admins, "900") || !strings.Contains(perms, "900=\n") && !strings.HasSuffix(perms, "900=") {
 		t.Fatalf("settings after adding: admins %q perms %q", admins, perms)
 	}
-	// The change was recorded like any other settings edit, and applied live.
+	// The change was recorded like any other settings edit, under the owner's ID,
+	// and applied live.
 	var changes []model.Changes
-	database.GetDB().Where("key = ? AND actor = ?", "settings", "telegram").Find(&changes)
+	database.GetDB().Where("key = ? AND actor = ?", "settings", "telegram:"+strconv.FormatInt(ownerID, 10)).Find(&changes)
 	if len(changes) == 0 {
 		t.Fatal("the edit is not in the change history")
 	}

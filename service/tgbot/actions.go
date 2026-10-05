@@ -153,7 +153,7 @@ func (b *bot) save(act string, payload interface{}) error {
 	if err != nil {
 		return err
 	}
-	if _, err := b.configService.Save("clients", act, data, "", "telegram", b.host()); err != nil {
+	if _, err := b.configService.Save("clients", act, data, "", b.actor(), b.host()); err != nil {
 		return err
 	}
 	b.fanOut()

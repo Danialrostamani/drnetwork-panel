@@ -469,7 +469,7 @@ func (b *bot) saveObj(k *kindInfo, act string, data interface{}) error {
 	if err != nil {
 		return err
 	}
-	if _, err := b.configService.Save(k.obj, act, raw, "", "telegram", b.host()); err != nil {
+	if _, err := b.configService.Save(k.obj, act, raw, "", b.actor(), b.host()); err != nil {
 		return err
 	}
 	if k.code == "in" || k.code == "tl" {

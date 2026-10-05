@@ -4,12 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 
-	"github.com/Danialrostamani/drnetwork-panel/database"
-	"github.com/Danialrostamani/drnetwork-panel/database/model"
 	"github.com/Danialrostamani/drnetwork-panel/service"
 )
 
@@ -81,7 +78,7 @@ func (b *bot) saveSetting(key, value string) error {
 		return fmt.Errorf("config service unavailable")
 	}
 	raw, _ := json.Marshal(map[string]string{key: value})
-	_, err := b.configService.Save("settings", "", raw, "", "telegram", b.host())
+	_, err := b.configService.Save("settings", "", raw, "", b.actor(), b.host())
 	return err
 }
 
@@ -166,73 +163,52 @@ func (b *bot) statsScreen(code string) (string, [][]button) {
 			rng = r
 		}
 	}
-	since := time.Now().Unix() - rng.secs
-	db := database.GetDB()
-	var rows []struct {
-		Resource  string
-		Tag       string
-		Direction bool
-		Total     int64
-	}
-	_ = db.Model(model.Stats{}).Select("resource, tag, direction, SUM(traffic) AS total").Where("date_time > ?", since).Group("resource, tag, direction").Scan(&rows).Error
-	type ud struct{ up, down int64 }
-	by := map[string]map[string]*ud{}
-	for _, r := range rows {
-		if by[r.Resource] == nil {
-			by[r.Resource] = map[string]*ud{}
-		}
-		e := by[r.Resource][r.Tag]
-		if e == nil {
-			e = &ud{}
-			by[r.Resource][r.Tag] = e
-		}
-		if r.Direction {
-			e.up += r.Total
-		} else {
-			e.down += r.Total
-		}
-	}
+	now := time.Now().Unix()
+	// The master's own numbers plus what the nodes counted for its clients and
+	// inbounds: a client served by a node moves its traffic through that node.
+	sum := (&service.StatsService{}).GetClusterSummary(now-rng.secs, rng.bucket)
 	lines := []string{b.header("📊", b.tr("آمار ترافیک — ", "Traffic — ")+b.tr(rng.fa, rng.en))}
 	for _, res := range []struct{ key, icon, fa, en string }{{"user", "👥", "کاربران", "Users"}, {"inbound", "📡", "اینباندها", "Inbounds"}, {"outbound", "📤", "اوت‌باندها", "Outbounds"}} {
-		tags := by[res.key]
-		if len(tags) == 0 {
-			continue
-		}
-		names := make([]string, 0, len(tags))
-		for t := range tags {
-			names = append(names, t)
-		}
-		sort.Slice(names, func(i, j int) bool {
-			return tags[names[i]].up+tags[names[i]].down > tags[names[j]].up+tags[names[j]].down
-		})
-		lines = append(lines, "", fmt.Sprintf("%s <b>%s</b>", res.icon, b.tr(res.fa, res.en)))
-		for i, n := range names {
-			if i == 6 {
+		// sum.Totals is in order: by resource, the busiest first.
+		shown := 0
+		for _, t := range sum.Totals {
+			if t.Resource != res.key {
+				continue
+			}
+			if shown == 0 {
+				lines = append(lines, "", fmt.Sprintf("%s <b>%s</b>", res.icon, b.tr(res.fa, res.en)))
+			}
+			if shown++; shown > 6 {
 				break
 			}
-			e := tags[n]
-			lines = append(lines, fmt.Sprintf("  • %s — %s  (↑ %s ↓ %s)", esc(n), humanBytes(e.up+e.down), humanBytes(e.up), humanBytes(e.down)))
+			lines = append(lines, fmt.Sprintf("  • %s — %s  (↑ %s ↓ %s)", esc(t.Tag), humanBytes(t.Up+t.Down), humanBytes(t.Up), humanBytes(t.Down)))
 		}
 	}
 	// timeline
 	buckets := int(rng.secs / rng.bucket)
-	var tl []struct {
-		B     int64
-		Total int64
-	}
-	_ = db.Raw("SELECT (date_time / ?) * ? AS b, SUM(traffic) AS total FROM stats WHERE resource = 'inbound' AND date_time > ? GROUP BY b ORDER BY b", rng.bucket, rng.bucket, since).Scan(&tl).Error
-	if len(tl) > 0 {
+	if len(sum.Series) > 0 {
 		vals := make([]int64, buckets)
-		start := (time.Now().Unix()/rng.bucket - int64(buckets) + 1) * rng.bucket
-		for _, p := range tl {
-			if i := int((p.B - start) / rng.bucket); i >= 0 && i < buckets {
-				vals[i] = p.Total
+		start := (now/rng.bucket - int64(buckets) + 1) * rng.bucket
+		for _, p := range sum.Series {
+			if i := int((p.At - start) / rng.bucket); i >= 0 && i < buckets {
+				vals[i] += p.Traffic
 			}
 		}
 		lines = append(lines, "", "📈 "+spark(vals))
 	}
-	if len(rows) == 0 {
+	if len(sum.Totals) == 0 {
 		lines = append(lines, "", b.tr("هنوز آماری ثبت نشده است.", "No statistics recorded yet."))
+	}
+	if len(sum.Missing) > 0 {
+		parts := make([]string, 0, len(sum.Missing))
+		for _, m := range sum.Missing {
+			why := b.tr("در دسترس نیست", "unreachable")
+			if m.Reason == service.NodeNeedsUpdate {
+				why = b.tr("نیاز به به‌روزرسانی", "needs an update")
+			}
+			parts = append(parts, fmt.Sprintf("%s (%s)", esc(m.Name), why))
+		}
+		lines = append(lines, "", "⚠️ "+b.tr("ترافیک این نودها در آمار نیست: ", "Not included: ")+strings.Join(parts, b.tr("، ", ", ")))
 	}
 	if sessions, err := (&service.StatsService{}).GetSessions("", ""); err == nil {
 		lines = append(lines, "", fmt.Sprintf("🔌 %s: %d", b.tr("اتصال‌های زنده", "Live connections"), len(sessions)))

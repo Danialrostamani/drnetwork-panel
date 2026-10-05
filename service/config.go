@@ -528,11 +528,21 @@ func (s *ConfigService) CheckChanges(lu string) (bool, error) {
 	return LastUpdate > intLu, nil
 }
 
+// TelegramActor is the actor the Telegram bot records in the change history.
+// The bot appends the administrator's Telegram ID ("telegram:42"); asking for
+// the plain name finds them all.
+const TelegramActor = "telegram"
+
 func (s *ConfigService) GetChanges(actor string, chngKey string, count string) []model.Changes {
 	c, _ := strconv.Atoi(count)
 	db := database.GetDB()
 	tx := db.Model(model.Changes{}).Where("`id` > 0")
-	if len(actor) > 0 {
+	switch {
+	case actor == TelegramActor:
+		// The Telegram bot records "telegram:<administrator's ID>" (older
+		// versions: plain "telegram"), so the plain name means all of them.
+		tx = tx.Where("`actor` = ? OR `actor` LIKE ?", TelegramActor, TelegramActor+":%")
+	case len(actor) > 0:
 		tx = tx.Where("`actor` = ?", actor)
 	}
 	if len(chngKey) > 0 {

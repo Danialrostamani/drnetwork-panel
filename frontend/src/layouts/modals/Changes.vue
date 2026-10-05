@@ -30,7 +30,7 @@
               v-model="user"
               hide-details
               :label="$t('admin.actor')"
-              :items="['', 'DepleteJob', ...admins]"
+              :items="['', 'DepleteJob', 'telegram', ...admins]"
               @update:model-value="loadData"
             />
           </v-col>

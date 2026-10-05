@@ -206,7 +206,7 @@ func (b *bot) editAccess(mutate func(d *accessDoc) error) error {
 	if err != nil {
 		return err
 	}
-	if _, err := b.configService.Save("settings", "", raw, "", "telegram", b.host()); err != nil {
+	if _, err := b.configService.Save("settings", "", raw, "", b.actor(), b.host()); err != nil {
 		return err
 	}
 	fresh, err := loadConfig()

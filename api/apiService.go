@@ -247,6 +247,20 @@ func (a *ApiService) GetStats(c *gin.Context) {
 	jsonObj(c, data, err)
 }
 
+// GetStatsSummary answers what the master asks every node for its Telegram
+// bot's Stats screen: what the stats table counted since a moment, per user and
+// inbound, and per bucket seconds for the inbounds.
+func (a *ApiService) GetStatsSummary(c *gin.Context) {
+	since, _ := strconv.ParseInt(c.Query("since"), 10, 64)
+	bucket, _ := strconv.ParseInt(c.Query("bucket"), 10, 64)
+	data, err := a.StatsService.GetSummary(since, bucket)
+	if err != nil {
+		jsonMsg(c, "", err)
+		return
+	}
+	jsonObj(c, data, nil)
+}
+
 func (a *ApiService) GetStatus(c *gin.Context) {
 	request := c.Query("r")
 	result := a.ServerService.GetStatus(request)
