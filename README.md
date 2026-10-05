@@ -1,14 +1,13 @@
 # DrNetwork Panel
 
-> Independent, full-source DrNetwork distribution. Backend and frontend are stored in this repository; no GitHub fork or submodule is required. Official S-UI changes are imported through a validated synchronization workflow.
+**A multi-node web panel for sing-box** • Built on [S-UI](https://github.com/alireza0/s-ui) and [SagerNet/sing-box](https://github.com/SagerNet/sing-box)
 
-# S-UI
-**An Advanced Web Panel • Built on SagerNet/Sing-Box**
-
-![](https://img.shields.io/github/v/release/alireza0/s-ui.svg)
+[![Release](https://img.shields.io/github/v/release/Danialrostamani/drnetwork-panel.svg)](https://github.com/Danialrostamani/drnetwork-panel/releases/latest)
 [![Go Report Card](https://goreportcard.com/badge/github.com/Danialrostamani/drnetwork-panel)](https://goreportcard.com/report/github.com/Danialrostamani/drnetwork-panel)
-[![Downloads](https://img.shields.io/github/downloads/alireza0/s-ui/total.svg)](https://img.shields.io/github/downloads/alireza0/s-ui/total.svg)
+[![Downloads](https://img.shields.io/github/downloads/Danialrostamani/drnetwork-panel/total.svg)](https://github.com/Danialrostamani/drnetwork-panel/releases)
 [![License](https://img.shields.io/badge/license-GPL%20V3-blue.svg?longCache=true)](https://www.gnu.org/licenses/gpl-3.0.en.html)
+
+> Independent, full-source DrNetwork distribution. Backend and frontend are stored in this repository; no GitHub fork or submodule is required. Official S-UI changes are imported through a validated synchronization workflow.
 
 > **Disclaimer:** This project is only for personal learning and communication, please do not use it for illegal purposes, please do not use it in a production environment
 
@@ -16,18 +15,14 @@
 
 **Want to contribute?** See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, coding conventions, testing, and the pull request process.
 
-[!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/alireza7)
-
-<a href="https://nowpayments.io/donation/alireza7" target="_blank" rel="noreferrer noopener">
-   <img src="https://nowpayments.io/images/embeds/donation-button-white.svg" alt="Crypto donation button by NOWPayments">
-</a>
-
 ## Quick Overview
 | Features                               |      Enable?       |
 | -------------------------------------- | :----------------: |
 | Multi-Protocol                         | :heavy_check_mark: |
 | Multi-Language                         | :heavy_check_mark: |
 | Multi-Client/Inbound                   | :heavy_check_mark: |
+| Multi-Node (one master, any number of nodes) | :heavy_check_mark: |
+| Telegram bot (owner, roles, group-limited admins) | :heavy_check_mark: |
 | Advanced Traffic Routing Interface     | :heavy_check_mark: |
 | Client & Traffic & System Status       | :heavy_check_mark: |
 | Subscription Link (link/json/clash + info)| :heavy_check_mark: |
@@ -40,25 +35,6 @@
 | Linux    | amd64, arm64, armv7, armv6, armv5, 386, s390x | ✅ Supported |
 | Windows  | amd64, 386, arm64 | ✅ Supported |
 | macOS    | amd64, arm64 | 🚧 Experimental |
-
-## Screenshots
-
-!["Main"](https://github.com/alireza0/s-ui-frontend/raw/main/media/main.png)
-
-[Other UI Screenshots](https://github.com/alireza0/s-ui-frontend/blob/main/screenshots.md)
-
-## Documentation
-
-Full documentation lives in the [Wiki](https://github.com/alireza0/s-ui/wiki):
-
-| Page | Contents |
-|------|----------|
-| [Subscription Service](https://github.com/alireza0/s-ui/wiki/Subscription-Service) | Subscription URLs, the three formats, response headers |
-| [Subscription JSON Template](https://github.com/alireza0/s-ui/wiki/Subscription-JSON-Template) | Structure and supported keys of the sing-box subscription template |
-| [Subscription Clash Template](https://github.com/alireza0/s-ui/wiki/Subscription-Clash-Template) | The Clash.Meta template, proxy groups and filters |
-| [API Documentation](https://github.com/alireza0/s-ui/wiki/API-Documentation) | The token-authenticated REST API (`/apiv2`) |
-| [Configuration Objects](https://github.com/alireza0/s-ui/wiki/Configuration-Objects) | Shape of the objects read and written through the API |
-| [Settings Reference](https://github.com/alireza0/s-ui/wiki/Settings-Reference) | Every panel setting and its default |
 
 ## Default Installation Information
 - Panel Port: 2095
@@ -109,12 +85,12 @@ VERSION=v1.5.0 && bash <(curl -Ls https://raw.githubusercontent.com/Danialrostam
 ## Manual installation
 
 ### Linux/macOS
-1. Get the latest version of S-UI based on your OS/Architecture from GitHub: [https://github.com/Danialrostamani/drnetwork-panel/releases/latest](https://github.com/Danialrostamani/drnetwork-panel/releases/latest)
+1. Get the latest version of DrNetwork based on your OS/Architecture from GitHub: [https://github.com/Danialrostamani/drnetwork-panel/releases/latest](https://github.com/Danialrostamani/drnetwork-panel/releases/latest)
 2. **OPTIONAL** Get the latest version of `s-ui.sh` [https://raw.githubusercontent.com/Danialrostamani/drnetwork-panel/main/s-ui.sh](https://raw.githubusercontent.com/Danialrostamani/drnetwork-panel/main/s-ui.sh)
 3. **OPTIONAL** Copy `s-ui.sh` to /usr/bin/ and run `chmod +x /usr/bin/s-ui`.
-4. Extract s-ui tar.gz file to a directory of your choice and navigate to the directory where you extracted the tar.gz file.
+4. Extract the `s-ui-*.tar.gz` file to a directory of your choice and navigate to the directory where you extracted the tar.gz file.
 5. Copy *.service files to /etc/systemd/system/ and run `systemctl daemon-reload`.
-6. Enable autostart and start S-UI service using `systemctl enable s-ui --now`
+6. Enable autostart and start the DrNetwork service (named `s-ui`) using `systemctl enable s-ui --now`
 7. Start sing-box service using `systemctl enable sing-box --now`
 
 ### Windows
@@ -125,7 +101,7 @@ VERSION=v1.5.0 && bash <(curl -Ls https://raw.githubusercontent.com/Danialrostam
 5. Follow the installation wizard
 6. Access the panel at http://localhost:2095/app
 
-## Uninstall S-UI
+## Uninstall DrNetwork
 
 ### systemd
 ```sh
@@ -163,7 +139,7 @@ rm /usr/bin/s-ui
 curl -fsSL https://get.docker.com | sh
 ```
 
-**Step 2:** Install S-UI
+**Step 2:** Install DrNetwork
 
 > Docker compose method
 
@@ -257,10 +233,47 @@ To run backend (from root folder of repository):
 - An advanced interface for inbound and outbound configuration
 - Clients’ traffic cap and expiration date
 - Multi-node: after adding a node or an inbound, one click on the Clients page (🛠 menu → *Add all inbounds to all clients*) attaches every inbound that takes clients - node-hosted ones included - to every client
+- Top-bar badge with the number of nodes that are online, on every page
 - Displays online clients, inbounds and outbounds with traffic statistics, and system status monitoring
 - Subscription service with ability to add external links and subscription
 - HTTPS for secure access to the web panel and subscription service (self-provided domain + SSL certificate)
 - Dark/Light theme
+
+## Telegram bot
+
+DrNetwork includes an optional Telegram bot for administrators (**Settings → Telegram Bot**):
+
+1. Create a bot with [@BotFather](https://t.me/BotFather) and paste its token.
+2. Send `/id` to your bot, add the number it returns to **Admin Telegram IDs** and, if you are the one who manages the other admins, put the same number in **Bot owner Telegram ID** (see below).
+3. Enable the bot. If the server cannot reach `api.telegram.org`, set a proxy (`http://` or `socks5://`).
+
+Run the bot **on the master only** (nodes do not need it). Send `/menu` for the button panel — it mirrors the web panel:
+
+| Menu | What you can do |
+| --- | --- |
+| 🏠 Home | CPU / RAM / disk / swap bars, uptime, IPs, network totals, sing-box state, totals, node health; restart core, maintenance, logs, backup |
+| 👥 Clients | Filtered, paged list (all / active / disabled / near limit / depleted / online) in creation order - oldest first by default, a 🔃 button flips to newest first (the choice is remembered) - with each client's creation date and 🏷 group, search (name, note or group), **🏷 Groups screen** (every group with its client count; tap one to filter the list, or “no group”), new-client wizard (name → **group: pick an existing one, tap ➕ New group, or just type a new name** → volume **(buttons 10 20 30 / 50 100 200 / 300 ∞, or ✏️ Custom for any number)** → days → IP limit), **new client from a JSON template**, bulk create (`/addbulk` takes an optional group), cleanup of depleted clients. **Client card = the whole panel form:** enable/disable, reset traffic, ✏️ *Edit* (name, description, remark, group - same chooser: existing groups as buttons, ➕ New group, or a typed new name -, volume, days or exact expiry date, IP limit, delay start, auto reset, reset days), 🔑 *Config* (per-protocol credentials: regenerate one/all or replace by JSON), 🔗 *External & sub links* (add/delete), inbound assignment, subscription + QR, links, online IPs, kick, bind Telegram, `{ }` JSON edit of the whole client, delete. 🛠 *Bulk edit* on a filter or group: add volume/days, set IP limit, enable/disable, add/remove inbound, reset traffic, delete; plus 🔗 *Add all inbounds to all clients* (the panel's tools-menu button) |
+| 📡 Inbounds · 📤 Outbounds · 🔌 Endpoints · 🛠 Services · 🔐 TLS · 🖥 Nodes | List, view, JSON view, create (templates or JSON; outbounds also from share links), edit by sending JSON (text or `.json` file), delete; inbound port / clients; outbound latency test; node enable, sync, probe |
+| 📏 Rules · 🌐 DNS · ⚙️ Basics | Routing rules, rule sets, DNS servers/rules (add, edit, reorder, delete), route/DNS options, log level, NTP, experimental |
+| 🔧 Settings | Panel and subscription settings (toggles and values), panel restart |
+| 📊 Stats · 🧾 Changes · 📜 Logs · 👮 Admins | Traffic by user / inbound / outbound with a chart (the master's own numbers plus what the nodes counted - see below), change history with the admin who made each change, logs by level, admin list (the owner edits the admins here) |
+
+Slash commands still work for quick use: `/add <name> <GB> <days> [ipLimit]`, `/addbulk <prefix> <count> <GB> <days> [ipLimit] [group]`, `/enable`, `/disable`, `/reset`, `/del`, `/volume`, `/expiry`, `/limitip`, `/sub`, `/bind`, `/unbind`, `/backup`, `/logs`, `/sync`, `/restart`, `/maintenance on|off`, `/home`, `/stats`, `/settings`, `/changes`.
+Destructive actions (delete, reset, restart) ask for confirmation. Admin credentials and database restore are intentionally left to the web panel.
+
+**Group-limited admins.** To give someone only their own clients, put one line per admin in **Settings → Telegram Bot → Admin group limits**: `TelegramID=Group name` (for example `12345678=Sales`). That admin then sees and manages only the clients of that group (matched ignoring case): list, search, online, create (always into their group - there is no group step), enable/disable, reset, delete, volume, expiry, IP limit, bind, subscription, bulk edit and cleanup inside the group. They cannot move a client to another group, and have no inbounds, outbounds, nodes, settings, logs, stats, backup, restart or admin list. Client alerts (volume/expiry) go only to the admin of that client's group; node, core and report alerts and the scheduled backup go to the full admins. A line alone is enough to make someone a limited admin (they do not need to be in **Admin Telegram IDs**), admins without a line keep full access, and a line that cannot be used (no `=`, no group, the reserved `@cluster` group) locks that ID out instead of leaving it unlimited. Changes apply within seconds.
+
+**Owner and admin management.** Put your own numeric Telegram ID in **Settings → Telegram Bot → Bot owner Telegram ID**. The owner has every right and is the only one who can change the other admins, straight from the bot: **👮 Admins** lists everyone with their role, and tapping an admin opens ✏️ their card, where the owner switches sections on and off (Home, Clients, Inbounds, Outbounds, Endpoints, Services, TLS, Nodes, Routing, Settings, Stats, Logs, Core, Backup, Admins), applies a preset (full access, clients only, no access), limits the admin to one client group, or removes them. **➕ Add admin** takes a numeric ID (the person sends `/id` to the bot to read theirs) and a new admin starts with no access until sections are switched on. Nobody can edit the owner, and other admins - even with every section - cannot edit admins; the *Admins* section only lets them read the list. The owner is not built in: until the ID is set, nobody can edit admins from the bot. Think before handing out *Backup*: the file is the whole database, including panel credentials and tokens. What an admin may use shapes everything they get: the buttons and slash commands they see, and the alerts they receive (node alerts go to admins with *Nodes*, core alerts to *Home* or *Core*, client volume/expiry alerts to *Clients* or the client's group, the scheduled report is split between *Home* and *Stats*, the scheduled backup goes to *Backup*).
+
+The roles are stored in three settings, so the web panel edits the same data as the bot: **Admin Telegram IDs** (who), **Admin group limits** (`ID=Group`, above) and **Admin section limits** (`12345678=clients,stats`; a line with nothing after the `=` means no access, unknown section names are ignored, and a group line wins over a sections line). An ID with neither line keeps full access, and a line that cannot be read leaves that ID with no access instead of widening it. Changes made in either place reach the running bot within seconds, without a restart.
+
+**Stats include the nodes.** A client served through a node moves its traffic through that node, which counts it. The 📊 Stats screen therefore asks every enabled node (in parallel, a few seconds at most) for its totals and adds them to the master's own: the users the master also has, and the inbounds it replicates from that node. A node's own outbounds and node-local users or inbounds stay private, and outbound traffic is the master's own because outbounds and endpoints are not shared with nodes. A node that cannot be counted is named at the bottom of the screen - *needs an update* for a node that predates this feature (**update the nodes together with the master**), *unreachable* for one that does not answer.
+
+**Change history.** What an admin changes from the bot is recorded under `telegram:<their Telegram ID>`, so the 🧾 Changes screen and the panel's *Changes* dialog show who did it (older entries say plain `telegram`; the dialog's `telegram` filter finds both).
+
+**Bound clients** (`/bind <name> <telegramId>`) can use `/usage` (volume, expiry, status), `/sub` (link + QR) and `/id`, and receive their own volume/expiry alerts. Everybody else only gets `/id`.
+
+With **Alerts** enabled the bot reports node down/recovery, the master core stopping, and clients near their volume or expiry limit. **Scheduled report** accepts a cron spec (e.g. `@daily` or `0 9 * * *`) and posts the status and traffic summary, optionally with a database backup file. Changes in settings apply within seconds, without a restart.
 
 ## Environment Variables
 
@@ -298,45 +311,32 @@ certbot certonly --standalone --register-unsafely-without-email --non-interactiv
 
 ## Third-party Projects
 
-Community-made projects built around S-UI. These are not affiliated with or maintained by S-UI — use them at your own discretion:
+Community-made tools built around S-UI, the project DrNetwork is based on. They are not affiliated with or maintained by DrNetwork or S-UI, and some may rely on S-UI behaviour that DrNetwork has changed - use them at your own discretion:
 
 - [itning/reset-s-ui-traffic](https://github.com/itning/reset-s-ui-traffic) — periodic traffic reset for all users
 - [zqh2333/s-ui-traffic-reset](https://github.com/zqh2333/s-ui-traffic-reset) — traffic reset tool
 - [Sownix21/SUI-Bot](https://github.com/Sownix21/SUI-Bot) - telegram bot
 
-> Building something on top of S-UI (a Telegram bot, monitoring, automation, ...)? Open an issue/PR to get it listed here.
-
 ## Stargazers over Time
-[![Stargazers over time](https://starchart.cc/alireza0/s-ui.svg)](https://starchart.cc/alireza0/s-ui)
+[![Stargazers over time](https://starchart.cc/Danialrostamani/drnetwork-panel.svg)](https://starchart.cc/Danialrostamani/drnetwork-panel)
 
-## Telegram bot
+## Thanks
 
-DrNetwork includes an optional Telegram bot for administrators (**Settings → Telegram Bot**):
+DrNetwork Panel would not exist without the work of others:
 
-1. Create a bot with [@BotFather](https://t.me/BotFather) and paste its token.
-2. Send `/id` to your bot, add the number it returns to **Admin Telegram IDs** and, if you are the one who manages the other admins, put the same number in **Bot owner Telegram ID** (see below).
-3. Enable the bot. If the server cannot reach `api.telegram.org`, set a proxy (`http://` or `socks5://`).
+- **[Alireza (alireza0)](https://github.com/alireza0) and the contributors of [S-UI](https://github.com/alireza0/s-ui)** - the panel, the multi-inbound-per-user design and the frontend this project is built on. Thank you for sharing it as open source.
+- **[SagerNet/sing-box](https://github.com/SagerNet/sing-box)** - the proxy core.
+- Everyone who reports bugs, tests releases and contributes code.
 
-Run the bot **on the master only** (nodes do not need it). Send `/menu` for the button panel — it mirrors the web panel:
+The S-UI [wiki](https://github.com/alireza0/s-ui/wiki) remains a good reference for the parts DrNetwork keeps as they are (DrNetwork adds the nodes, the Telegram bot and their settings on top):
 
-| Menu | What you can do |
-| --- | --- |
-| 🏠 Home | CPU / RAM / disk / swap bars, uptime, IPs, network totals, sing-box state, totals, node health; restart core, maintenance, logs, backup |
-| 👥 Clients | Filtered, paged list (all / active / disabled / near limit / depleted / online) in creation order - oldest first by default, a 🔃 button flips to newest first (the choice is remembered) - with each client's creation date and 🏷 group, search (name, note or group), **🏷 Groups screen** (every group with its client count; tap one to filter the list, or “no group”), new-client wizard (name → **group: pick an existing one, tap ➕ New group, or just type a new name** → volume **(buttons 10 20 30 / 50 100 200 / 300 ∞, or ✏️ Custom for any number)** → days → IP limit), **new client from a JSON template**, bulk create (`/addbulk` takes an optional group), cleanup of depleted clients. **Client card = the whole panel form:** enable/disable, reset traffic, ✏️ *Edit* (name, description, remark, group - same chooser: existing groups as buttons, ➕ New group, or a typed new name -, volume, days or exact expiry date, IP limit, delay start, auto reset, reset days), 🔑 *Config* (per-protocol credentials: regenerate one/all or replace by JSON), 🔗 *External & sub links* (add/delete), inbound assignment, subscription + QR, links, online IPs, kick, bind Telegram, `{ }` JSON edit of the whole client, delete. 🛠 *Bulk edit* on a filter or group: add volume/days, set IP limit, enable/disable, add/remove inbound, reset traffic, delete; plus 🔗 *Add all inbounds to all clients* (the panel's tools-menu button) |
-| 📡 Inbounds · 📤 Outbounds · 🔌 Endpoints · 🛠 Services · 🔐 TLS · 🖥 Nodes | List, view, JSON view, create (templates or JSON; outbounds also from share links), edit by sending JSON (text or `.json` file), delete; inbound port / clients; outbound latency test; node enable, sync, probe |
-| 📏 Rules · 🌐 DNS · ⚙️ Basics | Routing rules, rule sets, DNS servers/rules (add, edit, reorder, delete), route/DNS options, log level, NTP, experimental |
-| 🔧 Settings | Panel and subscription settings (toggles and values), panel restart |
-| 📊 Stats · 🧾 Changes · 📜 Logs · 👮 Admins | Traffic by user / inbound / outbound with a chart, change history, logs by level, admin list (the owner edits the admins here) |
+| Page | Contents |
+|------|----------|
+| [Subscription Service](https://github.com/alireza0/s-ui/wiki/Subscription-Service) | Subscription URLs, the three formats, response headers |
+| [Subscription JSON Template](https://github.com/alireza0/s-ui/wiki/Subscription-JSON-Template) | Structure and supported keys of the sing-box subscription template |
+| [Subscription Clash Template](https://github.com/alireza0/s-ui/wiki/Subscription-Clash-Template) | The Clash.Meta template, proxy groups and filters |
+| [API Documentation](https://github.com/alireza0/s-ui/wiki/API-Documentation) | The token-authenticated REST API (`/apiv2`) |
+| [Configuration Objects](https://github.com/alireza0/s-ui/wiki/Configuration-Objects) | Shape of the objects read and written through the API |
+| [Settings Reference](https://github.com/alireza0/s-ui/wiki/Settings-Reference) | Every panel setting and its default |
 
-Slash commands still work for quick use: `/add <name> <GB> <days> [ipLimit]`, `/addbulk <prefix> <count> <GB> <days> [ipLimit] [group]`, `/enable`, `/disable`, `/reset`, `/del`, `/volume`, `/expiry`, `/limitip`, `/sub`, `/bind`, `/unbind`, `/backup`, `/logs`, `/sync`, `/restart`, `/maintenance on|off`, `/home`, `/stats`, `/settings`, `/changes`.
-Destructive actions (delete, reset, restart) ask for confirmation. Admin credentials and database restore are intentionally left to the web panel.
-
-**Group-limited admins.** To give someone only their own clients, put one line per admin in **Settings → Telegram Bot → Admin group limits**: `TelegramID=Group name` (for example `12345678=Sales`). That admin then sees and manages only the clients of that group (matched ignoring case): list, search, online, create (always into their group - there is no group step), enable/disable, reset, delete, volume, expiry, IP limit, bind, subscription, bulk edit and cleanup inside the group. They cannot move a client to another group, and have no inbounds, outbounds, nodes, settings, logs, stats, backup, restart or admin list. Client alerts (volume/expiry) go only to the admin of that client's group; node, core and report alerts and the scheduled backup go to the full admins. A line alone is enough to make someone a limited admin (they do not need to be in **Admin Telegram IDs**), admins without a line keep full access, and a line that cannot be used (no `=`, no group, the reserved `@cluster` group) locks that ID out instead of leaving it unlimited. Changes apply within seconds.
-
-**Owner and admin management.** Put your own numeric Telegram ID in **Settings → Telegram Bot → Bot owner Telegram ID**. The owner has every right and is the only one who can change the other admins, straight from the bot: **👮 Admins** lists everyone with their role, and tapping an admin opens ✏️ their card, where the owner switches sections on and off (Home, Clients, Inbounds, Outbounds, Endpoints, Services, TLS, Nodes, Routing, Settings, Stats, Logs, Core, Backup, Admins), applies a preset (full access, clients only, no access), limits the admin to one client group, or removes them. **➕ Add admin** takes a numeric ID (the person sends `/id` to the bot to read theirs) and a new admin starts with no access until sections are switched on. Nobody can edit the owner, and other admins - even with every section - cannot edit admins; the *Admins* section only lets them read the list. The owner is not built in: until the ID is set, nobody can edit admins from the bot. Think before handing out *Backup*: the file is the whole database, including panel credentials and tokens. What an admin may use shapes everything they get: the buttons and slash commands they see, and the alerts they receive (node alerts go to admins with *Nodes*, core alerts to *Home* or *Core*, client volume/expiry alerts to *Clients* or the client's group, the scheduled report is split between *Home* and *Stats*, the scheduled backup goes to *Backup*).
-
-The roles are stored in three settings, so the web panel edits the same data as the bot: **Admin Telegram IDs** (who), **Admin group limits** (`ID=Group`, above) and **Admin section limits** (`12345678=clients,stats`; a line with nothing after the `=` means no access, unknown section names are ignored, and a group line wins over a sections line). An ID with neither line keeps full access, and a line that cannot be read leaves that ID with no access instead of widening it. Changes made in either place reach the running bot within seconds, without a restart.
-
-**Bound clients** (`/bind <name> <telegramId>`) can use `/usage` (volume, expiry, status), `/sub` (link + QR) and `/id`, and receive their own volume/expiry alerts. Everybody else only gets `/id`.
-
-With **Alerts** enabled the bot reports node down/recovery, the master core stopping, and clients near their volume or expiry limit. **Scheduled report** accepts a cron spec (e.g. `@daily` or `0 9 * * *`) and posts the status and traffic summary, optionally with a database backup file. Changes in settings apply within seconds, without a restart.
+DrNetwork is released under the same license as S-UI, GPL-3.0 - see [LICENSE](LICENSE).

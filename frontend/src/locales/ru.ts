@@ -18,7 +18,7 @@ export default {
   network: "Сеть",
   copyToClipboard: "Копировать в буфер обмена",
   docs: "Документация",
-  donate: "Поддержать проект ❤️",
+  credits: "Основано на S-UI от Alireza — спасибо",
   noData: "Нет данных!",
   invalidLogin: "Неверный логин!",
   online: "В сети",
@@ -266,7 +266,8 @@ export default {
     coreVersion: "Ядро",
     desc: "Описание",
     emptyTitle: "Пока нет узлов",
-    emptyDesc: "Добавьте другую панель S-UI, чтобы наблюдать за ней отсюда.",
+    emptyDesc: "Добавьте другую панель DrNetwork, чтобы наблюдать за ней отсюда.",
+    healthHint: "Узлы онлайн / включено — нажмите, чтобы открыть страницу узлов",
     status: {
       online: "В сети",
       offline: "Не в сети",

@@ -65,7 +65,7 @@ func ParseCmd() {
 
 	flag.Parse()
 	if showVersion {
-		fmt.Println("S-UI Panel\t", config.GetVersion())
+		fmt.Println("DrNetwork Panel\t", config.GetVersion())
 		info, ok := debug.ReadBuildInfo()
 		if ok {
 			for _, dep := range info.Deps {

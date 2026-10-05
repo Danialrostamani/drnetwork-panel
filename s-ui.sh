@@ -882,7 +882,7 @@ generate_self_signed_cert() {
 }
 
 show_usage() {
-    echo -e "S-UI Control Menu Usage"
+    echo -e "DrNetwork Control Menu Usage"
     echo -e "------------------------------------------"
     echo -e "SUBCOMMANDS:" 
     echo -e "s-ui              - Admin Management Script"
@@ -902,7 +902,7 @@ show_usage() {
 
 show_menu() {
   echo -e "
-  ${green}S-UI Admin Management Script ${plain}
+  ${green}DrNetwork Admin Management Script ${plain}
 ————————————————————————————————
   ${green}0.${plain} Exit
 ————————————————————————————————
@@ -919,13 +919,13 @@ show_menu() {
   ${green}9.${plain} Set Panel settings
   ${green}10.${plain} View Panel Settings
 ————————————————————————————————
-  ${green}11.${plain} S-UI Start
-  ${green}12.${plain} S-UI Stop
-  ${green}13.${plain} S-UI Restart
-  ${green}14.${plain} S-UI Check State
-  ${green}15.${plain} S-UI Check Logs
-  ${green}16.${plain} S-UI Enable Autostart
-  ${green}17.${plain} S-UI Disable Autostart
+  ${green}11.${plain} DrNetwork Start
+  ${green}12.${plain} DrNetwork Stop
+  ${green}13.${plain} DrNetwork Restart
+  ${green}14.${plain} DrNetwork Check State
+  ${green}15.${plain} DrNetwork Check Logs
+  ${green}16.${plain} DrNetwork Enable Autostart
+  ${green}17.${plain} DrNetwork Disable Autostart
 ————————————————————————————————
   ${green}18.${plain} Enable or Disable BBR
   ${green}19.${plain} SSL Certificate Management

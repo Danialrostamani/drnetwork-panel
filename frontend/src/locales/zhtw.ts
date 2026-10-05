@@ -18,7 +18,7 @@ export default {
   network: "網絡",
   copyToClipboard: "復製到剪貼板",
   docs: "文件",
-  donate: "支持這個專案 ❤️",
+  credits: "建構於 Alireza 的 S-UI — 感謝",
   noData: "無數據！",
   invalidLogin: "登錄無效！",
   online: "在線",
@@ -266,7 +266,8 @@ export default {
     coreVersion: "核心",
     desc: "備註",
     emptyTitle: "還沒有節點",
-    emptyDesc: "新增另一台 S-UI 面板,在這裡集中監控。",
+    emptyDesc: "新增另一台 DrNetwork 面板,在這裡集中監控。",
+    healthHint: "線上節點 / 已啟用節點 — 點擊開啟節點頁面",
     status: {
       online: "線上",
       offline: "離線",

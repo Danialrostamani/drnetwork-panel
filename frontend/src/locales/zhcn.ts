@@ -18,7 +18,7 @@ export default {
   network: "网络",
   copyToClipboard: "复制到剪贴板",
   docs: "文档",
-  donate: "支持这个项目 ❤️",
+  credits: "基于 Alireza 的 S-UI 构建 — 谢谢",
   noData: "无数据！",
   invalidLogin: "登录无效！",
   online: "在线",
@@ -266,7 +266,8 @@ export default {
     coreVersion: "内核",
     desc: "备注",
     emptyTitle: "还没有节点",
-    emptyDesc: "添加另一台 S-UI 面板,在这里集中监控。",
+    emptyDesc: "添加另一台 DrNetwork 面板,在这里集中监控。",
+    healthHint: "在线节点 / 已启用节点 — 点击打开节点页面",
     status: {
       online: "在线",
       offline: "离线",

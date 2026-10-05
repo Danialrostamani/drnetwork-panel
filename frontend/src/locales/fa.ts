@@ -18,7 +18,7 @@ export default {
   network: "شبکه",
   copyToClipboard: "کپی در حافظه",
   docs: "مستندات",
-  donate: "از این پروژه حمایت کنید ❤️",
+  credits: "ساخته‌شده بر پایهٔ S-UI از Alireza — سپاسگزاریم",
   noData: "بدون داده!",
   invalidLogin: "ورود نامعتبر!",
   online: "آنلاین",
@@ -285,7 +285,8 @@ export default {
     coreVersion: "هسته",
     desc: "توضیحات",
     emptyTitle: "هنوز نودی نیست",
-    emptyDesc: "یک پنل S-UI دیگر اضافه کنید تا از اینجا پایش شود.",
+    emptyDesc: "یک پنل DrNetwork دیگر اضافه کنید تا از اینجا پایش شود.",
+    healthHint: "نودهای آنلاین / فعال — برای باز کردن صفحهٔ نودها کلیک کنید",
     status: {
       online: "آنلاین",
       offline: "آفلاین",

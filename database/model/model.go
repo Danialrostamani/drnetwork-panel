@@ -92,7 +92,7 @@ type Tokens struct {
 	User   *User  `json:"user" gorm:"foreignKey:UserId;references:Id"`
 }
 
-// Node is a remote S-UI panel managed over its token-authenticated API.
+// Node is a remote DrNetwork panel managed over its token-authenticated API.
 type Node struct {
 	Id        uint            `json:"id" form:"id" gorm:"primaryKey;autoIncrement"`
 	Enable    bool            `json:"enable" form:"enable" gorm:"default:true;not null"`

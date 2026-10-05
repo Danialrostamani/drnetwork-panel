@@ -239,7 +239,7 @@
                     </v-chip>
                   </v-col>
                   <v-col cols="3">
-                    S-UI
+                    DrNetwork
                   </v-col>
                   <v-col cols="9">
                     <v-chip

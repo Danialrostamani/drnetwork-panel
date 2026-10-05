@@ -18,7 +18,7 @@ export default {
   network: "Network",
   copyToClipboard: "Copy to clipboard",
   docs: "Documentation",
-  donate: "Support this project ❤️",
+  credits: "Built on S-UI by Alireza — thank you",
   noData: "No data!",
   invalidLogin: "Invalid Login!",
   online: "Online",
@@ -285,7 +285,8 @@ export default {
     coreVersion: "Core",
     desc: "Description",
     emptyTitle: "No nodes yet",
-    emptyDesc: "Add another S-UI panel to monitor it from here.",
+    emptyDesc: "Add another DrNetwork panel to monitor it from here.",
+    healthHint: "Nodes online / enabled — click to open the Nodes page",
     status: {
       online: "Online",
       offline: "Offline",

@@ -46,7 +46,8 @@ RUN if [ "$TARGETARCH" = "arm" ]; then export GOARM=7; [ "$TARGETVARIANT" = "v6"
     go build -ldflags="$LDFLAGS" -tags "$TAGS" -o sui main.go
 
 FROM alpine:3.24.1@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
-LABEL org.opencontainers.image.authors="alireza7@gmail.com"
+LABEL org.opencontainers.image.authors="DrNetwork <https://github.com/Danialrostamani/drnetwork-panel>"
+LABEL org.opencontainers.image.source="https://github.com/Danialrostamani/drnetwork-panel"
 ENV TZ=Asia/Tehran
 WORKDIR /app
 RUN set -ex && apk upgrade --no-cache --scripts=no apk-tools && \

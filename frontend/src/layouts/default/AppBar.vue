@@ -26,21 +26,19 @@
     >
       {{ $t('setting.maintenance') }}
     </v-chip>
-    <v-btn
-      v-tooltip="$t('donate')"
-      icon
-      variant="text"
-      href="https://donate.alireza0.dev"
-      target="_blank"
-      rel="noopener"
-      class="donate-btn"
+    <!-- Whether the managed nodes answer, on every page: online / enabled. -->
+    <v-chip
+      v-if="health.total > 0"
+      v-tooltip="$t('node.healthHint')"
+      :color="health.color"
+      variant="tonal"
+      density="comfortable"
+      prepend-icon="mdi-server-network"
+      to="/nodes"
+      class="mr-2"
     >
-      <v-icon
-        icon="mdi-heart"
-        color="red"
-        size="1.5em"
-      />
-    </v-btn>
+      {{ health.online }}/{{ health.total }}
+    </v-chip>
     <v-menu>
       <template #activator="{ props }">
         <v-btn
@@ -93,6 +91,7 @@ import { languages } from '@/locales'
 import { useThemeSwitcher } from '@/composables/useThemeSwitcher'
 import { computed } from 'vue'
 import Data from '@/store/modules/data'
+import { nodesHealth } from '@/types/node'
 
 defineProps<{ isMobile: boolean }>()
 defineEmits<{ toggleDrawer: [] }>()
@@ -110,4 +109,5 @@ const changeLocale = (l: string) => {
 }
 const isActiveLocale = (l: string) => i18nLocale.value === l
 const maintenance = computed((): boolean => Data().maintenance)
+const health = computed(() => nodesHealth(Data().nodes ?? [], Data().nodesStatus ?? {}))
 </script>

@@ -18,7 +18,7 @@ export default {
   network: "Mạng",
   copyToClipboard: "Sao chép vào clipboard",
   docs: "Tài liệu",
-  donate: "Ủng hộ dự án ❤️",
+  credits: "Xây dựng trên S-UI của Alireza — cảm ơn",
   noData: "Không có dữ liệu!",
   invalidLogin: "Đăng nhập không hợp lệ!",
   online: "Trực tuyến",
@@ -266,7 +266,8 @@ export default {
     coreVersion: "Lõi",
     desc: "Ghi chú",
     emptyTitle: "Chưa có node nào",
-    emptyDesc: "Thêm một bảng S-UI khác để giám sát tại đây.",
+    emptyDesc: "Thêm một bảng DrNetwork khác để giám sát tại đây.",
+    healthHint: "Node trực tuyến / đã bật — bấm để mở trang Node",
     status: {
       online: "Trực tuyến",
       offline: "Ngoại tuyến",
