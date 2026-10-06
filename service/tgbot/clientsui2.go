@@ -844,7 +844,11 @@ func (b *bot) bulkCallback(ctx context.Context, cbID string, chatID, msgID int64
 			"days": {"تعداد روزی که اضافه شود (منفی = کم کردن) را بفرستید. فقط کلاینت‌های دارای تاریخ انقضا تغییر می‌کنند.", "Send the days to add (negative subtracts). Only clients with an expiry date change."},
 			"ip":   {"محدودیت جدید IP را بفرستید (۰ = نامحدود).", "Send the new IP limit (0 = unlimited)."},
 		}
-		b.ask(ctx, chatID, msgID, "bk."+act, scope, 0, back, b.tr(prompts[act][0], prompts[act][1]))
+		prompt := b.tr(prompts[act][0], prompts[act][1])
+		if line := b.quotaLine(); act == "vol" && line != "" {
+			prompt += "\n\n" + line
+		}
+		b.ask(ctx, chatID, msgID, "bk."+act, scope, 0, back, prompt)
 	case "en", "dis", "rst", "del":
 		b.answer(ctx, cbID, "")
 		if arg == "y" {

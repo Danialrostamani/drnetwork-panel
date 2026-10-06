@@ -32,6 +32,7 @@ func schema() []table {
 		{"stats", &model.Stats{}, copyRows[model.Stats]},
 		{"clients", &model.Client{}, copyRows[model.Client]},
 		{"changes", &model.Changes{}, copyRows[model.Changes]},
+		{"bot_quotas", &model.BotQuota{}, copyRows[model.BotQuota]},
 	}
 }
 

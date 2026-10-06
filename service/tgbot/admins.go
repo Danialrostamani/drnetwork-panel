@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Danialrostamani/drnetwork-panel/logger"
 	"github.com/Danialrostamani/drnetwork-panel/service"
 )
 
@@ -339,8 +340,13 @@ func (b *bot) adminsScreen(ctx context.Context) (string, [][]button) {
 	a := b.access()
 	names := b.adminNames(ctx, a.order)
 	lines = append(lines, "", "🤖 <b>"+b.tr("ادمین‌های ربات", "Bot admins")+"</b>")
+	quotas := allQuotas()
 	for _, id := range a.order {
-		lines = append(lines, b.adminLine(a, id, names[id]))
+		line := b.adminLine(a, id, names[id])
+		if q, ok := quotas[id]; ok && !a.isOwner(id) {
+			line += " · " + b.quotaBrief(q)
+		}
+		lines = append(lines, line)
 	}
 	switch {
 	case a.owner == 0:
@@ -383,8 +389,11 @@ func (b *bot) adminEditScreen(ctx context.Context, id int64) (string, [][]button
 	lines := []string{
 		b.header("✏️", b.tr("دسترسی ادمین", "Admin access")),
 		b.adminLine(a, id, b.adminNames(ctx, []int64{id})[id]),
-		"",
 	}
+	if line := b.quotaStateLine(id); line != "" {
+		lines = append(lines, line)
+	}
+	lines = append(lines, "")
 	var kb [][]button
 	switch {
 	case r.group != "":
@@ -414,6 +423,7 @@ func (b *bot) adminEditScreen(ctx context.Context, id int64) (string, [][]button
 			{Text: b.tr("⛔ هیچ", "⛔ None"), Data: "a:p:" + sid + ":none"},
 		},
 		[]button{{Text: groupLabel, Data: "a:g:" + sid}},
+		[]button{{Text: b.tr("📦 محدودیت حجم", "📦 Volume limit"), Data: "a:q:" + sid}},
 		[]button{{Text: b.tr("🗑 حذف ادمین", "🗑 Remove admin"), Data: "a:rm:" + sid}},
 		b.navRow("a:ls"))
 	lines = append(lines, "", b.tr(
@@ -555,6 +565,8 @@ func (b *bot) adminsCallback(ctx context.Context, cbID string, chatID, msgID int
 		}
 		group := groups[idx]
 		apply(func(d *accessDoc) error { return d.setRole(id, role{group: group}) }, edited)
+	case "q", "qa", "qt", "qr", "qry", "qc", "qcy":
+		b.quotaCallback(ctx, cbID, chatID, msgID, verb, id, parts)
 	case "rm":
 		b.answer(ctx, cbID, "")
 		a := b.access()
@@ -563,6 +575,10 @@ func (b *bot) adminsCallback(ctx context.Context, cbID string, chatID, msgID int
 	case "rmy":
 		apply(func(d *accessDoc) error { return d.remove(id) }, func() (string, [][]button) {
 			b.pend.clear(id)
+			// Their volume limit goes with them.
+			if err := b.dropQuota(id); err != nil {
+				logger.Warning("telegram bot: remove the volume limit of ", id, ": ", err)
+			}
 			text, kb := b.adminsScreen(ctx)
 			return b.t("done") + "\n\n" + text, kb
 		})
@@ -595,6 +611,18 @@ func (b *bot) adminPending(ctx context.Context, chatID int64, p *pending, text s
 		}
 		b.syncCommandMenus(ctx)
 		t, kb := b.adminEditScreen(ctx, id)
+		finish(b.t("done")+"\n\n"+t, kb)
+	case "ad.quota":
+		id, err := strconv.ParseInt(p.data["id"], 10, 64)
+		if err != nil {
+			b.pend.clear(chatID)
+			return
+		}
+		if err := b.applyQuotaInput(id, text); err != nil {
+			retry(err)
+			return
+		}
+		t, kb := b.adminQuotaScreen(ctx, id)
 		finish(b.t("done")+"\n\n"+t, kb)
 	case "ad.grp":
 		id, err := strconv.ParseInt(p.data["id"], 10, 64)

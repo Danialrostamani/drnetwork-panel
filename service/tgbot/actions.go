@@ -149,11 +149,19 @@ func (b *bot) save(act string, payload interface{}) error {
 	if err := b.guardSave(act, payload); err != nil {
 		return err
 	}
-	data, err := json.Marshal(payload)
+	// An administrator with a volume limit pays for the volume this write
+	// hands out before it is saved, and gets it back if the save fails.
+	charge, err := b.chargeVolume(act, payload)
 	if err != nil {
 		return err
 	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		charge.refund()
+		return err
+	}
 	if _, err := b.configService.Save("clients", act, data, "", b.actor(), b.host()); err != nil {
+		charge.refund()
 		return err
 	}
 	b.fanOut()

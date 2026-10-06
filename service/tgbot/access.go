@@ -623,7 +623,11 @@ func (b *bot) menuScreen() (string, [][]button) {
 	if kb == nil {
 		return b.t("noAccessYet"), nil
 	}
-	return b.t("menuTitle"), kb
+	text := b.t("menuTitle")
+	if line := b.quotaLine(); line != "" {
+		text += "\n" + line
+	}
+	return text, kb
 }
 
 // restrictedHelp is /help for an administrator with custom sections: what they

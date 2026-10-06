@@ -203,7 +203,7 @@ func TestEverySectionIsWiredUp(t *testing.T) {
 		"o:sv:ls:0": "services", "o:tl:ls:0": "tls", "o:nd:ls:0": "nodes", "g:rl:ls:0": "routing", "g:dn:ls:0": "routing", "g:basics:ls:0": "routing",
 		"s:ls": "settings", "m:prest": "settings", "m:prestY": "settings", "t:d1": "stats", "x:ls": "stats", "m:traffic": "stats", "m:logs:info": "logs",
 		"m:backup": "backup", "m:sync": "nodes", "m:maint": "core", "m:restart": "core", "m:restarty": "core", "m:status": "home", "m:menu": secNone, "x:cancel": secNone,
-		"u:sub:5": secNone, "u:view:5": secNone, "a:ls": "admins", "a:add": secOwner, "a:e:5": secOwner, "a:rmy:5": secOwner, "bogus:x": secDeny, "m:bogus": secDeny, "o:zz:ls:0": secDeny,
+		"u:sub:5": secNone, "u:view:5": secNone, "a:ls": "admins", "a:add": secOwner, "a:e:5": secOwner, "a:rmy:5": secOwner, "a:q:5": secOwner, "a:qa:5:10": secOwner, "a:qt:5": secOwner, "a:qry:5": secOwner, "bogus:x": secDeny, "m:bogus": secDeny, "o:zz:ls:0": secDeny,
 	} {
 		if got := callbackSection(strings.Split(data, ":")); got != want {
 			t.Errorf("callbackSection(%q) = %q, want %q", data, got, want)
@@ -398,7 +398,8 @@ func TestOwnerHasEverythingAndIsNotLimitedByLines(t *testing.T) {
 func TestOnlyTheOwnerCanEditAdmins(t *testing.T) {
 	e := newAccessEnv(t)
 	adminsBefore, scopesBefore, permsBefore := accessSettings(t)
-	buttons := []string{"a:e:55", "a:t:55:logs", "a:p:55:full", "a:g:55", "a:sg:55:0", "a:sg:55:#new", "a:rm:55", "a:rmy:55", "a:add", "a:e:77", "a:p:77:none", "a:rmy:42", "a:t:42:logs"}
+	buttons := []string{"a:e:55", "a:t:55:logs", "a:p:55:full", "a:g:55", "a:sg:55:0", "a:sg:55:#new", "a:rm:55", "a:rmy:55", "a:add", "a:e:77", "a:p:77:none", "a:rmy:42", "a:t:42:logs",
+		"a:q:55", "a:qa:55:50", "a:qt:55", "a:qr:55", "a:qry:55", "a:qc:55", "a:qcy:55"}
 	for _, who := range []int64{fullAdmin, salesAdmin, clientsOnly, noSections, 999} {
 		for _, data := range buttons {
 			n := len(e.got())
@@ -413,6 +414,8 @@ func TestOnlyTheOwnerCanEditAdmins(t *testing.T) {
 		e.say(who, "900")
 		e.b.pend.set(who, &pending{kind: "ad.grp", data: map[string]string{"id": "55"}})
 		e.say(who, "Sneaky")
+		e.b.pend.set(who, &pending{kind: "ad.quota", data: map[string]string{"id": "55"}})
+		e.say(who, "99999")
 		e.b.pend.clear(who)
 	}
 	if a, s, p := accessSettings(t); a != adminsBefore || s != scopesBefore || p != permsBefore {
@@ -801,7 +804,8 @@ func TestTheOwnerCannotBeEdited(t *testing.T) {
 	e := newAccessEnv(t)
 	before := func() string { a, s, p := accessSettings(t); return a + "|" + s + "|" + p }
 	snapshot := before()
-	for _, data := range []string{"a:e:1000", "a:t:1000:logs", "a:p:1000:none", "a:g:1000", "a:sg:1000:0", "a:rm:1000", "a:rmy:1000"} {
+	for _, data := range []string{"a:e:1000", "a:t:1000:logs", "a:p:1000:none", "a:g:1000", "a:sg:1000:0", "a:rm:1000", "a:rmy:1000",
+		"a:q:1000", "a:qa:1000:10", "a:qt:1000", "a:qr:1000", "a:qry:1000", "a:qc:1000", "a:qcy:1000"} {
 		n := len(e.got())
 		e.press(ownerID, data)
 		msgs := e.since(n)
@@ -1151,11 +1155,14 @@ func TestCommandMenusFollowTheRights(t *testing.T) {
 func TestAdminsCallbacksIgnoreJunk(t *testing.T) {
 	e := newAccessEnv(t)
 	a, s, p := accessSettings(t)
-	for _, data := range []string{"a:e", "a:e:abc", "a:t:55", "a:t:55:nonsense", "a:p:55:weird", "a:sg:55:99", "a:sg:55:x", "a:rm:99999", "a:rmy:99999", "a:zzz:55", "a:g:99999"} {
+	for _, data := range []string{"a:e", "a:e:abc", "a:t:55", "a:t:55:nonsense", "a:p:55:weird", "a:sg:55:99", "a:sg:55:x", "a:rm:99999", "a:rmy:99999", "a:zzz:55", "a:g:99999", "a:q", "a:q:abc", "a:q:99999", "a:qa:55", "a:qa:55:x", "a:qa:55:-5", "a:qt:99999", "a:qry:99999", "a:qcy:99999"} {
 		e.press(ownerID, data)
 	}
 	if a2, s2, p2 := accessSettings(t); a != a2 || s != s2 || p != p2 {
 		t.Fatalf("junk buttons changed the settings: %q %q %q", a2, s2, p2)
+	}
+	if qs := allQuotas(); len(qs) != 0 {
+		t.Fatalf("junk buttons made volume limits: %+v", qs)
 	}
 	// The group chooser uses an index; a stale or invented one is refused.
 	n := len(e.got())

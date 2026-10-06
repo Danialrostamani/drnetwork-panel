@@ -255,6 +255,9 @@ func (b *bot) clientsScreen(filter string, page int) (string, [][]button) {
 	}
 	lines := []string{b.header("👥", fmt.Sprintf("%s%s (%d/%d)", b.tr("کلاینت‌ها", "Clients"), b.filterLabel(filter), len(list), len(all))),
 		"📅 " + b.tr("مرتب‌شده بر اساس تاریخ ساخت — ", "Sorted by creation date — ") + b.clientSortLabel()}
+	if line := b.quotaLine(); line != "" {
+		lines = append(lines, line)
+	}
 	if len(list) == 0 {
 		lines = append(lines, b.t("noClients"))
 	}
@@ -340,7 +343,13 @@ func (b *bot) askClient(ctx context.Context, chatID, msgID int64, field string, 
 		b.edit(ctx, chatID, msgID, "🏷 "+b.tr(a.fa, a.en), b.groupPicker("c:sg:"+sid+":"))
 		return
 	}
-	b.ask(ctx, chatID, msgID, "cl."+field, field, id, "c:view:"+strconv.FormatUint(uint64(id), 10), b.tr(a.fa, a.en))
+	prompt := b.tr(a.fa, a.en)
+	if field == "vol" {
+		if line := b.quotaLine(); line != "" {
+			prompt += "\n\n" + line
+		}
+	}
+	b.ask(ctx, chatID, msgID, "cl."+field, field, id, "c:view:"+strconv.FormatUint(uint64(id), 10), prompt)
 }
 
 // applyClientAnswer applies a typed answer to a client field and returns the

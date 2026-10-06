@@ -34,6 +34,7 @@ func seedEveryTable(t *testing.T) {
 		&model.Stats{DateTime: 1, Resource: "user", Tag: "someone", Direction: true, Traffic: 42},
 		&model.Client{Name: "someone", Enable: true, Config: json.RawMessage(`{}`), Inbounds: json.RawMessage(`[]`), Links: json.RawMessage(`[]`)},
 		&model.Changes{DateTime: 1, Actor: "admin", Key: "clients", Action: "new", Obj: json.RawMessage(`"someone"`)},
+		&model.BotQuota{TgId: 42, Total: 500 << 30, Granted: 120 << 30},
 	}
 	for _, row := range rows {
 		if err := db.Create(row).Error; err != nil {
@@ -196,4 +197,67 @@ func backupTempFiles(t *testing.T, dir string) []string {
 		}
 	}
 	return found
+}
+
+// A bot administrator's volume limit is a running balance: a backup that kept
+// the row but lost the numbers would hand everybody a fresh allowance on
+// restore.
+func TestBackupKeepsVolumeLimits(t *testing.T) {
+	if err := InitDB(filepath.Join(t.TempDir(), "test.db")); err != nil {
+		t.Fatal(err)
+	}
+	want := []model.BotQuota{
+		{TgId: 42, Total: 500 << 30, Granted: 120 << 30},
+		{TgId: 7_000_000_000, Total: 3, Granted: 3}, // Telegram IDs outgrow 32 bits
+		{TgId: 9, Total: 0, Granted: 0},
+	}
+	if err := db.Create(&want).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	contents, err := GetDb("")
+	if err != nil {
+		t.Fatalf("GetDb: %v", err)
+	}
+	var got []model.BotQuota
+	if err := openBackup(t, contents).Order("tg_id").Find(&got).Error; err != nil {
+		t.Fatalf("reading the limits back: %v", err)
+	}
+	if len(got) != len(want) {
+		t.Fatalf("the backup holds %d limits, want %d: %+v", len(got), len(want), got)
+	}
+	byID := map[int64]model.BotQuota{}
+	for _, q := range got {
+		byID[q.TgId] = q
+	}
+	for _, q := range want {
+		if byID[q.TgId] != q {
+			t.Errorf("limit of %d came back as %+v, want %+v", q.TgId, byID[q.TgId], q)
+		}
+	}
+}
+
+// A database from before the limits existed gets their table on the next
+// start, empty: nobody is limited until the owner says so.
+func TestOlderDatabaseGainsTheVolumeLimitTable(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "test.db")
+	if err := InitDB(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Migrator().DropTable(&model.BotQuota{}); err != nil {
+		t.Fatal(err)
+	}
+	if db.Migrator().HasTable(&model.BotQuota{}) {
+		t.Fatal("the table is still there")
+	}
+	if err := InitDB(path); err != nil {
+		t.Fatalf("starting on the older database: %v", err)
+	}
+	if !db.Migrator().HasTable(&model.BotQuota{}) {
+		t.Fatal("the volume limit table was not created")
+	}
+	var n int64
+	if err := db.Model(&model.BotQuota{}).Count(&n).Error; err != nil || n != 0 {
+		t.Fatalf("limits on a fresh table: %d, %v", n, err)
+	}
 }

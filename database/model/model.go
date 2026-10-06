@@ -83,6 +83,21 @@ type Changes struct {
 	Obj      json.RawMessage `json:"obj"`
 }
 
+// BotQuota is the volume a Telegram bot administrator may still give to
+// clients. The owner sets Total from the bot's Admins screen; every byte of
+// volume the administrator hands out through the bot is added to Granted. An
+// administrator without a row is not limited. The row lives in the database,
+// not in the settings, because it changes with every client they create.
+type BotQuota struct {
+	TgId    int64 `json:"tgId" gorm:"primaryKey;autoIncrement:false"`
+	Total   int64 `json:"total" gorm:"default:0;not null"`
+	Granted int64 `json:"granted" gorm:"default:0;not null"`
+}
+
+// TableName pins the name: left to GORM's pluralizer, "quota" stays singular
+// and the table would not match the one the backup lists.
+func (BotQuota) TableName() string { return "bot_quotas" }
+
 type Tokens struct {
 	Id     uint   `json:"id" form:"id" gorm:"primaryKey;autoIncrement"`
 	Desc   string `json:"desc" form:"desc"`

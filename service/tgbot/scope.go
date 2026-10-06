@@ -351,12 +351,16 @@ func (b *bot) scopedHomeText() string {
 		up += c.Up
 		down += c.Down
 	}
-	return strings.Join([]string{
+	lines := []string{
 		b.header("🏠", "DrNetwork"),
 		"🏷 " + b.t("group") + ": <b>" + esc(b.scopeGroup()) + "</b>",
 		fmt.Sprintf("👥 %s: %d (%s: %d) · 🟢 %s: %d", b.tr("کلاینت", "Clients"), len(clients), b.tr("فعال", "active"), enabled, b.tr("آنلاین", "online"), len(b.onlineUsers())),
 		fmt.Sprintf("📈 %s: ↑ %s ↓ %s", b.tr("مصرف کل", "Total"), humanBytes(up), humanBytes(down)),
-	}, "\n")
+	}
+	if line := b.quotaLine(); line != "" {
+		lines = append(lines, line)
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (b *bot) scopedHomeKeyboard() [][]button {

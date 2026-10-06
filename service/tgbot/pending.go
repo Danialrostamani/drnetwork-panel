@@ -225,10 +225,17 @@ func (b *bot) wizardPrompt(p *pending) (string, [][]button) {
 	btn := func(label, step, val string) button { return button{Text: label, Data: "w:" + step + ":" + val} }
 	switch p.key {
 	case "vol":
-		return b.header("➕", b.stepNo(3)) + "\n" + b.tr("حجم کل (GB) را انتخاب کنید یا عدد بفرستید.", "Pick the total volume (GB) or send a number."), [][]button{
+		text := b.header("➕", b.stepNo(3)) + "\n" + b.tr("حجم کل (GB) را انتخاب کنید یا عدد بفرستید.", "Pick the total volume (GB) or send a number.")
+		last := []button{btn("300", "vol", "300"), btn("∞", "vol", "0"), btn(b.tr("✏️ دلخواه", "✏️ Custom"), "vol", "#c")}
+		if line := b.quotaLine(); line != "" {
+			// An administrator with a volume limit cannot give an unlimited one.
+			text += "\n" + line
+			last = []button{last[0], last[2]}
+		}
+		return text, [][]button{
 			{btn("10", "vol", "10"), btn("20", "vol", "20"), btn("30", "vol", "30")},
 			{btn("50", "vol", "50"), btn("100", "vol", "100"), btn("200", "vol", "200")},
-			{btn("300", "vol", "300"), btn("∞", "vol", "0"), btn(b.tr("✏️ دلخواه", "✏️ Custom"), "vol", "#c")},
+			last,
 			b.cancelRow()}
 	case "days":
 		return b.header("➕", b.stepNo(4)) + "\n" + b.tr("مدت اعتبار (روز) را انتخاب کنید یا عدد بفرستید.", "Pick the validity (days) or send a number."), [][]button{
@@ -346,7 +353,12 @@ func (b *bot) wizardStep(ctx context.Context, chatID int64, p *pending, value st
 	case "vol":
 		if fromButton && value == "#c" {
 			// The "Custom" button: ask for the number; typed text is handled below.
-			render(b.header("➕", b.stepNo(3))+"\n✏️ "+b.tr("حجم را به گیگابایت بفرستید؛ مثلاً 75 یا 2.5 (۰ = نامحدود).", "Send the volume in GB, e.g. 75 or 2.5 (0 = unlimited)."),
+			ask := b.tr("حجم را به گیگابایت بفرستید؛ مثلاً 75 یا 2.5 (۰ = نامحدود).", "Send the volume in GB, e.g. 75 or 2.5 (0 = unlimited).")
+			if line := b.quotaLine(); line != "" {
+				// Unlimited is not on offer to an administrator with a volume limit.
+				ask = b.tr("حجم را به گیگابایت بفرستید؛ مثلاً 75 یا 2.5.", "Send the volume in GB, e.g. 75 or 2.5.") + "\n" + line
+			}
+			render(b.header("➕", b.stepNo(3))+"\n✏️ "+ask,
 				[][]button{{{Text: b.tr("⬅️ حجم‌های آماده", "⬅️ Presets"), Data: "w:vol:#b"}}, b.cancelRow()})
 			return
 		}
@@ -355,8 +367,16 @@ func (b *bot) wizardStep(ctx context.Context, chatID int64, p *pending, value st
 			render(t, kb)
 			return
 		}
-		if _, ok := parseFloatArg(value); !ok {
+		gb, ok := parseFloatArg(value)
+		if !ok {
 			fail(fmt.Errorf("%s", b.t("badNumber")))
+			return
+		}
+		// Refuse here, not after the last question, a volume the administrator's
+		// limit does not allow.
+		if err := b.checkNewVolume(int64(gb * float64(gib))); err != nil {
+			t, kb := b.wizardPrompt(p)
+			render(b.t("failed", esc(b.errText(err)))+"\n\n"+t, kb)
 			return
 		}
 		p.data["vol"] = value

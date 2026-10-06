@@ -131,6 +131,9 @@ func (b *bot) homeText() string {
 		}
 		lines = append(lines, fmt.Sprintf("🖥 %s: %d / %d %s", b.tr("نودها", "Nodes"), up, len(nodes), b.tr("آنلاین", "online")))
 	}
+	if line := b.quotaLine(); line != "" {
+		lines = append(lines, line)
+	}
 	return strings.Join(lines, "\n")
 }
 
