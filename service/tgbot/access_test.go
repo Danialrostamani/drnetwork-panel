@@ -203,7 +203,7 @@ func TestEverySectionIsWiredUp(t *testing.T) {
 		"o:sv:ls:0": "services", "o:tl:ls:0": "tls", "o:nd:ls:0": "nodes", "g:rl:ls:0": "routing", "g:dn:ls:0": "routing", "g:basics:ls:0": "routing",
 		"s:ls": "settings", "m:prest": "settings", "m:prestY": "settings", "t:d1": "stats", "x:ls": "stats", "m:traffic": "stats", "m:logs:info": "logs",
 		"m:backup": "backup", "m:sync": "nodes", "m:maint": "core", "m:restart": "core", "m:restarty": "core", "m:status": "home", "m:menu": secNone, "x:cancel": secNone,
-		"a:ls": "admins", "a:add": secOwner, "a:e:5": secOwner, "a:rmy:5": secOwner, "bogus:x": secDeny, "m:bogus": secDeny, "o:zz:ls:0": secDeny,
+		"u:sub:5": secNone, "u:view:5": secNone, "a:ls": "admins", "a:add": secOwner, "a:e:5": secOwner, "a:rmy:5": secOwner, "bogus:x": secDeny, "m:bogus": secDeny, "o:zz:ls:0": secDeny,
 	} {
 		if got := callbackSection(strings.Split(data, ":")); got != want {
 			t.Errorf("callbackSection(%q) = %q, want %q", data, got, want)

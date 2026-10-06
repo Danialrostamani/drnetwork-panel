@@ -383,6 +383,12 @@ func callbackSection(parts []string) string {
 			return "admins"
 		}
 		return secOwner
+	case "u":
+		// A bound client's own buttons (their usage and subscription). They
+		// belong to no section: pressing one is checked against the client's
+		// Telegram binding (userCallback), and the client, who is nobody's
+		// administrator, must still get them under their card.
+		return secNone
 	}
 	return secDeny
 }

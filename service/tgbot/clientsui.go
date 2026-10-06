@@ -107,6 +107,11 @@ func (b *bot) clientDetail(c model.Client, online bool, now time.Time) string {
 		lines = append(lines, fmt.Sprintf("🔔 %s: <code>%d</code>", b.t("boundTo"), c.TgId))
 	}
 	lines = append(lines, fmt.Sprintf("🕒 %s: %s", b.t("lastOnline"), b.stamp(c.OnlineAt)), fmt.Sprintf("📅 %s: %s", b.t("createdAt"), b.stamp(c.CreatedAt)))
+	// The subscription link closes the card, in a code span so that a tap
+	// copies it. The button under the card still sends it with its QR code.
+	if link, err := b.subLink(c.Name); err == nil {
+		lines = append(lines, "🔗 "+b.t("subLine")+":\n<code>"+esc(link)+"</code>")
+	}
 	return strings.Join(lines, "\n")
 }
 
