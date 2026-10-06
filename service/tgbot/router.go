@@ -198,21 +198,29 @@ func (b *bot) userCommand(ctx context.Context, chatID int64, bound []model.Clien
 		}
 	case "sub":
 		for _, c := range bound {
-			b.sendSub(ctx, chatID, c.Name)
+			b.sendSub(ctx, chatID, c)
 		}
 	default:
 		b.send(ctx, chatID, b.t("userHelp"))
 	}
 }
 
-// sendSub sends the subscription link and its QR code.
-func (b *bot) sendSub(ctx context.Context, chatID int64, name string) {
-	link, err := b.subLink(name)
+// sendSub sends the subscription link and its QR code. The link comes under a
+// summary of the client's account (see subSummary), so that this message alone
+// tells them what they have used, what is left and until when.
+func (b *bot) sendSub(ctx context.Context, chatID int64, c model.Client) {
+	link, err := b.subLink(c.Name)
 	if err != nil {
 		b.send(ctx, chatID, b.t("failed", esc(err.Error())))
 		return
 	}
-	b.send(ctx, chatID, b.t("subTitle", esc(name))+"\n<code>"+esc(link)+"</code>")
+	online := false
+	for _, n := range allOnlineUsers() {
+		if n == c.Name {
+			online = true
+		}
+	}
+	b.send(ctx, chatID, b.subSummary(c, online, time.Now())+"\n\n"+b.t("subTitle", esc(c.Name))+"\n<code>"+esc(link)+"</code>")
 	png, err := qrPNG(link)
 	if err != nil {
 		b.send(ctx, chatID, b.t("subLinkOnly"))
@@ -470,7 +478,7 @@ func (b *bot) adminCommand(ctx context.Context, chatID int64, cmd, arg string) {
 		}
 	case "sub":
 		if c := withClient(""); c != nil {
-			b.sendSub(ctx, chatID, c.Name)
+			b.sendSub(ctx, chatID, *c)
 		}
 	case "backup":
 		b.sendBackup(ctx, chatID)
@@ -722,7 +730,7 @@ func (b *bot) userCallback(ctx context.Context, cbID string, chatID, msgID, from
 		text, kb := b.userView(*client)
 		b.edit(ctx, chatID, msgID, text, kb)
 	case "sub":
-		b.sendSub(ctx, chatID, client.Name)
+		b.sendSub(ctx, chatID, *client)
 	}
 }
 

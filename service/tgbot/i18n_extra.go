@@ -49,6 +49,7 @@ var extra = map[string][2]string{
 	"limitUsage":     {"/limitip <code>نام</code> <code>تعداد</code> — (۰ = نامحدود)", "/limitip <code>name</code> <code>count</code> — (0 = unlimited)"},
 	"nameUsage":      {"نام کلاینت را بنویسید: /%s <code>نام</code>", "Give a client name: /%s <code>name</code>"},
 	"subTitle":       {"🔗 لینک اشتراک <b>%s</b>:", "🔗 Subscription link of <b>%s</b>:"},
+	"volLeft":        {"حجم باقی‌مانده", "Remaining"},
 	"bindUsage":      {"/bind <code>نام</code> <code>شناسه‌تلگرام</code>\n/unbind <code>نام</code>", "/bind <code>name</code> <code>telegramId</code>\n/unbind <code>name</code>"},
 	"bound":          {"کلاینت <b>%s</b> به تلگرام <code>%d</code> متصل شد؛ او می‌تواند /usage بزند و هشدارها را مستقیم بگیرد.", "Client <b>%s</b> is now bound to Telegram <code>%d</code>; they can use /usage and receive their own alerts."},
 	"unbound":        {"اتصال تلگرام کلاینت <b>%s</b> برداشته شد.", "Telegram binding removed from <b>%s</b>."},

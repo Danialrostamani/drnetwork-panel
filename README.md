@@ -271,6 +271,8 @@ The roles are stored in three settings, so the web panel edits the same data as 
 
 **Change history.** What an admin changes from the bot is recorded under `telegram:<their Telegram ID>`, so the 🧾 Changes screen and the panel's *Changes* dialog show who did it (older entries say plain `telegram`; the dialog's `telegram` filter finds both).
 
+**Subscription message.** The 🔗 *Subscription / QR* button and `/sub` send the subscription link with its QR code, and the link comes under a summary of the client's account: state, usage (with the bar and the volume), what is left of the volume and of the time, the IP limit, when the client was last online and when it was created. The message can therefore be passed on to the client as it is; it holds nothing for administrators only (no note, group or Telegram binding), and a bound client gets the same message from `/sub`.
+
 **Bound clients** (`/bind <name> <telegramId>`) can use `/usage` (volume, expiry, status), `/sub` (link + QR) and `/id`, and receive their own volume/expiry alerts. Everybody else only gets `/id`.
 
 With **Alerts** enabled the bot reports node down/recovery, the master core stopping, and clients near their volume or expiry limit. **Scheduled report** accepts a cron spec (e.g. `@daily` or `0 9 * * *`) and posts the status and traffic summary, optionally with a database backup file. Changes in settings apply within seconds, without a restart.

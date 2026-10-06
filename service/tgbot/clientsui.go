@@ -14,7 +14,9 @@ import (
 	"github.com/Danialrostamani/drnetwork-panel/service"
 )
 
-func (b *bot) clientDetail(c model.Client, online bool, now time.Time) string {
+// clientHead is the top of a client's card: who they are, whether they are
+// enabled (and online right now), and the rule under it.
+func (b *bot) clientHead(c model.Client, online bool) []string {
 	state := "🟢 " + b.t("enabled")
 	if !c.Enable {
 		state = "🔴 " + b.t("disabled")
@@ -22,17 +24,44 @@ func (b *bot) clientDetail(c model.Client, online bool, now time.Time) string {
 	if online {
 		state += "  🔵 " + b.tr("آنلاین", "online")
 	}
-	lines := []string{"👤 <b>" + esc(c.Name) + "</b>  " + state, rule}
-	if c.Desc != "" {
-		lines = append(lines, "📝 <i>"+esc(c.Desc)+"</i>")
-	}
+	return []string{"👤 <b>" + esc(c.Name) + "</b>  " + state, rule}
+}
+
+// usageText is the card's usage block: the bar with what was used of the
+// volume, or only the total for a client without one.
+func (b *bot) usageText(c model.Client) string {
 	used := c.Up + c.Down
 	if c.Volume > 0 {
 		p := usagePercent(c)
-		lines = append(lines, fmt.Sprintf("📊 <b>%s</b> %s %d%%\n      %s / %s  (↑ %s ↓ %s)", b.t("usage"), bar(p, 10), p, humanBytes(used), humanBytes(c.Volume), humanBytes(c.Up), humanBytes(c.Down)))
-	} else {
-		lines = append(lines, fmt.Sprintf("📊 <b>%s</b>: %s ∞\n      ↑ %s ↓ %s", b.t("usage"), humanBytes(used), humanBytes(c.Up), humanBytes(c.Down)))
+		return fmt.Sprintf("📊 <b>%s</b> %s %d%%\n      %s / %s  (↑ %s ↓ %s)", b.t("usage"), bar(p, 10), p, humanBytes(used), humanBytes(c.Volume), humanBytes(c.Up), humanBytes(c.Down))
 	}
+	return fmt.Sprintf("📊 <b>%s</b>: %s ∞\n      ↑ %s ↓ %s", b.t("usage"), humanBytes(used), humanBytes(c.Up), humanBytes(c.Down))
+}
+
+// subSummary is what the subscription message says about the client above the
+// link: how much was used and what is left of the volume and of the time, the
+// IP limit, when they were last online and when they were created. It holds
+// the client's own numbers only -- no note, group or Telegram binding -- so the
+// message can be passed on to the client as it is.
+func (b *bot) subSummary(c model.Client, online bool, now time.Time) string {
+	lines := append(b.clientHead(c, online), b.usageText(c))
+	if c.Volume > 0 {
+		lines = append(lines, fmt.Sprintf("📦 <b>%s</b>: %s", b.t("volLeft"), humanBytes(max(c.Volume-c.Up-c.Down, 0))))
+	}
+	lines = append(lines, fmt.Sprintf("⏳ <b>%s</b>: %s", b.t("expiry"), b.expiryText(c, now)))
+	if c.LimitIp > 0 {
+		lines = append(lines, fmt.Sprintf("📱 %s: %d", b.t("ipLimit"), c.LimitIp))
+	}
+	lines = append(lines, fmt.Sprintf("🕒 %s: %s", b.t("lastOnline"), b.stamp(c.OnlineAt)), fmt.Sprintf("📅 %s: %s", b.t("createdAt"), b.stamp(c.CreatedAt)))
+	return strings.Join(lines, "\n")
+}
+
+func (b *bot) clientDetail(c model.Client, online bool, now time.Time) string {
+	lines := b.clientHead(c, online)
+	if c.Desc != "" {
+		lines = append(lines, "📝 <i>"+esc(c.Desc)+"</i>")
+	}
+	lines = append(lines, b.usageText(c))
 	lines = append(lines, fmt.Sprintf("⏳ <b>%s</b>: %s", b.t("expiry"), b.expiryText(c, now)))
 	if c.LimitIp > 0 {
 		lines = append(lines, fmt.Sprintf("📱 %s: %d", b.t("ipLimit"), c.LimitIp))
@@ -671,7 +700,7 @@ func (b *bot) clientCallback(ctx context.Context, cbID string, chatID, msgID int
 		mutate(b.addDays(id, 30), func() { showCard("") })
 	case "sub":
 		b.answer(ctx, cbID, "")
-		b.sendSub(ctx, chatID, client.Name)
+		b.sendSub(ctx, chatID, *client)
 	case "lnk":
 		b.answer(ctx, cbID, "")
 		b.sendLinks(ctx, chatID, id)
