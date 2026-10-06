@@ -18,7 +18,6 @@ export default {
   network: "شبکه",
   copyToClipboard: "کپی در حافظه",
   docs: "مستندات",
-  credits: "ساخته‌شده بر پایهٔ S-UI از Alireza — سپاسگزاریم",
   noData: "بدون داده!",
   invalidLogin: "ورود نامعتبر!",
   online: "آنلاین",

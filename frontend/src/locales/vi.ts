@@ -18,7 +18,6 @@ export default {
   network: "Mạng",
   copyToClipboard: "Sao chép vào clipboard",
   docs: "Tài liệu",
-  credits: "Xây dựng trên S-UI của Alireza — cảm ơn",
   noData: "Không có dữ liệu!",
   invalidLogin: "Đăng nhập không hợp lệ!",
   online: "Trực tuyến",

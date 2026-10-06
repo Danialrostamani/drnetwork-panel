@@ -18,7 +18,6 @@ export default {
   network: "Network",
   copyToClipboard: "Copy to clipboard",
   docs: "Documentation",
-  credits: "Built on S-UI by Alireza — thank you",
   noData: "No data!",
   invalidLogin: "Invalid Login!",
   online: "Online",

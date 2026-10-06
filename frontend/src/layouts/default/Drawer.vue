@@ -40,17 +40,6 @@
       </v-list-item>
     </v-list>
     <template #append>
-      <!-- DrNetwork is built on S-UI; the panel says so, once, quietly. -->
-      <v-list-item
-        prepend-icon="mdi-heart-outline"
-        href="https://github.com/alireza0/s-ui"
-        target="_blank"
-        rel="noopener"
-      >
-        <v-list-item-title class="text-caption text-wrap">
-          {{ $t('credits') }}
-        </v-list-item-title>
-      </v-list-item>
       <v-list-item
         prepend-icon="mdi-logout"
         :title="$t('menu.logout')"

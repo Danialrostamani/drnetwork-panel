@@ -18,7 +18,6 @@ export default {
   network: "網絡",
   copyToClipboard: "復製到剪貼板",
   docs: "文件",
-  credits: "建構於 Alireza 的 S-UI — 感謝",
   noData: "無數據！",
   invalidLogin: "登錄無效！",
   online: "在線",

@@ -18,7 +18,6 @@ export default {
   network: "Сеть",
   copyToClipboard: "Копировать в буфер обмена",
   docs: "Документация",
-  credits: "Основано на S-UI от Alireza — спасибо",
   noData: "Нет данных!",
   invalidLogin: "Неверный логин!",
   online: "В сети",
