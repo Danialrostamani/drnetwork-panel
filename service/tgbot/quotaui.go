@@ -11,6 +11,7 @@ import (
 	"github.com/Danialrostamani/drnetwork-panel/database"
 	"github.com/Danialrostamani/drnetwork-panel/database/model"
 	"github.com/Danialrostamani/drnetwork-panel/logger"
+	"github.com/Danialrostamani/drnetwork-panel/service"
 )
 
 // The owner's side of the volume limits (see quota.go): the 📦 Volume limit
@@ -23,14 +24,14 @@ var (
 )
 
 // quotaBrief is how a list shows an administrator's limit.
-func (b *bot) quotaBrief(q model.BotQuota) string {
-	left, total := humanBytes(quotaLeft(q)), humanBytes(q.Total)
+func (b *bot) quotaBrief(q quotaState) string {
+	left, total := humanBytes(q.Left()), humanBytes(q.Total)
 	return "📦 " + b.tr(fmt.Sprintf("باقی‌مانده %s از %s", left, total), fmt.Sprintf("%s left of %s", left, total))
 }
 
 // quotaStateLine is the limit of an administrator as one line of their card.
 func (b *bot) quotaStateLine(id int64) string {
-	q, ok, err := loadQuota(id)
+	q, ok, err := b.quotaOf(id)
 	switch {
 	case err != nil:
 		return ""
@@ -56,14 +57,18 @@ func (b *bot) checkQuotaEditor(id int64) error {
 }
 
 // recordQuota writes an edit of a limit into the change history, as the panel
-// does for everything else the bot changes.
-func (b *bot) recordQuota(id int64, action string, q model.BotQuota) {
-	obj, _ := json.Marshal(map[string]interface{}{
-		"name":    fmt.Sprintf("%d %s", id, humanBytes(q.Total)),
-		"tgId":    id,
-		"total":   q.Total,
-		"granted": q.Granted,
-	})
+// does for everything else the bot changes. used is what had been used of it,
+// or negative when that is not worth noting.
+func (b *bot) recordQuota(id int64, action string, total, used int64) {
+	fields := map[string]interface{}{
+		"name":  fmt.Sprintf("%d %s", id, humanBytes(total)),
+		"tgId":  id,
+		"total": total,
+	}
+	if used >= 0 {
+		fields["used"] = used
+	}
+	obj, _ := json.Marshal(fields)
 	err := database.GetDB().Create(&model.Changes{DateTime: time.Now().Unix(), Actor: b.actor(), Key: "quota", Action: action, Obj: obj}).Error
 	if err != nil {
 		logger.Warning("telegram bot: record the change of a volume limit: ", err)
@@ -85,23 +90,26 @@ func (b *bot) quotaAdd(id, delta int64) error {
 	if err != nil {
 		return err
 	}
-	b.recordQuota(id, action, q)
+	b.recordQuota(id, action, q.Total, -1)
 	return nil
 }
 
-// quotaReset counts what an administrator has handed out from zero again.
+// quotaReset counts what an administrator's clients use from zero again.
 func (b *bot) quotaReset(id int64) error {
 	if err := b.checkQuotaEditor(id); err != nil {
 		return err
 	}
-	q, found, err := resetQuotaGranted(id)
-	if err != nil {
+	q, ok, err := b.quotaOf(id)
+	switch {
+	case err != nil:
 		return err
-	}
-	if !found {
+	case !ok:
 		return b.errNoQuotaYet()
 	}
-	b.recordQuota(id, "reset", q)
+	if err := service.BotQuotaRestart(database.GetDB(), id); err != nil {
+		return err
+	}
+	b.recordQuota(id, "reset", q.Total, q.Used)
 	return nil
 }
 
@@ -123,7 +131,7 @@ func (b *bot) dropQuota(id int64) error {
 	if err := deleteQuota(id); err != nil {
 		return err
 	}
-	b.recordQuota(id, "del", q)
+	b.recordQuota(id, "del", q.Total, -1)
 	return nil
 }
 
@@ -170,7 +178,7 @@ func (b *bot) applyQuotaInput(id int64, text string) error {
 		if !found {
 			return b.errNoQuotaYet()
 		}
-		b.recordQuota(id, "add", q)
+		b.recordQuota(id, "add", q.Total, -1)
 		return nil
 	}
 	gb, ok := parseFloatArg(t)
@@ -181,18 +189,19 @@ func (b *bot) applyQuotaInput(id int64, text string) error {
 	if err != nil {
 		return err
 	}
-	b.recordQuota(id, "set", q)
+	b.recordQuota(id, "set", q.Total, -1)
 	return nil
 }
 
-// adminQuotaScreen is where the owner sets what one administrator may hand out.
+// adminQuotaScreen is where the owner sets how much traffic one administrator's
+// clients may use.
 func (b *bot) adminQuotaScreen(ctx context.Context, id int64) (string, [][]button) {
 	a := b.access()
 	if !a.isMember(id) || a.isOwner(id) {
 		return b.adminsScreen(ctx)
 	}
 	sid := strconv.FormatInt(id, 10)
-	q, ok, err := loadQuota(id)
+	q, ok, err := b.quotaOf(id)
 	if err != nil {
 		return b.t("failed", esc(err.Error())), [][]button{b.navRow("a:e:" + sid)}
 	}
@@ -205,17 +214,18 @@ func (b *bot) adminQuotaScreen(ctx context.Context, id int64) (string, [][]butto
 	if ok {
 		lines = append(lines,
 			"📦 "+b.tr("کل: ", "Total: ")+"<b>"+humanBytes(q.Total)+"</b>",
-			"➖ "+b.tr("واگذار شده: ", "Handed out: ")+humanBytes(q.Granted),
-			"✅ "+b.tr("باقی‌مانده: ", "Left: ")+"<b>"+humanBytes(quotaLeft(q))+"</b>")
+			"➖ "+b.tr("مصرف‌شده: ", "Used: ")+humanBytes(q.Used),
+			"✅ "+b.tr("باقی‌مانده: ", "Left: ")+"<b>"+humanBytes(q.Left())+"</b>",
+			"👥 "+b.tr("کلاینت‌های حساب‌شده: ", "Clients counted: ")+strconv.Itoa(q.Clients))
 		var top []button
 		for _, gb := range quotaTopUps {
 			top = append(top, button{Text: fmt.Sprintf("➕ %d GB", gb), Data: fmt.Sprintf("a:qa:%s:%d", sid, gb)})
 		}
 		kb = append(kb, top,
 			[]button{{Text: b.tr("✏️ ویرایش کل", "✏️ Edit total"), Data: "a:qt:" + sid}},
-			[]button{{Text: b.tr("🔄 صفر کردن واگذار شده", "🔄 Reset handed out"), Data: "a:qr:" + sid}, {Text: b.tr("♾ حذف محدودیت", "♾ Remove limit"), Data: "a:qc:" + sid}})
+			[]button{{Text: b.tr("🔄 صفر کردن مصرف", "🔄 Reset used"), Data: "a:qr:" + sid}, {Text: b.tr("♾ حذف محدودیت", "♾ Remove limit"), Data: "a:qc:" + sid}})
 	} else {
-		lines = append(lines, "♾ "+b.tr("بدون محدودیت: این ادمین می‌تواند هر حجمی را به کلاینت‌ها بدهد. برای محدود کردن، سقف کل را تعیین کنید.", "No limit: this admin can give clients any volume. Set a total to limit them."))
+		lines = append(lines, "♾ "+b.tr("بدون محدودیت: مصرف کلاینت‌های این ادمین محدود نمی‌شود. برای محدود کردن، سقف کل را تعیین کنید.", "No limit: what this admin's clients use is not limited. Set a total to limit it."))
 		var start []button
 		for _, gb := range quotaStarts {
 			start = append(start, button{Text: b.tr("تعیین ", "Set ") + fmt.Sprintf("%d GB", gb), Data: fmt.Sprintf("a:qa:%s:%d", sid, gb)})
@@ -223,8 +233,8 @@ func (b *bot) adminQuotaScreen(ctx context.Context, id int64) (string, [][]butto
 		kb = append(kb, start, []button{{Text: b.tr("✏️ مقدار دلخواه", "✏️ Custom"), Data: "a:qt:" + sid}})
 	}
 	lines = append(lines, "", b.tr(
-		"ℹ️ هر حجمی که این ادمین از ربات به کلاینت‌ها می‌دهد از «کل» کم می‌شود: حجم کلاینت جدید، افزودن یا بالا بردن حجم، و ریست ترافیک (چون دوباره حجم می‌دهد). حذف کلاینت یا کم کردن حجم چیزی برنمی‌گرداند؛ هر وقت لازم بود کل را بالا ببرید یا «واگذار شده» را صفر کنید. وقتی حجم تمام شود فقط نمی‌تواند حجم بیشتری بدهد. با محدودیت حجم، کلاینت نامحدود و ریست خودکار برای او بسته است.",
-		"ℹ️ Whatever volume this admin gives to clients through the bot is deducted from the total: a new client's volume, adding or raising volume, and a traffic reset (it gives the volume again). Deleting a client or lowering its volume gives nothing back; raise the total or zero “handed out” when needed. When it runs out they just cannot give more volume. With a limit, unlimited clients and auto reset are blocked for them."))
+		"ℹ️ هنگام ساخت کلاینت یا تعیین حجم چیزی کم نمی‌شود؛ «کل» به اندازهٔ ترافیکی که کلاینت‌های این ادمین واقعاً مصرف می‌کنند کم می‌شود. ریست ترافیک یا حذف کلاینت چیزی برنمی‌گرداند و کلاینتِ جایگزین از مصرف خودش حساب می‌شود. کلاینتی حساب می‌شود که او با ربات و پس از تعیین محدودیت ساخته باشد؛ برای ادمینِ گروهی همهٔ کلاینت‌های گروهش. مصرفِ پیش از آن هرگز محاسبه نمی‌شود. وقتی چیزی نماند نمی‌تواند کلاینت جدید بسازد یا حجم بیشتری بدهد؛ کلاینت‌های موجود قطع نمی‌شوند.",
+		"ℹ️ Nothing is deducted when this admin creates a client or sets its volume; the total goes down as the clients that count for them really use traffic. A traffic reset or deleting a client gives nothing back, and a replacement client counts from its own usage. A client counts when they created it through the bot after the limit was set; for a group-limited admin, every client of the group. What a client used before that is never charged. When nothing is left they cannot create clients or give more volume; existing clients are not cut off."))
 	kb = append(kb, b.navRow("a:e:"+sid))
 	return strings.Join(lines, "\n"), kb
 }
@@ -232,7 +242,7 @@ func (b *bot) adminQuotaScreen(ctx context.Context, id int64) (string, [][]butto
 // quotaCallback handles the buttons of the limit screen: "a:q:<id>" shows it,
 // "a:qa:<id>:<GB>" adds to the total (or starts a limit), "a:qt:<id>" asks for a
 // typed value, "a:qr:<id>" and "a:qc:<id>" ask before resetting what has been
-// handed out or removing the limit, and their "y" forms do it.
+// used or removing the limit, and their "y" forms do it.
 func (b *bot) quotaCallback(ctx context.Context, cbID string, chatID, msgID int64, verb string, id int64, parts []string) {
 	sid := strconv.FormatInt(id, 10)
 	show := func(text string, kb [][]button) { b.edit(ctx, chatID, msgID, text, kb) }
@@ -271,8 +281,8 @@ func (b *bot) quotaCallback(ctx context.Context, cbID string, chatID, msgID int6
 		b.answer(ctx, cbID, "")
 		b.pend.set(chatID, &pending{kind: "ad.quota", msgID: msgID, back: "a:q:" + sid, data: map[string]string{"id": sid}})
 		show(b.header("📦", b.tr("محدودیت حجم", "Volume limit"))+"\n"+b.tr(
-			"سقف کل حجم این ادمین را به گیگابایت بفرستید؛ مثلاً 500 یا 2.5. با + یا - کل فعلی را کم و زیاد می‌کنید؛ مثلاً +100. عدد 0 یعنی هیچ حجمی نمی‌تواند بدهد؛ برای برداشتن محدودیت از دکمهٔ «♾ حذف محدودیت» استفاده کنید.",
-			"Send this admin's total volume in GB, e.g. 500 or 2.5. A leading + or - changes the current total instead, e.g. +100. 0 means they cannot give any volume; to lift the limit use “♾ Remove limit”."),
+			"سقف کل ترافیک کلاینت‌های این ادمین را به گیگابایت بفرستید؛ مثلاً 500 یا 2.5. با + یا - کل فعلی را کم و زیاد می‌کنید؛ مثلاً +100. عدد 0 یعنی چیزی نمانده و نمی‌تواند کلاینت جدید بسازد؛ برای برداشتن محدودیت از دکمهٔ «♾ حذف محدودیت» استفاده کنید.",
+			"Send the total traffic this admin's clients may use, in GB, e.g. 500 or 2.5. A leading + or - changes the current total instead, e.g. +100. 0 means nothing is left, so they cannot create clients; to lift the limit use “♾ Remove limit”."),
 			[][]button{b.navRow("a:q:" + sid), b.cancelRow()})
 	case "qr", "qc":
 		if err := b.checkQuotaEditor(id); err != nil {
@@ -280,9 +290,9 @@ func (b *bot) quotaCallback(ctx context.Context, cbID string, chatID, msgID int6
 			return
 		}
 		b.answer(ctx, cbID, "")
-		ask := b.tr("⚠️ «واگذار شده» این ادمین صفر شود؟ باقی‌ماندهٔ او برابر کل می‌شود:", "⚠️ Reset this admin's “handed out” to zero? Their remaining volume becomes the whole total:")
+		ask := b.tr("⚠️ «مصرف‌شده» این ادمین صفر شود؟ شمارش از همین حالا شروع می‌شود و باقی‌مانده برابر کل می‌شود:", "⚠️ Reset this admin's “used” to zero? Counting starts again from now and what is left becomes the whole total:")
 		if verb == "qc" {
-			ask = b.tr("⚠️ محدودیت حجم این ادمین برداشته شود؟ دوباره می‌تواند هر حجمی بدهد:", "⚠️ Lift this admin's volume limit? They can give any volume again:")
+			ask = b.tr("⚠️ محدودیت حجم این ادمین برداشته شود؟ مصرف کلاینت‌هایش دیگر محدود نیست:", "⚠️ Lift this admin's volume limit? What their clients use is no longer limited:")
 		}
 		show(ask+"\n"+b.quotaStateLine(id), [][]button{{{Text: b.t("btnConfirm"), Data: "a:" + verb + "y:" + sid}, {Text: b.t("btnCancel"), Data: "a:q:" + sid}}})
 	case "qry":

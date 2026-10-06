@@ -51,9 +51,9 @@ func TestOwnerSetsAnAdminsVolumeLimit(t *testing.T) {
 
 	// A preset starts a limit; a top-up adds to it.
 	out = e.runPress(ownerID, "a:qa:42:100")
-	mustContain(t, out, "Total: <b>100.00 GiB</b>", "Handed out: 0 B", "Left: <b>100.00 GiB</b>")
+	mustContain(t, out, "Total: <b>100.00 GiB</b>", "Used: 0 B", "Left: <b>100.00 GiB</b>", "Clients counted: 0", "Nothing is deducted when this admin creates a client")
 	e.runPress(ownerID, "a:qa:42:50")
-	if q := quotaOf(t, 42); q.Total != 150*gib || q.Granted != 0 {
+	if q := quotaRow(t, 42); q.Total != 150*gib || q.Banked != 0 {
 		t.Fatalf("after the preset and a top-up: %+v", q)
 	}
 	kb = keyboardOf(e.got())
@@ -69,7 +69,7 @@ func TestOwnerSetsAnAdminsVolumeLimit(t *testing.T) {
 	// A typed number sets the total; the prompt explains itself and cancel
 	// goes back to the screen.
 	out = e.runPress(ownerID, "a:qt:42")
-	mustContain(t, out, "Send this admin's total volume in GB", "+100")
+	mustContain(t, out, "Send the total traffic this admin's clients may use, in GB", "+100", "nothing is left")
 	if p := e.b.pend.get(ownerID); p == nil || p.kind != "ad.quota" {
 		t.Fatalf("pending = %+v", p)
 	}
@@ -87,9 +87,9 @@ func TestOwnerSetsAnAdminsVolumeLimit(t *testing.T) {
 		{"abc", -1}, {"   ", -1}, {"-", -1}, {"1e12", -1}, {"+2000000", -1}, {"NaN", -1}, {"1000000000", -1},
 	} {
 		e.runPress(ownerID, "a:qt:42")
-		before := quotaOf(t, 42)
+		before := quotaRow(t, 42)
 		out := e.runSay(ownerID, s.say)
-		after := quotaOf(t, 42)
+		after := quotaRow(t, 42)
 		if s.total < 0 {
 			if !strings.Contains(out, "Failed") {
 				t.Errorf("%q: no refusal in:\n%s", s.say, out)
@@ -112,7 +112,7 @@ func TestOwnerSetsAnAdminsVolumeLimit(t *testing.T) {
 		}
 	}
 	// Zero is a limit of nothing, not the end of the limit.
-	if q := quotaOf(t, 42); q.Total != 0 {
+	if q := quotaRow(t, 42); q.Total != 0 {
 		t.Fatalf("total = %d", q.Total)
 	}
 	// "+N" without a limit has nothing to add to.
@@ -136,25 +136,39 @@ func TestOwnerSetsAnAdminsVolumeLimit(t *testing.T) {
 func TestOwnerResetsAndRemovesALimit(t *testing.T) {
 	e := newAccessEnv(t)
 	giveQuota(t, fullAdmin, 100)
-	if reserved, _, err := reserveQuota(fullAdmin, 30*gib); !reserved || err != nil {
-		t.Fatal(err)
+	e.runSay(fullAdmin, "/add ali 50 30")
+	e.runSay(fullAdmin, "/add bob 50 30")
+	e.consume("ali", 30*gib)
+	e.consume("bob", 5*gib)
+	e.runSay(fullAdmin, "/del bob")
+	e.runPress(fullAdmin, "c:dely:"+itoa(int64(e.client("bob").Id)))
+	if q := e.quota(fullAdmin); q.Used != 35*gib || q.Banked != 5*gib || q.Clients != 1 {
+		t.Fatalf("before the reset: %+v", q)
 	}
 
 	// Asking first: nothing changes until the confirmation.
 	out := e.runPress(ownerID, "a:qr:42")
-	mustContain(t, out, "Reset this admin's “handed out” to zero", "70.00 GiB left of 100.00 GiB")
+	mustContain(t, out, "Reset this admin's “used” to zero", "65.00 GiB left of 100.00 GiB")
 	if !hasButtonData(keyboardOf(e.got()), "a:qry:42") || !hasButtonData(keyboardOf(e.got()), "a:q:42") {
 		t.Fatalf("confirm buttons: %v", callbackData(keyboardOf(e.got())))
 	}
-	if quotaOf(t, fullAdmin).Granted != 30*gib {
+	if q := e.quota(fullAdmin); q.Used != 35*gib {
 		t.Fatal("asking reset the count")
 	}
 	out = e.runPress(ownerID, "a:qry:42")
-	mustContain(t, out, "Handed out: 0 B", "Left: <b>100.00 GiB</b>")
-	if q := quotaOf(t, fullAdmin); q.Granted != 0 || q.Total != 100*gib {
+	mustContain(t, out, "Used: 0 B", "Left: <b>100.00 GiB</b>", "Clients counted: 1")
+	if q := e.quota(fullAdmin); q.Used != 0 || q.Total != 100*gib || q.Banked != 0 {
 		t.Fatalf("after the reset: %+v", q)
 	}
+	// The client keeps counting, from where it is now.
+	e.consume("ali", 2*gib)
+	if q := e.quota(fullAdmin); q.Used != 2*gib {
+		t.Fatalf("after the reset and more traffic: %+v", q)
+	}
 
+	// Used up, then the limit is lifted.
+	e.consume("ali", 200*gib)
+	mustContain(t, e.runSay(fullAdmin, "/add carl 1 30"), "Failed")
 	out = e.runPress(ownerID, "a:qc:42")
 	mustContain(t, out, "Lift this admin's volume limit")
 	if !hasButtonData(keyboardOf(e.got()), "a:qcy:42") || noQuota(t, fullAdmin) {
@@ -162,10 +176,10 @@ func TestOwnerResetsAndRemovesALimit(t *testing.T) {
 	}
 	out = e.runPress(ownerID, "a:qcy:42")
 	mustContain(t, out, "No limit")
-	if !noQuota(t, fullAdmin) {
-		t.Fatal("the limit is still there")
+	if !noQuota(t, fullAdmin) || counted(t, fullAdmin) != 0 {
+		t.Fatal("the limit or its clients are still there")
 	}
-	// And now they can give any volume again.
+	// And now they can create again.
 	if out := e.runSay(fullAdmin, "/add big 5000 30"); strings.Contains(out, "Failed") {
 		t.Fatalf("after lifting the limit:\n%s", out)
 	}
@@ -174,12 +188,18 @@ func TestOwnerResetsAndRemovesALimit(t *testing.T) {
 	if got := quotaHistory(t); strings.Join(got, ",") != "reset,del" {
 		t.Fatalf("history = %v", got)
 	}
+	// The history says what had been used when it was reset.
+	var rows []model.Changes
+	if err := database.GetDB().Where("`key` = ? AND action = ?", "quota", "reset").Find(&rows).Error; err != nil || len(rows) != 1 {
+		t.Fatalf("reset history: %v %v", rows, err)
+	}
+	mustContain(t, string(rows[0].Obj), `"used":`+itoa(35*gib), `"tgId":42`, `"total":`+itoa(100*gib))
 }
 
 func TestOnlyTheOwnerCanEditVolumeLimits(t *testing.T) {
 	e := newAccessEnv(t)
 	giveQuota(t, clientsOnly, 10)
-	before := quotaOf(t, clientsOnly)
+	before := quotaRow(t, clientsOnly)
 	buttons := []string{"a:q:55", "a:qa:55:50", "a:qt:55", "a:qr:55", "a:qry:55", "a:qc:55", "a:qcy:55", "a:q:42", "a:qa:42:50", "a:qa:77:50"}
 	for _, who := range []int64{fullAdmin, salesAdmin, clientsOnly, noSections, 999} {
 		for _, data := range buttons {
@@ -197,7 +217,7 @@ func TestOnlyTheOwnerCanEditVolumeLimits(t *testing.T) {
 			e.b.pend.clear(who)
 		}
 	}
-	if got := quotaOf(t, clientsOnly); got != before {
+	if got := quotaRow(t, clientsOnly); got != before {
 		t.Fatalf("somebody but the owner changed a limit: %+v -> %+v", before, got)
 	}
 	if len(allQuotas()) != 1 {
@@ -207,7 +227,7 @@ func TestOnlyTheOwnerCanEditVolumeLimits(t *testing.T) {
 	giveQuota(t, fullAdmin, 1)
 	e.runPress(fullAdmin, "a:qa:42:500")
 	e.runSay(fullAdmin, "/add x 5 30")
-	if q := quotaOf(t, fullAdmin); q.Total != 1*gib {
+	if q := quotaRow(t, fullAdmin); q.Total != 1*gib {
 		t.Fatalf("their own total moved: %+v", q)
 	}
 }
@@ -256,12 +276,16 @@ func TestRemovingAnAdminRemovesTheirVolumeLimit(t *testing.T) {
 	e := newAccessEnv(t)
 	giveQuota(t, clientsOnly, 10)
 	giveQuota(t, fullAdmin, 20)
+	seedClient(t, "theirs", "", 5*gib, 0)
+	if err := database.GetDB().Create(&model.BotQuotaClient{ClientId: e.client("theirs").Id, TgId: clientsOnly}).Error; err != nil {
+		t.Fatal(err)
+	}
 	e.runPress(ownerID, "a:rm:55")
 	if noQuota(t, clientsOnly) {
 		t.Fatal("asking to remove an admin already removed the limit")
 	}
 	e.runPress(ownerID, "a:rmy:55")
-	if e.b.access().isMember(clientsOnly) || !noQuota(t, clientsOnly) {
+	if e.b.access().isMember(clientsOnly) || !noQuota(t, clientsOnly) || counted(t, clientsOnly) != 0 {
 		t.Fatal("the admin or their limit is still there")
 	}
 	if noQuota(t, fullAdmin) {
@@ -279,9 +303,8 @@ func TestAdminsListShowsVolumeLimits(t *testing.T) {
 	e := newAccessEnv(t)
 	giveQuota(t, clientsOnly, 10)
 	giveQuota(t, salesAdmin, 100)
-	if reserved, _, _ := reserveQuota(salesAdmin, 40*gib); !reserved {
-		t.Fatal("reserve")
-	}
+	e.quota(salesAdmin) // the group's clients count from now
+	e.consume("s1", 40*gib)
 	out := e.runPress(ownerID, "a:ls")
 	var line55, line77, line42 string
 	for _, l := range strings.Split(out, "\n") {
@@ -307,7 +330,8 @@ func TestVolumeLimitScreenInPersian(t *testing.T) {
 	mustContain(t, out, "محدودیت حجم", "بدون محدودیت")
 	e.runPress(ownerID, "a:qa:42:50")
 	out = e.runPress(ownerID, "a:q:42")
-	mustContain(t, out, "کل:", "واگذار شده:", "باقی‌مانده:", "حذف کلاینت یا کم کردن حجم چیزی برنمی‌گرداند")
+	mustContain(t, out, "کل:", "مصرف‌شده:", "باقی‌مانده:", "کلاینت‌های حساب‌شده:", "هنگام ساخت کلاینت یا تعیین حجم چیزی کم نمی‌شود")
+	mustContain(t, e.runPress(ownerID, "a:qr:42"), "«مصرف‌شده» این ادمین صفر شود")
 	mustContain(t, e.runPress(ownerID, "a:e:42"), "📦 باقی‌مانده 50.00 GiB از 50.00 GiB")
 }
 
@@ -316,7 +340,7 @@ func TestVolumeLimitScreenInPersian(t *testing.T) {
 func TestOnlyTheOwnersBotEditsLimitsWhateverCallsIt(t *testing.T) {
 	e := newAccessEnv(t)
 	giveQuota(t, clientsOnly, 10)
-	before := quotaOf(t, clientsOnly)
+	before := quotaRow(t, clientsOnly)
 	for _, who := range []int64{fullAdmin, salesAdmin, clientsOnly, noSections, 999} {
 		nb := e.b.as(who)
 		for name, err := range map[string]error{
@@ -331,7 +355,7 @@ func TestOnlyTheOwnersBotEditsLimitsWhateverCallsIt(t *testing.T) {
 			}
 		}
 	}
-	if after := quotaOf(t, clientsOnly); after != before {
+	if after := quotaRow(t, clientsOnly); after != before {
 		t.Fatalf("a non-owner changed the limit: %+v -> %+v", before, after)
 	}
 	if got := quotaHistory(t); len(got) != 0 {
@@ -341,7 +365,7 @@ func TestOnlyTheOwnersBotEditsLimitsWhateverCallsIt(t *testing.T) {
 	if err := e.b.as(ownerID).quotaAdd(clientsOnly, 5*gib); err != nil {
 		t.Fatal(err)
 	}
-	if after := quotaOf(t, clientsOnly); after.Total != before.Total+5*gib {
+	if after := quotaRow(t, clientsOnly); after.Total != before.Total+5*gib {
 		t.Fatalf("the owner's edit: %+v", after)
 	}
 }

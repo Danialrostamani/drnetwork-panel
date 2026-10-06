@@ -450,6 +450,11 @@ func (s *ConfigService) Save(obj string, act string, data json.RawMessage, initU
 	case "clients":
 		var inboundIds []uint
 		inboundIds, err = s.ClientService.Save(tx, act, data, hostname)
+		if err == nil {
+			// The clients a limited bot administrator creates count against
+			// their volume limit.
+			err = botQuotaOnClientSave(tx, loginUser, act, data)
+		}
 		if err == nil && len(inboundIds) > 0 {
 			objs = append(objs, "inbounds")
 			err = s.InboundService.UpdateInboundsUsers(tx, inboundIds)

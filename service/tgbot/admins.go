@@ -343,8 +343,10 @@ func (b *bot) adminsScreen(ctx context.Context) (string, [][]button) {
 	quotas := allQuotas()
 	for _, id := range a.order {
 		line := b.adminLine(a, id, names[id])
-		if q, ok := quotas[id]; ok && !a.isOwner(id) {
-			line += " · " + b.quotaBrief(q)
+		if _, limited := quotas[id]; limited && !a.isOwner(id) {
+			if q, ok, err := b.quotaOf(id); err == nil && ok {
+				line += " · " + b.quotaBrief(q)
+			}
 		}
 		lines = append(lines, line)
 	}

@@ -253,6 +253,11 @@ func (s *ClientService) Save(tx *gorm.DB, act string, data json.RawMessage, host
 			}
 			inboundIds = common.UnionUintArray(inboundIds, clientInbounds)
 		}
+		// What these clients used stays on their administrator's volume limit.
+		err = bankDeletedClients(tx, ids)
+		if err != nil {
+			return nil, err
+		}
 		err = tx.Where("id in ?", ids).Delete(model.Client{}).Error
 		if err != nil {
 			return nil, err
@@ -269,6 +274,10 @@ func (s *ClientService) Save(tx *gorm.DB, act string, data json.RawMessage, host
 			return nil, err
 		}
 		err = json.Unmarshal(client.Inbounds, &inboundIds)
+		if err != nil {
+			return nil, err
+		}
+		err = bankDeletedClients(tx, []uint{id})
 		if err != nil {
 			return nil, err
 		}

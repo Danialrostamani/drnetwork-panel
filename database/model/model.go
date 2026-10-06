@@ -83,20 +83,39 @@ type Changes struct {
 	Obj      json.RawMessage `json:"obj"`
 }
 
-// BotQuota is the volume a Telegram bot administrator may still give to
-// clients. The owner sets Total from the bot's Admins screen; every byte of
-// volume the administrator hands out through the bot is added to Granted. An
-// administrator without a row is not limited. The row lives in the database,
-// not in the settings, because it changes with every client they create.
+// BotQuota is the volume limit of a Telegram bot administrator: the most
+// traffic the clients counted as theirs may consume. The owner sets Total from
+// the bot's Admins screen. What is used is not stored as a running balance: it
+// is worked out from the clients themselves (see BotQuotaClient) plus Banked,
+// the usage of counted clients that were deleted since. An administrator
+// without a row is not limited. The row lives in the database, not in the
+// settings, because it changes whenever one of their clients is deleted.
 type BotQuota struct {
-	TgId    int64 `json:"tgId" gorm:"primaryKey;autoIncrement:false"`
-	Total   int64 `json:"total" gorm:"default:0;not null"`
-	Granted int64 `json:"granted" gorm:"default:0;not null"`
+	TgId  int64 `json:"tgId" gorm:"primaryKey;autoIncrement:false"`
+	Total int64 `json:"total" gorm:"default:0;not null"`
+	// Banked is the traffic of counted clients that were deleted.
+	Banked int64 `json:"banked" gorm:"default:0;not null"`
+	// Adopted is set once the clients the administrator created through the
+	// bot before the limit existed have been looked up in the change history.
+	Adopted bool `json:"adopted" gorm:"default:false;not null"`
 }
 
 // TableName pins the name: left to GORM's pluralizer, "quota" stays singular
 // and the table would not match the one the backup lists.
 func (BotQuota) TableName() string { return "bot_quotas" }
+
+// BotQuotaClient says that a client counts against an administrator's volume
+// limit, and from where: Base is the client's lifetime traffic (what it used
+// before its last reset included) when it started to count, so what counts is
+// the traffic it used since. A client belongs to at most one administrator.
+type BotQuotaClient struct {
+	ClientId uint  `json:"clientId" gorm:"primaryKey;autoIncrement:false"`
+	TgId     int64 `json:"tgId" gorm:"index;not null"`
+	Base     int64 `json:"base" gorm:"default:0;not null"`
+}
+
+// TableName pins the name, for the same reason as BotQuota's.
+func (BotQuotaClient) TableName() string { return "bot_quota_clients" }
 
 type Tokens struct {
 	Id     uint   `json:"id" form:"id" gorm:"primaryKey;autoIncrement"`

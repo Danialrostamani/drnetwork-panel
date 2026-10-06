@@ -343,13 +343,7 @@ func (b *bot) askClient(ctx context.Context, chatID, msgID int64, field string, 
 		b.edit(ctx, chatID, msgID, "🏷 "+b.tr(a.fa, a.en), b.groupPicker("c:sg:"+sid+":"))
 		return
 	}
-	prompt := b.tr(a.fa, a.en)
-	if field == "vol" {
-		if line := b.quotaLine(); line != "" {
-			prompt += "\n\n" + line
-		}
-	}
-	b.ask(ctx, chatID, msgID, "cl."+field, field, id, "c:view:"+strconv.FormatUint(uint64(id), 10), prompt)
+	b.ask(ctx, chatID, msgID, "cl."+field, field, id, "c:view:"+strconv.FormatUint(uint64(id), 10), b.tr(a.fa, a.en))
 }
 
 // applyClientAnswer applies a typed answer to a client field and returns the
@@ -604,6 +598,12 @@ func (b *bot) clientCallback(ctx context.Context, cbID string, chatID, msgID int
 		b.ask(ctx, chatID, msgID, "cl.search", "", 0, "c:ls:a:0", b.tr("نام یا بخشی از نام کلاینت را بفرستید.", "Send the client's name or part of it."))
 		return
 	case "new":
+		// An administrator whose volume limit is used up is told before the
+		// questions, not after the last one.
+		if err := b.quotaGate("new", model.Client{}); err != nil {
+			b.answer(ctx, cbID, b.t("failed", b.errText(err)))
+			return
+		}
 		b.answer(ctx, cbID, "")
 		p := &pending{kind: "wiz", key: "name", msgID: msgID, back: "c:ls:a:0", data: map[string]string{}}
 		b.pend.set(chatID, p)

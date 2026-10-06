@@ -34,7 +34,8 @@ func seedEveryTable(t *testing.T) {
 		&model.Stats{DateTime: 1, Resource: "user", Tag: "someone", Direction: true, Traffic: 42},
 		&model.Client{Name: "someone", Enable: true, Config: json.RawMessage(`{}`), Inbounds: json.RawMessage(`[]`), Links: json.RawMessage(`[]`)},
 		&model.Changes{DateTime: 1, Actor: "admin", Key: "clients", Action: "new", Obj: json.RawMessage(`"someone"`)},
-		&model.BotQuota{TgId: 42, Total: 500 << 30, Granted: 120 << 30},
+		&model.BotQuota{TgId: 42, Total: 500 << 30, Banked: 120 << 30, Adopted: true},
+		&model.BotQuotaClient{ClientId: 1, TgId: 42, Base: 7 << 20},
 	}
 	for _, row := range rows {
 		if err := db.Create(row).Error; err != nil {
@@ -199,19 +200,28 @@ func backupTempFiles(t *testing.T, dir string) []string {
 	return found
 }
 
-// A bot administrator's volume limit is a running balance: a backup that kept
-// the row but lost the numbers would hand everybody a fresh allowance on
-// restore.
+// A bot administrator's volume limit is made of numbers a backup must keep:
+// the total, what deleted clients used, and, for each client that counts, where
+// it started. A backup that kept the rows but lost the numbers would hand
+// everybody a fresh allowance on restore.
 func TestBackupKeepsVolumeLimits(t *testing.T) {
 	if err := InitDB(filepath.Join(t.TempDir(), "test.db")); err != nil {
 		t.Fatal(err)
 	}
 	want := []model.BotQuota{
-		{TgId: 42, Total: 500 << 30, Granted: 120 << 30},
-		{TgId: 7_000_000_000, Total: 3, Granted: 3}, // Telegram IDs outgrow 32 bits
-		{TgId: 9, Total: 0, Granted: 0},
+		{TgId: 42, Total: 500 << 30, Banked: 120 << 30, Adopted: true},
+		{TgId: 7_000_000_000, Total: 3, Banked: 3}, // Telegram IDs outgrow 32 bits
+		{TgId: 9, Total: 0, Banked: 0},
 	}
 	if err := db.Create(&want).Error; err != nil {
+		t.Fatal(err)
+	}
+	counted := []model.BotQuotaClient{
+		{ClientId: 1, TgId: 42, Base: 7 << 30},
+		{ClientId: 2, TgId: 7_000_000_000, Base: 0},
+		{ClientId: 3, TgId: 42, Base: 1},
+	}
+	if err := db.Create(&counted).Error; err != nil {
 		t.Fatal(err)
 	}
 
@@ -219,8 +229,9 @@ func TestBackupKeepsVolumeLimits(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetDb: %v", err)
 	}
+	restored := openBackup(t, contents)
 	var got []model.BotQuota
-	if err := openBackup(t, contents).Order("tg_id").Find(&got).Error; err != nil {
+	if err := restored.Order("tg_id").Find(&got).Error; err != nil {
 		t.Fatalf("reading the limits back: %v", err)
 	}
 	if len(got) != len(want) {
@@ -235,11 +246,54 @@ func TestBackupKeepsVolumeLimits(t *testing.T) {
 			t.Errorf("limit of %d came back as %+v, want %+v", q.TgId, byID[q.TgId], q)
 		}
 	}
+	var gotCounted []model.BotQuotaClient
+	if err := restored.Order("client_id").Find(&gotCounted).Error; err != nil {
+		t.Fatalf("reading the counted clients back: %v", err)
+	}
+	if len(gotCounted) != len(counted) {
+		t.Fatalf("the backup holds %d counted clients, want %d: %+v", len(gotCounted), len(counted), gotCounted)
+	}
+	for i := range counted {
+		if gotCounted[i] != counted[i] {
+			t.Errorf("counted client %d came back as %+v, want %+v", counted[i].ClientId, gotCounted[i], counted[i])
+		}
+	}
 }
 
-// A database from before the limits existed gets their table on the next
+// A database from before the limits existed gets their tables on the next
 // start, empty: nobody is limited until the owner says so.
 func TestOlderDatabaseGainsTheVolumeLimitTable(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "test.db")
+	if err := InitDB(path); err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range []any{&model.BotQuota{}, &model.BotQuotaClient{}} {
+		if err := db.Migrator().DropTable(m); err != nil {
+			t.Fatal(err)
+		}
+		if db.Migrator().HasTable(m) {
+			t.Fatalf("the table of %T is still there", m)
+		}
+	}
+	if err := InitDB(path); err != nil {
+		t.Fatalf("starting on the older database: %v", err)
+	}
+	for _, m := range []any{&model.BotQuota{}, &model.BotQuotaClient{}} {
+		if !db.Migrator().HasTable(m) {
+			t.Fatalf("the table of %T was not created", m)
+		}
+		var n int64
+		if err := db.Model(m).Count(&n).Error; err != nil || n != 0 {
+			t.Fatalf("rows on a fresh %T table: %d, %v", m, n, err)
+		}
+	}
+}
+
+// The first release of the limits kept a "granted" count and nothing else. A
+// database from then keeps its limits on the next start, with nothing used:
+// the old count was of volume handed out, which means something else now, and
+// the column it lived in stays out of the way.
+func TestFirstVolumeLimitsUpgrade(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "test.db")
 	if err := InitDB(path); err != nil {
 		t.Fatal(err)
@@ -247,17 +301,34 @@ func TestOlderDatabaseGainsTheVolumeLimitTable(t *testing.T) {
 	if err := db.Migrator().DropTable(&model.BotQuota{}); err != nil {
 		t.Fatal(err)
 	}
-	if db.Migrator().HasTable(&model.BotQuota{}) {
-		t.Fatal("the table is still there")
+	err := db.Exec("CREATE TABLE `bot_quotas` (`tg_id` integer,`total` integer NOT NULL DEFAULT 0,`granted` integer NOT NULL DEFAULT 0,PRIMARY KEY (`tg_id`))").Error
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Exec("INSERT INTO bot_quotas (tg_id, total, granted) VALUES (42, ?, ?)", 500<<30, 120<<30).Error; err != nil {
+		t.Fatal(err)
 	}
 	if err := InitDB(path); err != nil {
 		t.Fatalf("starting on the older database: %v", err)
 	}
-	if !db.Migrator().HasTable(&model.BotQuota{}) {
-		t.Fatal("the volume limit table was not created")
+
+	var q model.BotQuota
+	if err := db.Where("tg_id = ?", 42).First(&q).Error; err != nil {
+		t.Fatal(err)
+	}
+	if q != (model.BotQuota{TgId: 42, Total: 500 << 30}) {
+		t.Fatalf("the limit came through as %+v", q)
+	}
+	// New limits can still be written with the old column in the table, and so
+	// can the rows of a restored backup.
+	if err := db.Create(&model.BotQuota{TgId: 43, Total: 1 << 30, Banked: 5}).Error; err != nil {
+		t.Fatalf("a new limit cannot be written: %v", err)
+	}
+	if err := db.Save([]model.BotQuota{{TgId: 42, Total: 9, Banked: 2, Adopted: true}}).Error; err != nil {
+		t.Fatalf("a row cannot be saved over the old one: %v", err)
 	}
 	var n int64
-	if err := db.Model(&model.BotQuota{}).Count(&n).Error; err != nil || n != 0 {
-		t.Fatalf("limits on a fresh table: %d, %v", n, err)
+	if err := db.Model(&model.BotQuota{}).Count(&n).Error; err != nil || n != 2 {
+		t.Fatalf("%d limits, %v", n, err)
 	}
 }
