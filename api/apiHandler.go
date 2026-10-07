@@ -74,6 +74,8 @@ func (a *APIHandler) postHandler(c *gin.Context) {
 		a.ApiService.ReconcileNode(c)
 	case "nodeAction":
 		a.ApiService.NodeAction(c, loginUser)
+	case "shop":
+		a.ApiService.SaveShop(c)
 	default:
 		jsonMsg(c, "failed", common.NewError("unknown action: ", action))
 	}
@@ -147,6 +149,8 @@ func (a *APIHandler) getHandler(c *gin.Context) {
 		a.ApiService.GetNodeBackup(c)
 	case "nodesBackup":
 		a.ApiService.GetNodesBackup(c)
+	case "shop":
+		a.ApiService.GetShop(c)
 	default:
 		jsonMsg(c, "failed", common.NewError("unknown action: ", action))
 	}

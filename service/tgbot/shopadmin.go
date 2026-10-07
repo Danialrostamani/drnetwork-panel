@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Danialrostamani/drnetwork-panel/database/model"
@@ -94,32 +95,42 @@ func (b *bot) dropButtons(ctx context.Context, chatID, msgID int64) {
 
 // approve carries out a pending order an administrator accepted.
 func (b *bot) approve(ctx context.Context, chatID int64, id uint) string {
+	msg, _ := b.approveOrder(ctx, id)
+	return msg
+}
+
+func (b *bot) approveOrder(ctx context.Context, id uint) (string, error) {
 	t := b.tr
 	o, err := b.shopSvc().Decide(id, model.OrderApproved, b.self)
 	if err != nil {
 		if errors.Is(err, service.ErrDecided) {
 			if cur, e := b.shopSvc().Order(id); e == nil {
-				return fmt.Sprintf(t("سفارش #%d قبلا بررسی شده: %s", "Order #%d was already handled: %s"), id, b.orderStatus(cur.Status))
+				return fmt.Sprintf(t("سفارش #%d قبلا بررسی شده: %s", "Order #%d was already handled: %s"), id, b.orderStatus(cur.Status)), err
 			}
 		}
-		return b.t("failed", esc(b.errText(err)))
+		return b.t("failed", esc(b.errText(err))), err
 	}
 	if err := b.deliver(ctx, o); err != nil {
 		// Nothing was delivered: the order stays open for another try.
 		b.shopSvc().Reopen(o.Id)
-		return b.t("failed", esc(b.errText(err))) + "\n" + t("سفارش باز ماند؛ دوباره تلاش کنید.", "The order stays open; try again.")
+		return b.t("failed", esc(b.errText(err))) + "\n" + t("سفارش باز ماند؛ دوباره تلاش کنید.", "The order stays open; try again."), err
 	}
-	return fmt.Sprintf(t("✅ سفارش #%d تایید و تحویل شد.", "✅ Order #%d is approved and delivered."), id)
+	return fmt.Sprintf(t("✅ سفارش #%d تایید و تحویل شد.", "✅ Order #%d is approved and delivered."), id), nil
 }
 
 func (b *bot) reject(ctx context.Context, id uint) string {
+	msg, _ := b.rejectOrder(ctx, id)
+	return msg
+}
+
+func (b *bot) rejectOrder(ctx context.Context, id uint) (string, error) {
 	t := b.tr
 	o, err := b.shopSvc().Decide(id, model.OrderRejected, b.self)
 	if err != nil {
 		if errors.Is(err, service.ErrDecided) {
-			return fmt.Sprintf(t("سفارش #%d قبلا بررسی شده.", "Order #%d was already handled."), id)
+			return fmt.Sprintf(t("سفارش #%d قبلا بررسی شده.", "Order #%d was already handled."), id), err
 		}
-		return b.t("failed", esc(b.errText(err)))
+		return b.t("failed", esc(b.errText(err))), err
 	}
 	st := b.shopSvc().Settings()
 	msg := fmt.Sprintf(t("❌ رسید سفارش #%d تایید نشد.", "❌ The receipt of order #%d was not accepted."), o.Id)
@@ -127,7 +138,35 @@ func (b *bot) reject(ctx context.Context, id uint) string {
 		msg += "\n💬 " + t("پشتیبانی: ", "Support: ") + esc(st.Support)
 	}
 	b.sendKeyboard(ctx, o.TgId, msg, [][]button{b.homeRow()})
-	return fmt.Sprintf(t("سفارش #%d رد شد.", "Order #%d is rejected."), id)
+	return fmt.Sprintf(t("سفارش #%d رد شد.", "Order #%d is rejected."), id), nil
+}
+
+// running is the bot the supervisor runs, for the panel's order decisions.
+var running atomic.Pointer[runningBot]
+
+type runningBot struct {
+	b   *bot
+	ctx context.Context
+}
+
+// decideFromPanel is service.ShopDecider.
+func decideFromPanel(id uint, approve bool) (string, error) {
+	rb := running.Load()
+	if rb == nil {
+		return "", service.ErrBotDown
+	}
+	b := rb.b.root()
+	var msg string
+	var err error
+	if approve {
+		msg, err = b.approveOrder(rb.ctx, id)
+	} else {
+		msg, err = b.rejectOrder(rb.ctx, id)
+	}
+	if err != nil {
+		return "", err
+	}
+	return plainText(msg), nil
 }
 
 // ---- screens ----

@@ -38,6 +38,7 @@ export default {
     system: "Система",
   },
   pages: {
+    shop: "Продажи",
     nodes: "Узлы",
     login: "Вход",
     home: "Главная",

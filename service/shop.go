@@ -653,3 +653,10 @@ func (s *ShopService) Stats(loc *time.Location, days int) (*ShopStats, error) {
 	}
 	return out, nil
 }
+
+// ShopDecider approves (true) or rejects a pending order through the running
+// Telegram bot, which delivers it and tells the customer. The bot sets it.
+var ShopDecider func(id uint, approve bool) (string, error)
+
+// ErrBotDown is returned when an order needs the bot and it is not running.
+var ErrBotDown = errors.New("the Telegram bot is not running")

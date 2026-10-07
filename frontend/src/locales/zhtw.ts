@@ -38,6 +38,7 @@ export default {
     system: "系統",
   },
   pages: {
+    shop: "銷售",
     nodes: "節點",
     login: "登錄",
     home: "主頁",

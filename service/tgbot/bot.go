@@ -54,6 +54,7 @@ func Start(configService *service.ConfigService) {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	managerCancel, managerDone = cancel, done
+	service.ShopDecider = decideFromPanel
 	go func() {
 		defer close(done)
 		supervise(ctx, configService)
@@ -114,6 +115,7 @@ func (sv *supervisor) halt() {
 		sv.stop()
 		<-sv.done
 		sv.stop, sv.done, sv.running, sv.runCtx = nil, nil, nil, nil
+		running.Store(nil)
 	}
 }
 
@@ -132,6 +134,7 @@ func (sv *supervisor) apply(cfg botConfig) {
 			b := newBot(cfg)
 			b.configService = sv.configService
 			sv.running, sv.runCtx = b, botCtx
+			running.Store(&runningBot{b: b, ctx: botCtx})
 			go func() {
 				defer close(finished)
 				b.run(botCtx)
