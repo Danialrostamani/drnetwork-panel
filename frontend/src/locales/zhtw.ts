@@ -372,6 +372,8 @@ export default {
     summary: {
       nodes: "節點",
       users: "線上用戶",
+      perNode: "節點合計 {n}",
+      usersHint: "每個用戶只計一次，與首頁相同。括號內為各節點相加：同時連接多個節點的用戶在每個節點各計一次。",
       warnings: "警告",
       hidden: "已從訂閱隱藏",
     },
@@ -1079,6 +1081,7 @@ export default {
     },
   },
   sessions: {
+    master: "主伺服器",
     title: "即時連線",
     source: "來源",
     destination: "目標",

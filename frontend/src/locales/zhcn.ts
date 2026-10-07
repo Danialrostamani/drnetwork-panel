@@ -372,6 +372,8 @@ export default {
     summary: {
       nodes: "节点",
       users: "在线用户",
+      perNode: "节点合计 {n}",
+      usersHint: "每个用户只计一次，与首页相同。括号内为各节点相加：同时连接多个节点的用户在每个节点各计一次。",
       warnings: "警告",
       hidden: "已从订阅隐藏",
     },
@@ -1079,6 +1081,7 @@ export default {
     },
   },
   sessions: {
+    master: "主服务器",
     title: "实时连接",
     source: "来源",
     destination: "目标",

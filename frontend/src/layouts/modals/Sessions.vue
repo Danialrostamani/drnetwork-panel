@@ -171,6 +171,8 @@ interface Session {
   createdAt: number
   up: number
   down: number
+  // The managed node the connection is on; absent for the master's own.
+  node?: string
 }
 
 const props = defineProps<{ visible: boolean, resource: string, tag: string }>()
@@ -195,6 +197,16 @@ const headers = computed(() => {
   const inbound = { title: i18n.global.t('objects.inbound'), key: 'inbound' }
   const outbound = { title: i18n.global.t('objects.outbound'), key: 'outbound' }
   const client = { title: i18n.global.t('objects.client'), key: 'user' }
+  const cols = byResource(columns, inbound, outbound, client)
+  if (sessions.value.some((s) => s.node)) {
+    return [{ title: i18n.global.t('pages.nodes'), key: 'node', value: (item: Session) => item.node || i18n.global.t('sessions.master') }, ...cols]
+  }
+  return cols
+})
+
+type Column = { title: string, key: string, value?: (item: Session) => number | string, width?: string }
+
+const byResource = (columns: Column[], inbound: Column, outbound: Column, client: Column): Column[] => {
   switch (props.resource) {
     case 'inbound':
       return [client, ...columns.slice(0, 2), outbound, columns[2]]
@@ -207,7 +219,7 @@ const headers = computed(() => {
     default:
       return [inbound, ...columns.slice(0, 2), outbound, columns[2]]
   }
-})
+}
 
 const loadData = async () => {
   loading.value = true

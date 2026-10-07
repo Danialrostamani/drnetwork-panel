@@ -722,7 +722,7 @@ func (b *bot) clientCallback(ctx context.Context, cbID string, chatID, msgID int
 		b.answer(ctx, cbID, "")
 		show(b.ipsText(client.Name), [][]button{{b.btn("btnBack", "c:view:"+sid)}, b.menuRow()})
 	case "kick":
-		err := (&service.StatsService{}).CloseUserSessions(client.Name)
+		err := (&service.StatsService{}).CloseClusterSessions(client.Name)
 		mutate(err, func() {})
 	case "inb":
 		b.answer(ctx, cbID, "")

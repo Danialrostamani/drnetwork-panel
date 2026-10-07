@@ -489,6 +489,8 @@ export default {
     summary: {
       nodes: "Nodes",
       users: "Users online",
+      perNode: "{n} summed over nodes",
+      usersHint: "Each client counts once, as on the home page. The number in brackets adds up the nodes: a client connected to several nodes counts once per node.",
       warnings: "Warnings",
       hidden: "Hidden from subscriptions",
     },
@@ -1198,6 +1200,7 @@ export default {
     },
   },
   sessions: {
+    master: "Master",
     title: "Live Connections",
     source: "Source",
     destination: "Destination",

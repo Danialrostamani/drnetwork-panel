@@ -633,3 +633,23 @@ func (a *ApiService) SaveTotp(c *gin.Context) {
 func (a *ApiService) SendRemoteBackup(c *gin.Context) {
 	jsonMsg(c, "save", service.SendRemoteBackup(c.Request.Context()))
 }
+
+// GetClusterSessions answers the panel: a client's connections on the master
+// and on the managed nodes.
+func (a *ApiService) GetClusterSessions(c *gin.Context) {
+	resource := c.Query("resource")
+	if resource == "" {
+		resource = "user"
+	}
+	sessions, err := a.StatsService.GetClusterSessions(resource, c.Query("tag"))
+	jsonObj(c, sessions, err)
+}
+
+// CloseClusterSessions disconnects a client on the master and the nodes.
+func (a *ApiService) CloseClusterSessions(c *gin.Context) {
+	user := c.PostForm("u")
+	if user == "" {
+		user = c.Query("u")
+	}
+	jsonMsg(c, "closeSessions", a.StatsService.CloseClusterSessions(user))
+}

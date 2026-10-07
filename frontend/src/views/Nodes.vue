@@ -187,7 +187,15 @@
           variant="text"
           prepend-icon="mdi-account-multiple"
         >
-          {{ $t('node.summary.users') }}: {{ summary.users }}
+          {{ $t('node.summary.users') }}: {{ uniqueUsers }}<span
+            v-if="summary.users != uniqueUsers"
+            class="text-medium-emphasis"
+          >&nbsp;({{ $t('node.summary.perNode', { n: summary.users }) }})</span>
+          <v-tooltip
+            activator="parent"
+            location="bottom"
+            :text="$t('node.summary.usersHint')"
+          />
         </v-chip>
         <v-chip
           label
@@ -664,6 +672,9 @@ const shown = computed(() => {
   return sortNodes(list, statuses.value, settings.sort, settings.desc)
 })
 const summary = computed(() => nodesSummary(nodes.value, statuses.value))
+// Clients online anywhere in the cluster, each once: what the home page shows.
+// The per-node figures add up a client once for every node it is on.
+const uniqueUsers = computed(() => Data().onlines?.user?.length ?? 0)
 
 const stateItems = computed(() => stateValues.map(s => ({
   title: s === 'all' ? i18n.global.t('all') : s === 'problem' ? i18n.global.t('node.filter.problem') : i18n.global.t(viewLabelKey(s as NodeView)),

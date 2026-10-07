@@ -372,6 +372,8 @@ export default {
     summary: {
       nodes: "Node",
       users: "Người dùng trực tuyến",
+      perNode: "{n} cộng theo node",
+      usersHint: "Mỗi client tính một lần như trang chủ. Số trong ngoặc là tổng theo node: client kết nối nhiều node được tính ở mỗi node.",
       warnings: "Cảnh báo",
       hidden: "Ẩn khỏi gói đăng ký",
     },
@@ -1079,6 +1081,7 @@ export default {
     },
   },
   sessions: {
+    master: "Máy chủ chính",
     title: "Kết nối trực tiếp",
     source: "Nguồn",
     destination: "Đích",

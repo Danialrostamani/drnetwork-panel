@@ -63,7 +63,7 @@ func (a *APIHandler) postHandler(c *gin.Context) {
 		a.ApiService.DeleteToken(c)
 		a.apiv2.ReloadTokens()
 	case "closeSessions":
-		a.ApiService.CloseSessions(c)
+		a.ApiService.CloseClusterSessions(c)
 	case "getCertPing":
 		a.ApiService.GetCertPing(c)
 	case "testNode":
@@ -112,7 +112,7 @@ func (a *APIHandler) getHandler(c *gin.Context) {
 	case "onlines":
 		a.ApiService.GetClusterOnlines(c)
 	case "sessions":
-		a.ApiService.GetSessions(c)
+		a.ApiService.GetClusterSessions(c)
 	case "onlineIps":
 		a.ApiService.GetOnlineIps(c)
 	case "logs":
