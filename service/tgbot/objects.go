@@ -446,6 +446,11 @@ func (b *bot) nodeLines(id uint, m map[string]interface{}) []string {
 		lines = append(lines, "🙈 "+b.tr("لینک‌ها به‌خاطر قطعی از سابسکریپشن‌ها برداشته شده‌اند", "Links taken out of the subscriptions while it is down"))
 	case "cap":
 		lines = append(lines, "🙈 "+b.tr("لینک‌ها به‌خاطر پر شدن سقف از سابسکریپشن‌ها برداشته شده‌اند", "Links taken out of the subscriptions: the cap is reached"))
+	case "filtered":
+		lines = append(lines, "🙈 "+b.tr("لینک‌ها به‌خاطر فیلتر از سابسکریپشن‌ها برداشته شده‌اند", "Links taken out of the subscriptions: filtered in Iran"))
+	}
+	if st.Filtered && st.Hidden != "filtered" {
+		lines = append(lines, "🚫 "+b.tr("از ایران در دسترس نیست (احتمال فیلتر)", "Not reachable from Iran (likely filtered)"))
 	}
 	for _, w := range st.Warnings {
 		lines = append(lines, "⚠️ "+b.warningShort(w))
