@@ -249,6 +249,18 @@
                 hide-details
               />
             </v-col>
+            <v-col
+              cols="12"
+              sm="6"
+              md="4"
+            >
+              <v-switch
+                v-model="subPage"
+                color="primary"
+                :label="$t('setting.subPage')"
+                hide-details
+              />
+            </v-col>
           </v-row>
           <v-row>
             <v-col
@@ -547,6 +559,7 @@ const settings = ref({
 	subUpdates: "12",
 	subEncode: "true",
 	subShowInfo: "false",
+	subPage: "true",
 	subURI: "",
   subJsonExt: "",
   subClashExt: "",
@@ -674,6 +687,11 @@ const tgBotNotify = computed({
   get: () => { return settings.value.tgBotNotify == "true" },
   set: (v:boolean) => { settings.value.tgBotNotify = v ? "true" : "false" }
 })
+const subPage = computed({
+  get: () => { return settings.value.subPage != "false" },
+  set: (v:boolean) => { settings.value.subPage = v ? "true" : "false" }
+})
+
 const subShowInfo = computed({
   get: () => { return settings.value.subShowInfo == "true" },
   set: (v:boolean) => { settings.value.subShowInfo = v ? "true" : "false" }

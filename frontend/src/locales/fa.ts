@@ -299,6 +299,7 @@ export default {
     globalResetHint: "زمان‌بندی cron؛ خالی = غیرفعال",
     subEncode: "رمزگذاری",
     subInfo: "نمایش اطلاعات کاربر",
+    subPage: "صفحه وضعیت در مرورگر",
     path: "مسیر پیشفرض",
     update: "زمان بروزرسانی خودکار",
     subUri: "آدرس نهایی سابسکریپشن",

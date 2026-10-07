@@ -299,6 +299,7 @@ export default {
     globalResetHint: "Cron schedule; empty = disabled",
     subEncode: "Enable Encoding",
     subInfo: "Enable Client Info",
+    subPage: "Status page in browsers",
     path: "Default Path",
     update: "Automatic Update Time",
     subUri: "Subscription URI",

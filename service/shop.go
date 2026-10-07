@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/Danialrostamani/drnetwork-panel/database"
@@ -660,3 +661,7 @@ var ShopDecider func(id uint, approve bool) (string, error)
 
 // ErrBotDown is returned when an order needs the bot and it is not running.
 var ErrBotDown = errors.New("the Telegram bot is not running")
+
+// BotUsername is the Telegram bot's username once it is running, for links to
+// it from the subscription page.
+var BotUsername atomic.Value

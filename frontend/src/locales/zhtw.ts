@@ -201,6 +201,7 @@ export default {
     globalResetHint: "Cron 排程；留空 = 關閉",
     subEncode: "啟用編碼",
     subInfo: "啟用用戶信息",
+    subPage: "瀏覽器狀態頁",
     path: "默認路徑",
     update: "自動更新時間",
     subUri: "訂閱 URL",

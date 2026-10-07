@@ -201,6 +201,7 @@ export default {
     globalResetHint: "Lịch cron; để trống = tắt",
     subEncode: "Kích hoạt mã hóa",
     subInfo: "Kích hoạt thông tin khách hàng",
+    subPage: "Trang trạng thái trong trình duyệt",
     path: "Đường dẫn mặc định",
     update: "Thời gian cập nhật tự động",
     subUri: "URI đăng ký",

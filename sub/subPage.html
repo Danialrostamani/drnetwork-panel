@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="{{.Lang}}" dir="{{if .RTL}}rtl{{else}}ltr{{end}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>{{.Name}} · {{.T.title}}</title>
+<style>
+:root{--bg:#0f172a;--card:#1e293b;--text:#e2e8f0;--muted:#94a3b8;--accent:#38bdf8;--ok:#22c55e;--bad:#ef4444}
+@media (prefers-color-scheme: light){:root{--bg:#f1f5f9;--card:#fff;--text:#0f172a;--muted:#64748b;--accent:#0284c7}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Vazirmatn,Tahoma,system-ui,sans-serif;line-height:1.6}
+.wrap{max-width:560px;margin:0 auto;padding:16px}.card{background:var(--card);border-radius:16px;padding:18px;margin-bottom:14px;box-shadow:0 4px 18px #0002}
+h1{font-size:1.3rem;margin:0 0 4px}.muted{color:var(--muted);font-size:.9rem}
+.badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:.85rem;color:#fff}.ok{background:var(--ok)}.bad{background:var(--bad)}
+.on{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--ok);margin-inline-start:6px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.grid div{background:#0001;border-radius:12px;padding:10px}
+.grid b{display:block;font-size:1.05rem}.bar{height:10px;border-radius:6px;background:#0003;overflow:hidden;margin-top:12px}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),#818cf8)}
+.link{direction:ltr;word-break:break-all;background:#0002;border-radius:10px;padding:10px;font-family:monospace;font-size:.85rem}
+.btn{display:inline-block;border:0;border-radius:10px;padding:9px 14px;background:var(--accent);color:#fff;text-decoration:none;cursor:pointer;font:inherit;margin:4px 0}
+.btn.alt{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+.qr{text-align:center}.qr img{width:220px;max-width:100%;border-radius:12px;background:#fff;padding:8px}
+.app{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid #8882}.app:last-child{border:0}
+.app small{display:block;color:var(--muted)}.app .acts{display:flex;gap:6px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>{{.Name}}{{if .Online}}<span class="on" title="{{.T.online}}"></span>{{end}}</h1>
+    <span class="badge {{.StateClass}}">{{.State}}</span>
+    <div class="grid">
+      <div><span class="muted">{{.T.used}}</span><b dir="ltr">{{.Used}}</b></div>
+      <div><span class="muted">{{.T.total}}</span><b dir="ltr">{{.Total}}</b></div>
+      <div><span class="muted">{{.T.left}}</span><b dir="ltr">{{.Left}}</b></div>
+      <div><span class="muted">{{.T.expiry}}</span><b dir="ltr">{{.Expiry}}</b>{{if .DaysLeft}}<span class="muted">{{.DaysLeft}}</span>{{end}}</div>
+    </div>
+    {{if not .Unlimited}}<div class="bar"><i style="width:{{.Percent}}%"></i></div>{{end}}
+  </div>
+  <div class="card">
+    <div class="muted">{{.T.link}}</div>
+    <div class="link" id="link">{{.Link}}</div>
+    <button class="btn" id="copy" type="button">{{.T.copy}}</button>
+    {{if .QR}}<div class="qr"><img src="{{.QR}}" alt="QR"></div>{{end}}
+    <p class="muted">{{.T.hint}}</p>
+  </div>
+  <div class="card">
+    <div class="muted">{{.T.apps}}</div>
+    {{range .Apps}}
+    <div class="app"><div>{{.Name}}<small>{{.Platform}}</small></div>
+      <div class="acts">{{if .Import}}<a class="btn" href="{{.Import}}">{{$.T.import}}</a>{{end}}<a class="btn alt" href="{{.Download}}" target="_blank" rel="noopener">{{$.T.download}}</a></div></div>
+    {{end}}
+  </div>
+  {{if .Bot}}<div class="card" style="text-align:center"><a class="btn" href="{{.Bot}}" target="_blank" rel="noopener">{{.T.renew}}</a></div>{{end}}
+</div>
+<script>
+document.getElementById('copy').addEventListener('click', function () {
+  var text = document.getElementById('link').textContent, b = this
+  var done = function () { b.textContent = '{{.T.copied}}' }
+  if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(text).then(done) } else {
+    var r = document.createRange(); r.selectNodeContents(document.getElementById('link'))
+    var s = window.getSelection(); s.removeAllRanges(); s.addRange(r); try { document.execCommand('copy'); done() } catch (e) {}
+  }
+})
+</script>
+</body>
+</html>

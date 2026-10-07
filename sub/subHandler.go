@@ -32,6 +32,9 @@ func (s *SubHandler) subs(c *gin.Context) {
 	var result *string
 	var err error
 	subId := c.Param("subid")
+	if wantsPage(c) && s.SettingService.GetSubPage() && s.page(c, subId) {
+		return
+	}
 	format, isFormat := c.GetQuery("format")
 	if isFormat {
 		switch format {

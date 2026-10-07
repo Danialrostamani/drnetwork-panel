@@ -88,6 +88,7 @@ var defaultValueMap = map[string]string{
 	"subUpdates":         "12",
 	"subEncode":          "true",
 	"subShowInfo":        "false",
+	"subPage":            "true",
 	"subURI":             "",
 	"subJsonExt":         "",
 	"subClashExt":        "",
@@ -395,6 +396,13 @@ func (s *SettingService) GetSubEncode() (bool, error) {
 
 func (s *SettingService) GetSubShowInfo() (bool, error) {
 	return s.getBool("subShowInfo")
+}
+
+// GetSubPage tells whether a browser opening a subscription link gets a page
+// about the account instead of the raw links.
+func (s *SettingService) GetSubPage() bool {
+	v, err := s.getBool("subPage")
+	return err != nil || v
 }
 
 func (s *SettingService) GetSubURI() (string, error) {

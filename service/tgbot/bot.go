@@ -494,6 +494,7 @@ func (b *bot) run(ctx context.Context) {
 	} else {
 		logger.Info("telegram bot: running as @", me.Username)
 		botUsername.Store(me.Username)
+		service.BotUsername.Store(me.Username)
 	}
 	b.registerCommands(ctx)
 	go b.watch(ctx)
