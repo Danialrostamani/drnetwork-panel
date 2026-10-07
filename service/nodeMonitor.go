@@ -108,25 +108,25 @@ type nodeMonitorState struct {
 	haveBase bool
 
 	// The minute being counted, and the sums behind its averages.
-	minute               int64
-	agg                  model.NodeMetric
-	sumLat               int64
-	sumCpu, sumMem       float64
-	sumDisk              float64
-	diskN                int
-	pending              map[int64]*[2]int64 // hour -> up, down not yet written
-	downStreak           int
-	firstDown            int64
-	outageOpen           bool
-	outageChecked        int64
-	outageState          string
-	outageReason         string
-	uptime24, uptime7d   float64
-	traffic              *NodeTrafficSummary
-	capLevel             int
-	capCycle             int64
-	hidden               string
-	hiddenKnown          bool
+	minute             int64
+	agg                model.NodeMetric
+	sumLat             int64
+	sumCpu, sumMem     float64
+	sumDisk            float64
+	diskN              int
+	pending            map[int64]*[2]int64 // hour -> up, down not yet written
+	downStreak         int
+	firstDown          int64
+	outageOpen         bool
+	outageChecked      int64
+	outageState        string
+	outageReason       string
+	uptime24, uptime7d float64
+	traffic            *NodeTrafficSummary
+	capLevel           int
+	capCycle           int64
+	hidden             string
+	hiddenKnown        bool
 }
 
 var (
