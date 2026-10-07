@@ -11,6 +11,7 @@ type ResetTrafficJob struct {
 	service.ClientService
 	service.ConfigService
 	service.SettingService
+	service.NodeSyncService
 }
 
 func NewResetTrafficJob() *ResetTrafficJob {
@@ -74,6 +75,9 @@ func (s *ResetTrafficJob) Run() {
 	if err = s.ConfigService.RestartCore(); err != nil {
 		logger.Error("ResetTrafficJob: unable to restart core: ", err)
 	}
+	// The re-enabled clients have to come back on the nodes as well.
+	s.NodeSyncService.MarkAllDirty()
+	go s.NodeSyncService.ReconcileDirtyOnline()
 
 	// Advance to the next boundary. schedule.Next returns the nearest upcoming
 	// occurrence, so if several periods were missed (e.g. downtime) it snaps

@@ -9,6 +9,7 @@ import (
 type DepleteJob struct {
 	service.ClientService
 	service.InboundService
+	service.NodeSyncService
 }
 
 func NewDepleteJob() *DepleteJob {
@@ -26,5 +27,10 @@ func (s *DepleteJob) Run() {
 		if err != nil {
 			logger.Error("unable to update inbound users: ", err)
 		}
+		// The nodes serve these clients too. Left to the hourly safety sync,
+		// a client past its volume or expiry kept working on every node for
+		// up to an hour after the master disabled it.
+		s.NodeSyncService.MarkAllDirty()
+		go s.NodeSyncService.ReconcileDirtyOnline()
 	}
 }

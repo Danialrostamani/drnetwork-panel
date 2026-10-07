@@ -466,6 +466,9 @@ func (a *ApiService) ResetTraffic(c *gin.Context) {
 		return
 	}
 	err := a.ConfigService.RestartCore()
+	// Clients the reset re-enabled come back on the nodes too.
+	a.NodeSyncService.MarkAllDirty()
+	go a.NodeSyncService.ReconcileDirtyOnline()
 	jsonMsg(c, "resetTraffic", err)
 }
 
