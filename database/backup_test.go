@@ -39,6 +39,12 @@ func seedEveryTable(t *testing.T) {
 		&model.NodeMetric{NodeId: 1, DateTime: 60, Probes: 12, Up: 12, Latency: 30, Cpu: 5, Mem: 40, Disk: 20, Online: 3, Sent: 1000, Recv: 2000},
 		&model.NodeOutage{NodeId: 1, Start: 100, End: 200, State: "offline", Reason: "timeout", Checked: 190},
 		&model.NodeTraffic{NodeId: 1, DateTime: 3600, Up: 1 << 20, Down: 2 << 20},
+		&model.ShopPlan{Name: "1 month", Volume: 30 << 30, Days: 30},
+		&model.ShopOrder{TgId: 42, Kind: "buy", PlanId: 1, PlanName: "1 month"},
+		&model.ShopWallet{TgId: 42, Balance: 1000},
+		&model.ShopWalletTx{TgId: 42, Amount: 1000, Balance: 1000, Reason: "topup"},
+		&model.ShopDiscount{Code: "OFF10", Percent: 10},
+		&model.ShopUser{TgId: 42, Name: "someone"},
 	}
 	for _, row := range rows {
 		if err := db.Create(row).Error; err != nil {

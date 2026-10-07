@@ -229,6 +229,7 @@ export default {
     closeSessions: "Disconnect User",
   },
   login: {
+    code: "Two-factor code",
     title: "Login",
     username: "Username",
     unRules: "Username can not be empty",
@@ -239,6 +240,15 @@ export default {
     logout: "Logout",
   },
   admin: {
+    totp: {
+      title: "Two-factor login",
+      on: "Two-factor login is on for this account.",
+      offHint: "Enter a current code from your app to turn it off.",
+      scan: "Scan this with Google Authenticator or a similar app, then enter the code it shows.",
+      secret: "Secret key",
+      enable: "Turn on",
+      disable: "Turn off",
+    },
     changeCred: "Change credentials",
     oldPass: "Current Password",
     newUname: "New Username",

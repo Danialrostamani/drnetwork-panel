@@ -20,6 +20,8 @@ type User struct {
 	Username   string `json:"username" form:"username"`
 	Password   string `json:"password" form:"password"`
 	LastLogins string `json:"lastLogin"`
+	// Totp is the two-factor secret; empty while two-factor login is off.
+	Totp string `json:"-" form:"-"`
 }
 
 type Client struct {

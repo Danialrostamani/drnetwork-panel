@@ -18,6 +18,11 @@
     :visible="tokenModal.visible"
     @close="closeTokenModal"
   />
+  <TwoFactorModal
+    v-model="totpModal"
+    :visible="totpModal"
+    @close="totpModal = false"
+  />
   <v-row>
     <v-col
       cols="12"
@@ -36,6 +41,14 @@
         @click="showTokenModal()"
       >
         {{ $t('admin.api.token') }}
+      </v-btn>
+      <v-btn
+        color="primary"
+        style="margin: 0 5px;"
+        prepend-icon="mdi-two-factor-authentication"
+        @click="totpModal = true"
+      >
+        {{ $t('admin.totp.title') }}
       </v-btn>
     </v-col>
   </v-row>
@@ -111,6 +124,7 @@
 import AdminModal from '@/layouts/modals/Admin.vue'
 import ChangeModal  from '@/layouts/modals/Changes.vue'
 import TokenModal from '@/layouts/modals/Token.vue'
+import TwoFactorModal from '@/layouts/modals/TwoFactor.vue'
 import { i18n } from '@/locales'
 import HttpUtils from '@/plugins/httputil'
 import { Ref, ref, inject, onMounted } from 'vue'
@@ -214,6 +228,8 @@ const closeChangesModal = () => {
   changesModal.value.visible = false
   changesModal.value.actor = ''
 }
+
+const totpModal = ref(false)
 
 const tokenModal = ref({
   visible: false,

@@ -34,6 +34,15 @@
                 type="password"
                 required
               />
+              <v-text-field
+                v-if="needCode"
+                v-model="code"
+                :label="$t('login.code')"
+                inputmode="numeric"
+                autocomplete="one-time-code"
+                maxlength="6"
+                autofocus
+              />
               <v-btn
                 :loading="loading"
                 type="submit"
@@ -113,13 +122,19 @@ const passwordRules = [
   },
 ]
 
+const code = ref('')
+const needCode = ref(false)
+
 const loading = ref(false)
 const router = useRouter()
 
 const login = async () => {
   if (username.value == '' || password.value == '') return
   loading.value=true
-  const response = await HttpUtil.post('api/login',{user: username.value, pass: password.value})
+  const response = await HttpUtil.post<{ totp?: boolean }>('api/login',{user: username.value, pass: password.value, code: code.value})
+  if (!response.success && response.obj?.totp) {
+    needCode.value = true
+  }
   if(response.success){
     setAuthenticated()
     setTimeout(() => {

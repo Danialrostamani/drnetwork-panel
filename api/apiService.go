@@ -373,7 +373,11 @@ func (a *ApiService) postActions(c *gin.Context) (string, json.RawMessage, error
 
 func (a *ApiService) Login(c *gin.Context) {
 	remoteIP := getRemoteIp(c)
-	loginUser, err := a.UserService.Login(c.Request.FormValue("user"), c.Request.FormValue("pass"), remoteIP)
+	loginUser, err := a.UserService.LoginWithCode(c.Request.FormValue("user"), c.Request.FormValue("pass"), c.Request.FormValue("code"), remoteIP)
+	if err == service.ErrTotpRequired {
+		jsonMsgObj(c, "", map[string]bool{"totp": true}, err)
+		return
+	}
 	if err != nil {
 		jsonMsg(c, "", err)
 		return
@@ -598,4 +602,29 @@ func (a *ApiService) ReconcileNode(c *gin.Context) {
 	}
 	err = a.NodeSyncService.ReconcileNow(uint(id))
 	jsonMsg(c, "reconcileNode", err)
+}
+
+// GetTotp tells whether the logged-in account has two-factor login on, and
+// when not, the secret and link to set it up with.
+func (a *ApiService) GetTotp(c *gin.Context) {
+	enabled, secret, uri, err := a.UserService.TotpState(GetLoginUser(c))
+	jsonObj(c, map[string]interface{}{"enabled": enabled, "secret": secret, "uri": uri}, err)
+}
+
+// SaveTotp turns two-factor login on or off for the logged-in account.
+func (a *ApiService) SaveTotp(c *gin.Context) {
+	user, code := GetLoginUser(c), c.Request.FormValue("code")
+	var err error
+	switch c.Request.FormValue("action") {
+	case "enable":
+		err = a.UserService.EnableTotp(user, code)
+	case "disable":
+		err = a.UserService.DisableTotp(user, code)
+	default:
+		err = common.NewError("unknown action")
+	}
+	if err == nil {
+		logger.Info("two-factor login ", c.Request.FormValue("action"), "d for ", user)
+	}
+	jsonMsg(c, "save", err)
 }

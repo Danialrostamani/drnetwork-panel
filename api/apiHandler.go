@@ -76,6 +76,8 @@ func (a *APIHandler) postHandler(c *gin.Context) {
 		a.ApiService.NodeAction(c, loginUser)
 	case "shop":
 		a.ApiService.SaveShop(c)
+	case "totp":
+		a.ApiService.SaveTotp(c)
 	default:
 		jsonMsg(c, "failed", common.NewError("unknown action: ", action))
 	}
@@ -97,6 +99,8 @@ func (a *APIHandler) getHandler(c *gin.Context) {
 		return
 	case "users":
 		a.ApiService.GetUsers(c)
+	case "totp":
+		a.ApiService.GetTotp(c)
 	case "settings":
 		a.ApiService.GetSettings(c)
 	case "stats":

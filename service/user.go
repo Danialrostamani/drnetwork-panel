@@ -50,10 +50,20 @@ func (s *UserService) UpdateFirstUser(username string, password string) error {
 	}
 	user.Username = username
 	user.Password = hashedPass
+	// Resetting the credentials from the server also turns two-factor login
+	// off: it is the way back in for an admin who lost the code's device.
+	user.Totp = ""
 	return db.Save(user).Error
 }
 
 func (s *UserService) Login(username string, password string, remoteIP string) (string, error) {
+	return s.LoginWithCode(username, password, "", remoteIP)
+}
+
+// LoginWithCode also takes the two-factor code of an account that has one. A
+// right password without a code is ErrTotpRequired and not a failure; a wrong
+// code counts as one.
+func (s *UserService) LoginWithCode(username, password, code, remoteIP string) (string, error) {
 	if locked, remaining := LoginLockedOut(remoteIP); locked {
 		logger.Warning("login refused, too many failures from ", remoteIP)
 		return "", common.NewErrorf("too many failed attempts, try again in %d minute(s)",
@@ -67,6 +77,18 @@ func (s *UserService) Login(username string, password string, remoteIP string) (
 		}
 		// The message stays the same whether the user exists or not.
 		return "", common.NewError("wrong user or password! IP: ", remoteIP)
+	}
+
+	if user.Totp != "" {
+		if strings.TrimSpace(code) == "" {
+			return "", ErrTotpRequired
+		}
+		if !checkTotp(user.Username, user.Totp, code) {
+			if NoteLoginFailure(remoteIP) {
+				logger.Warning("login locked out for ", remoteIP, " after ", maxLoginFailures, " failed attempts")
+			}
+			return "", common.NewError("wrong two-factor code! IP: ", remoteIP)
+		}
 	}
 
 	NoteLoginSuccess(remoteIP)
