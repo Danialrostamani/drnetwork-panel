@@ -37,6 +37,12 @@ func schema() []table {
 		{"node_metrics", &model.NodeMetric{}, copyRows[model.NodeMetric]},
 		{"node_outages", &model.NodeOutage{}, copyRows[model.NodeOutage]},
 		{"node_traffic", &model.NodeTraffic{}, copyRows[model.NodeTraffic]},
+		{"shop_plans", &model.ShopPlan{}, copyRows[model.ShopPlan]},
+		{"shop_orders", &model.ShopOrder{}, copyRows[model.ShopOrder]},
+		{"shop_wallets", &model.ShopWallet{}, copyRows[model.ShopWallet]},
+		{"shop_wallet_txs", &model.ShopWalletTx{}, copyRows[model.ShopWalletTx]},
+		{"shop_discounts", &model.ShopDiscount{}, copyRows[model.ShopDiscount]},
+		{"shop_users", &model.ShopUser{}, copyRows[model.ShopUser]},
 	}
 }
 
