@@ -453,8 +453,16 @@ type update struct {
 		Text      string `json:"text"`
 		Chat      chat   `json:"chat"`
 		From      *struct {
-			ID int64 `json:"id"`
+			ID        int64  `json:"id"`
+			FirstName string `json:"first_name"`
+			LastName  string `json:"last_name"`
+			Username  string `json:"username"`
 		} `json:"from"`
+		Caption string `json:"caption"`
+		Photo   []struct {
+			FileID   string `json:"file_id"`
+			FileSize int64  `json:"file_size"`
+		} `json:"photo"`
 		Document *struct {
 			FileID   string `json:"file_id"`
 			FileName string `json:"file_name"`
@@ -482,6 +490,7 @@ func (b *bot) run(ctx context.Context) {
 		logger.Warning("telegram bot: getMe failed (check the token and proxy): ", err)
 	} else {
 		logger.Info("telegram bot: running as @", me.Username)
+		botUsername.Store(me.Username)
 	}
 	b.registerCommands(ctx)
 	go b.watch(ctx)

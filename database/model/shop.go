@@ -59,8 +59,10 @@ type ShopOrder struct {
 	CreatedAt int64  `json:"createdAt" gorm:"index"`
 	DecidedAt int64  `json:"decidedAt"`
 	DecidedBy int64  `json:"decidedBy"`
-	// Reseller is set when a bot administrator bought it for a customer.
-	Reseller bool `json:"reseller"`
+	// Reseller is set when a bot administrator bought it for a customer;
+	// Group is the client group a purchase goes to.
+	Reseller bool   `json:"reseller"`
+	Group    string `json:"group"`
 }
 
 func (ShopOrder) TableName() string { return "shop_orders" }

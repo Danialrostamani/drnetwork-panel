@@ -353,6 +353,10 @@ func (s *ShopService) SetResellerPercent(tgID int64, percent int) error {
 }
 
 func (s *ShopService) SetBlocked(tgID int64, blocked bool) error {
+	u := model.ShopUser{TgId: tgID, JoinedAt: time.Now().Unix()}
+	if err := database.GetDB().Where("tg_id = ?", tgID).FirstOrCreate(&u).Error; err != nil {
+		return err
+	}
 	return database.GetDB().Model(&model.ShopUser{}).Where("tg_id = ?", tgID).Update("blocked", blocked).Error
 }
 

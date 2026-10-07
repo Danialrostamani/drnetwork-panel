@@ -36,7 +36,7 @@ var scopedCommands = map[string]bool{
 	"clients": true, "client": true, "online": true, "ips": true,
 	"add": true, "addbulk": true, "enable": true, "disable": true, "reset": true,
 	"del": true, "delete": true, "volume": true, "expiry": true, "limitip": true,
-	"bind": true, "unbind": true, "sub": true,
+	"bind": true, "unbind": true, "sub": true, "buy": true,
 }
 
 // scopedCallbackAllowed tells whether a limited administrator may press the
@@ -57,7 +57,7 @@ func scopedCallbackAllowed(parts []string) bool {
 		return true
 	case "m":
 		return parts[1] == "menu" || parts[1] == "clients" || parts[1] == "online"
-	case "w", "h":
+	case "w", "h", "p":
 		return true
 	case "x":
 		return parts[1] == "cancel"
@@ -332,10 +332,23 @@ func (b *bot) guardSave(act string, payload interface{}) error {
 
 // scopedMenu is the button menu of a limited administrator.
 func (b *bot) scopedMenu() [][]button {
-	return [][]button{
+	kb := [][]button{
 		{{Text: b.tr("🏠 خانه", "🏠 Home"), Data: "h:home"}, {Text: b.tr("👥 کلاینت‌ها", "👥 Clients"), Data: "c:ls:a:0"}},
 		{{Text: b.tr("➕ کلاینت جدید", "➕ New client"), Data: "c:new"}, {Text: b.tr("🔵 آنلاین‌ها", "🔵 Online"), Data: "m:online"}},
 	}
+	if b.resellerButton() {
+		kb = append(kb, []button{{Text: b.tr("🛍 خرید (نمایندگی)", "🛍 Buy (reseller)"), Data: "p:home"}})
+	}
+	return kb
+}
+
+// resellerButton tells whether the menu offers buying as a reseller: with the
+// shop open, to administrators who manage clients.
+func (b *bot) resellerButton() bool {
+	if !b.shopSvc().Settings().Enable {
+		return false
+	}
+	return b.scope != "" || b.sections == nil || b.sections["clients"] || b.sections["shop"]
 }
 
 // scopedHomeText is the Home page of a limited administrator: their group's

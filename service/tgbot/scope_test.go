@@ -850,7 +850,7 @@ func TestScopedAdminHelpAndCommandList(t *testing.T) {
 			continue
 		}
 		switch c.name {
-		case "stats", "settings", "changes", "nodes", "inbounds", "traffic", "backup", "logs", "sync", "restart", "maintenance":
+		case "stats", "settings", "changes", "nodes", "inbounds", "traffic", "backup", "logs", "sync", "restart", "maintenance", "shop", "sales":
 		default:
 			t.Errorf("command /%s is hidden from limited admins; is that intended?", c.name)
 		}

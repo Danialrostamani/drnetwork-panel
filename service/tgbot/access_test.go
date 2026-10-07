@@ -173,7 +173,7 @@ func TestEverySectionIsWiredUp(t *testing.T) {
 			t.Errorf("/%s points at the unknown section %q", cmd, sec)
 		}
 	}
-	open := map[string]bool{"menu": true, "help": true}
+	open := map[string]bool{"menu": true, "help": true, "buy": true}
 	for _, c := range adminCommands {
 		if _, gated := commandSections[c.name]; !gated && !open[c.name] {
 			t.Errorf("/%s belongs to no section, so every administrator may use it; add it to commandSections or to this list", c.name)

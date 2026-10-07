@@ -47,6 +47,8 @@ func (b *bot) handlePending(ctx context.Context, chatID, userMsgID int64, text s
 		finish(t, kb)
 	}
 	switch {
+	case strings.HasPrefix(p.kind, "sh."):
+		b.shopPending(ctx, chatID, p, text, retry, finish)
 	case p.kind == "cl.newj":
 		name, err := b.createClientFromJSON(text)
 		if err != nil {

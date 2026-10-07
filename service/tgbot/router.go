@@ -26,7 +26,7 @@ func (b *bot) mainMenu() [][]button {
 		return b.scopedMenu()
 	}
 	t := b.tr
-	return [][]button{
+	kb := [][]button{
 		{{Text: t("🏠 خانه", "🏠 Home"), Data: "h:home"}, {Text: t("👥 کلاینت‌ها", "👥 Clients"), Data: "c:ls:a:0"}},
 		{{Text: t("📡 اینباندها", "📡 Inbounds"), Data: "o:in:ls:0"}, {Text: t("📤 اوت‌باندها", "📤 Outbounds"), Data: "o:out:ls:0"}},
 		{{Text: t("🔌 اندپوینت‌ها", "🔌 Endpoints"), Data: "o:ep:ls:0"}, {Text: t("🛠 سرویس‌ها", "🛠 Services"), Data: "o:sv:ls:0"}},
@@ -37,7 +37,12 @@ func (b *bot) mainMenu() [][]button {
 		{{Text: t("📜 لاگ‌ها", "📜 Logs"), Data: "m:logs:info"}, {Text: t("👮 مدیران", "👮 Admins"), Data: "a:ls"}},
 		{{Text: t("💾 پشتیبان", "💾 Backup"), Data: "m:backup"}, {Text: t("🔁 همگام‌سازی", "🔁 Sync"), Data: "m:sync"}},
 		{{Text: t("🚧 نگهداری", "🚧 Maintenance"), Data: "m:maint"}, {Text: t("♻️ ریستارت هسته", "♻️ Restart core"), Data: "m:restart"}},
+		{{Text: t("🛒 مدیریت فروشگاه", "🛒 Shop admin"), Data: "q:menu"}},
 	}
+	if b.resellerButton() {
+		kb[len(kb)-1] = append(kb[len(kb)-1], button{Text: t("🛍 خرید (نمایندگی)", "🛍 Buy (reseller)"), Data: "p:home"})
+	}
+	return kb
 }
 
 func (b *bot) menuRow() []button { return []button{b.btn("btnMenu", "m:menu")} }
@@ -94,6 +99,9 @@ var adminCommands = []commandInfo{
 	{"sync", "همگام‌سازی نودها", "Sync nodes"},
 	{"restart", "ریستارت هسته", "Restart core"},
 	{"maintenance", "حالت نگهداری", "Maintenance mode"},
+	{"shop", "مدیریت فروشگاه", "Shop admin"},
+	{"sales", "گزارش فروش", "Sales report"},
+	{"buy", "خرید برای مشتری (نمایندگی)", "Buy for a customer (reseller)"},
 	{"help", "راهنما", "Help"},
 }
 
@@ -101,6 +109,7 @@ var userCommands = []commandInfo{
 	{"usage", "وضعیت اشتراک من", "My subscription status"},
 	{"sub", "لینک اشتراک و QR", "Subscription link and QR"},
 	{"id", "شناسه تلگرام من", "My Telegram ID"},
+	{"start", "فروشگاه و منو", "Shop and menu"},
 }
 
 func (b *bot) handle(ctx context.Context, u update) {
@@ -120,6 +129,26 @@ func (b *bot) handle(ctx context.Context, u update) {
 	chatID, from := m.Chat.ID, m.From.ID
 	b = b.as(from)
 	text := m.Text
+	// A receipt or an answer the shop waits for. An administrator's own
+	// prompt comes first.
+	if !b.isAdmin(from) || b.pend.get(chatID) == nil {
+		if cmd, _ := parseCommand(text); cmd == "" {
+			photo, doc := "", ""
+			if len(m.Photo) > 0 {
+				photo = m.Photo[len(m.Photo)-1].FileID
+			}
+			if m.Document != nil {
+				doc = m.Document.FileID
+			}
+			if text == "" {
+				text = m.Caption
+			}
+			if b.shopMessage(ctx, chatID, from, text, photo, doc) {
+				return
+			}
+			text = m.Text
+		}
+	}
 	if text == "" && m.Document != nil && b.isAdmin(from) {
 		if p := b.pend.get(chatID); p != nil {
 			data, err := b.download(ctx, m.Document.FileID)
@@ -146,8 +175,33 @@ func (b *bot) handle(ctx context.Context, u update) {
 		return
 	}
 	if b.isAdmin(from) {
+		if cmd == "buy" {
+			text, kb := b.shopHome(from)
+			b.sendKeyboard(ctx, chatID, text, kb)
+			return
+		}
+		if cmd == "shop" && b.can("shop") {
+			text, kb := b.shopAdminScreen()
+			b.sendKeyboard(ctx, chatID, text, kb)
+			return
+		}
+		if cmd == "sales" && b.can("shop") {
+			b.sendKeyboard(ctx, chatID, b.salesReport(), [][]button{{{Text: b.tr("🛒 مدیریت فروشگاه", "🛒 Shop admin"), Data: "q:menu"}}})
+			return
+		}
 		b.adminCommand(ctx, chatID, cmd, arg)
 		return
+	}
+	if b.shopOpen(from) {
+		switch cmd {
+		case "start", "shop", "buy", "menu":
+			b.shopStart(ctx, chatID, &fromUser{ID: from, FirstName: m.From.FirstName, LastName: m.From.LastName, Username: m.From.Username}, arg)
+			return
+		case "wallet":
+			text, kb := b.walletScreen(from)
+			b.sendKeyboard(ctx, chatID, text, kb)
+			return
+		}
 	}
 	bound := boundClients(from)
 	if len(bound) == 0 {
@@ -595,6 +649,10 @@ func (b *bot) handleCallback(ctx context.Context, u update) {
 		b.userCallback(ctx, cb.ID, chatID, msgID, cb.From.ID, parts)
 		return
 	}
+	if parts[0] == "p" {
+		b.as(cb.From.ID).shopCallback(ctx, cb.ID, chatID, msgID, cb.From.ID, parts)
+		return
+	}
 	if !b.isAdmin(cb.From.ID) {
 		b.answer(ctx, cb.ID, b.t("denied"))
 		return
@@ -631,6 +689,8 @@ func (b *bot) handleCallback(ctx context.Context, u update) {
 		show(b.homeText(), b.homeKeyboard())
 	case "a":
 		b.adminsCallback(ctx, cb.ID, chatID, msgID, parts)
+	case "q":
+		b.shopAdminCallback(ctx, cb.ID, chatID, msgID, parts)
 	case "t":
 		text, kb := b.statsScreen(parts[1])
 		show(text, kb)
