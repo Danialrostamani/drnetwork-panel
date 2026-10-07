@@ -183,6 +183,7 @@ type botConfig struct {
 	Proxy  string
 	Lang   string
 	Notify bool
+	Skin   string
 
 	Report       string
 	ReportBackup bool
@@ -192,7 +193,7 @@ type botConfig struct {
 // may do what is not among them: accessKey covers it, and a change there is
 // applied to the running bot.
 func (c botConfig) fingerprint() string {
-	return fmt.Sprint(c.Enable, "|", c.Token, "|", c.Proxy, "|", c.Lang, "|", c.Notify, "|", c.Report, "|", c.ReportBackup)
+	return fmt.Sprint(c.Enable, "|", c.Token, "|", c.Proxy, "|", c.Lang, "|", c.Skin, "|", c.Notify, "|", c.Report, "|", c.ReportBackup)
 }
 
 // accessKey identifies the settings that say who may do what. fmt prints maps
@@ -320,6 +321,7 @@ func loadConfig() (botConfig, error) {
 		Proxy:  strings.TrimSpace(s.Proxy),
 		Lang:   lang,
 		Notify: s.Notify,
+		Skin:   normSkin(s.Skin),
 
 		Report:       strings.TrimSpace(s.Report),
 		ReportBackup: s.ReportBackup,

@@ -113,6 +113,7 @@ var defaultValueMap = map[string]string{
 	"tgBotPerms":         "",
 	"tgBotProxy":         "",
 	"tgBotLang":          "fa",
+	"tgBotSkin":          "colorful",
 	"tgBotNotify":        "true",
 	"tgBotReport":        "",
 	"tgBotReportBackup":  "false",
@@ -435,6 +436,8 @@ type TgBotSettings struct {
 	Proxy  string
 	Lang   string
 	Notify bool
+	// Skin is the look of the bot: "colorful" or "classic".
+	Skin string
 	// Report is a cron spec for the scheduled summary; empty disables it.
 	Report       string
 	ReportBackup bool
@@ -475,6 +478,9 @@ func (s *SettingService) GetTgBotSettings() (TgBotSettings, error) {
 	}
 	if out.ReportBackup, err = s.getBool("tgBotReportBackup"); err != nil {
 		out.ReportBackup = false
+	}
+	if out.Skin, err = s.getString("tgBotSkin"); err != nil {
+		out.Skin = "colorful"
 	}
 	return out, nil
 }

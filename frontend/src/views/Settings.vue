@@ -436,6 +436,18 @@
             </v-col>
             <v-col
               cols="12"
+              sm="6"
+              md="4"
+            >
+              <v-select
+                v-model="settings.tgBotSkin"
+                :items="[{ title: $t('setting.tgBotSkinColorful'), value: 'colorful' }, { title: $t('setting.tgBotSkinClassic'), value: 'classic' }]"
+                :label="$t('setting.tgBotSkin')"
+                hide-details
+              />
+            </v-col>
+            <v-col
+              cols="12"
               md="6"
             >
               <v-text-field
@@ -746,6 +758,7 @@ const settings = ref({
   tgBotPerms: "",
   tgBotProxy: "",
   tgBotLang: "fa",
+  tgBotSkin: "colorful",
   tgBotNotify: "true",
   tgBotReport: "",
   tgBotReportBackup: "false",

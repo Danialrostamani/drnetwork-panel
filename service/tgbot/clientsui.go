@@ -22,7 +22,11 @@ func (b *bot) clientHead(c model.Client, online bool) []string {
 		state = "🔴 " + b.t("disabled")
 	}
 	if online {
-		state += "  🔵 " + b.tr("آنلاین", "online")
+		dot := "🔵 "
+		if b.colorful() {
+			dot = "⚡️ "
+		}
+		state += "  " + dot + b.tr("آنلاین", "online")
 	}
 	return []string{"👤 <b>" + esc(c.Name) + "</b>  " + state, rule}
 }
@@ -33,7 +37,7 @@ func (b *bot) usageText(c model.Client) string {
 	used := c.Up + c.Down
 	if c.Volume > 0 {
 		p := usagePercent(c)
-		return fmt.Sprintf("📊 <b>%s</b> %s %d%%\n      %s / %s  (↑ %s ↓ %s)", b.t("usage"), bar(p, 10), p, humanBytes(used), humanBytes(c.Volume), humanBytes(c.Up), humanBytes(c.Down))
+		return fmt.Sprintf("📊 <b>%s</b> %s %d%%\n      %s / %s  (↑ %s ↓ %s)", b.t("usage"), b.bar(p, 10), p, humanBytes(used), humanBytes(c.Volume), humanBytes(c.Up), humanBytes(c.Down))
 	}
 	return fmt.Sprintf("📊 <b>%s</b>: %s ∞\n      ↑ %s ↓ %s", b.t("usage"), humanBytes(used), humanBytes(c.Up), humanBytes(c.Down))
 }
@@ -49,6 +53,9 @@ func (b *bot) subSummary(c model.Client, online bool, now time.Time) string {
 		lines = append(lines, fmt.Sprintf("📦 <b>%s</b>: %s", b.t("volLeft"), humanBytes(max(c.Volume-c.Up-c.Down, 0))))
 	}
 	lines = append(lines, fmt.Sprintf("⏳ <b>%s</b>: %s", b.t("expiry"), b.expiryText(c, now)))
+	if eb := b.expiryBar(c, now); eb != "" {
+		lines = append(lines, eb)
+	}
 	if c.LimitIp > 0 {
 		lines = append(lines, fmt.Sprintf("📱 %s: %d", b.t("ipLimit"), c.LimitIp))
 	}
@@ -63,6 +70,9 @@ func (b *bot) clientDetail(c model.Client, online bool, now time.Time) string {
 	}
 	lines = append(lines, b.usageText(c))
 	lines = append(lines, fmt.Sprintf("⏳ <b>%s</b>: %s", b.t("expiry"), b.expiryText(c, now)))
+	if eb := b.expiryBar(c, now); eb != "" {
+		lines = append(lines, eb)
+	}
 	if c.LimitIp > 0 {
 		lines = append(lines, fmt.Sprintf("📱 %s: %d", b.t("ipLimit"), c.LimitIp))
 	}

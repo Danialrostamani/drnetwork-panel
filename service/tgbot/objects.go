@@ -416,11 +416,11 @@ func (b *bot) nodeLines(id uint, m map[string]interface{}) []string {
 	}
 	if m["enable"] != false && (st.State == "online" || st.State == "core-stopped") {
 		lines = append(lines,
-			fmt.Sprintf("🧠 CPU %s %.0f%%", bar(int(st.Cpu), 10), st.Cpu),
-			fmt.Sprintf("💾 RAM %s %d%%", bar(pctOf(uint64(max(st.Mem.Current, 0)), uint64(max(st.Mem.Total, 0))), 10), pctOf(uint64(max(st.Mem.Current, 0)), uint64(max(st.Mem.Total, 0)))))
+			fmt.Sprintf("🧠 CPU %s %.0f%%", b.bar(int(st.Cpu), 10), st.Cpu),
+			fmt.Sprintf("💾 RAM %s %d%%", b.bar(pctOf(uint64(max(st.Mem.Current, 0)), uint64(max(st.Mem.Total, 0))), 10), pctOf(uint64(max(st.Mem.Current, 0)), uint64(max(st.Mem.Total, 0)))))
 		if st.Disk.Total > 0 {
 			p := pctOf(uint64(max(st.Disk.Current, 0)), uint64(st.Disk.Total))
-			lines = append(lines, fmt.Sprintf("🗄 %s %s %d%%", b.tr("دیسک", "Disk"), bar(p, 10), p))
+			lines = append(lines, fmt.Sprintf("🗄 %s %s %d%%", b.tr("دیسک", "Disk"), b.bar(p, 10), p))
 		}
 		version := st.AppFull
 		if version == "" {
@@ -438,7 +438,7 @@ func (b *bot) nodeLines(id uint, m map[string]interface{}) []string {
 		lines = append(lines, fmt.Sprintf("📦 %s %s · %s %s", b.tr("امروز", "Today"), humanBytes(t.TodayUp+t.TodayDown), b.tr("این ماه", "This month"), humanBytes(t.MonthUp+t.MonthDown)))
 		if t.CapLimit > 0 {
 			p := int(percentOfInt(t.CapUsed, t.CapLimit))
-			lines = append(lines, fmt.Sprintf("🎚 %s %s %d%% · %s / %s · %s %s", b.tr("سقف", "Cap"), bar(p, 10), p, humanBytes(t.CapUsed), humanBytes(t.CapLimit), b.tr("ریست", "resets"), b.stamp(t.CapEnd)))
+			lines = append(lines, fmt.Sprintf("🎚 %s %s %d%% · %s / %s · %s %s", b.tr("سقف", "Cap"), b.bar(p, 10), p, humanBytes(t.CapUsed), humanBytes(t.CapLimit), b.tr("ریست", "resets"), b.stamp(t.CapEnd)))
 		}
 	}
 	switch st.Hidden {

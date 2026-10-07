@@ -55,7 +55,7 @@ func asStrings(v interface{}) []string {
 
 func (b *bot) meter(icon, label string, cur, total uint64) string {
 	p := pctOf(cur, total)
-	return fmt.Sprintf("%s <b>%s</b> %s %d%%\n      %s / %s", icon, label, bar(p, 10), p, humanBytes(int64(cur)), humanBytes(int64(total)))
+	return fmt.Sprintf("%s <b>%s</b> %s %d%%\n      %s / %s", icon, label, b.bar(p, 10), p, humanBytes(int64(cur)), humanBytes(int64(total)))
 }
 
 // homeText is the panel's Home page: server resources, the core, and totals.
@@ -73,7 +73,7 @@ func (b *bot) homeText() string {
 	if h, _ := sys["hostName"].(string); h != "" {
 		lines = append(lines, "🖥 <b>"+esc(h)+"</b>")
 	}
-	lines = append(lines, fmt.Sprintf("🧠 <b>CPU</b> %s %.0f%%\n      %v %s", bar(int(cpu), 10), cpu, sys["cpuCount"], b.tr("هسته", "cores")))
+	lines = append(lines, fmt.Sprintf("🧠 <b>CPU</b> %s %.0f%%\n      %v %s", b.bar(int(cpu), 10), cpu, sys["cpuCount"], b.tr("هسته", "cores")))
 	if t := toFloat(mem["total"]); t > 0 {
 		lines = append(lines, b.meter("💾", "RAM", uint64(toFloat(mem["current"])), uint64(t)))
 	}

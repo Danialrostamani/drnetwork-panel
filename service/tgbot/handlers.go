@@ -91,6 +91,9 @@ var allOnlineUsers = func() []string {
 }
 
 func (b *bot) statusText() string {
+	if b.colorful() {
+		return b.dashText(false)
+	}
 	status := (&service.ServerService{}).GetStatus("cpu,mem,sbd")
 	var lines []string
 	lines = append(lines, b.t("status", esc(config.GetFullVersion())))

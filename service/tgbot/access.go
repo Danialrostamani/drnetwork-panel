@@ -634,6 +634,12 @@ func (b *bot) menuScreen() (string, [][]button) {
 		return b.t("noAccessYet"), nil
 	}
 	text := b.t("menuTitle")
+	if b.colorful() {
+		kb = regrid(kb, 3)
+		if b.scope == "" && b.can("home") {
+			text = b.dashText(true)
+		}
+	}
 	if line := b.quotaLine(); line != "" {
 		text += "\n" + line
 	}

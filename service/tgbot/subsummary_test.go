@@ -87,7 +87,7 @@ func TestSubscriptionMessageStartsWithTheAccountSummary(t *testing.T) {
 	}
 	mustContain(t, text,
 		"👤 <b>EgoNgNB9</b>  🟢 enabled",
-		"📊 <b>Usage</b> ▰▰▰▰▰▰▱▱▱▱ 63%",
+		"📊 <b>Usage</b> 🟨🟨🟨🟨🟨🟨⬜⬜⬜⬜ 63%",
 		"41.00 GiB / 65.00 GiB  (↑ 1.00 GiB ↓ 40.00 GiB)",
 		"📦 <b>Remaining</b>: 24.00 GiB",
 		"⏳ <b>Expiry</b>: "+e.b.stamp(c.Expiry)+" (55 days left)",
@@ -132,7 +132,7 @@ func TestSubscriptionSummaryOfADepletedClient(t *testing.T) {
 	n := len(e.got())
 	e.say(fullAdmin, "/sub gone")
 	text, _ := subMessages(t, e.since(n))
-	mustContain(t, text, "🔴 disabled", "▰▰▰▰▰▰▰▰▰▰ 107%", "📦 <b>Remaining</b>: 0 B", "⏳ <b>Expiry</b>: expired")
+	mustContain(t, text, "🔴 disabled", "🟥🟥🟥🟥🟥🟥🟥🟥🟥🟥 107%", "📦 <b>Remaining</b>: 0 B", "⏳ <b>Expiry</b>: expired")
 }
 
 // Whoever asks gets the same account: the administrator's button and command,
@@ -175,7 +175,7 @@ func TestSubscriptionSummaryMarksAnOnlineClient(t *testing.T) {
 	n := len(e.got())
 	e.press(fullAdmin, "c:sub:"+itoa(int64(c.Id)))
 	text, _ := subMessages(t, e.since(n))
-	mustContain(t, text, "👤 <b>live</b>  🟢 enabled  🔵 online")
+	mustContain(t, text, "👤 <b>live</b>  🟢 enabled  ⚡️ online")
 }
 
 func TestSubscriptionSummaryInPersian(t *testing.T) {
