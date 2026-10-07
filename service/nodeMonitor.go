@@ -53,7 +53,9 @@ type NodeEvent struct {
 	NodeId uint   `json:"nodeId"`
 	Name   string `json:"name"`
 	// "cap": the cap crossed Level percent. "hidden" / "shown": the node's links
-	// left or came back to the subscriptions; Reason is "down" or "cap".
+	// left or came back to the subscriptions; Reason is "down", "cap" or
+	// "filtered". "filtered" / "unfiltered": the servers in Iran stopped or
+	// started reaching the node.
 	Kind   string `json:"kind"`
 	Level  int    `json:"level,omitempty"`
 	Used   int64  `json:"used,omitempty"`
@@ -535,7 +537,10 @@ func (m *nodeMonitorState) settle(n *model.Node, st *NodeStatus, now int64) {
 		hidden = "down"
 	} else if n.Cap.Hide && n.Cap.Limit > 0 && m.capLevel >= 100 {
 		hidden = "cap"
+	} else if nodeFilterHidden(n.Id) {
+		hidden = "filtered"
 	}
+	st.Filtered = nodeFilterState(n.Id)
 	if m.hiddenKnown && hidden != m.hidden {
 		if hidden != "" {
 			pushNodeEvent(NodeEvent{NodeId: n.Id, Name: n.Name, Kind: "hidden", Reason: hidden, At: now})

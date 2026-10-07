@@ -21,6 +21,9 @@
       <v-tab value="t5">
         {{ $t('setting.tgBot') }}
       </v-tab>
+      <v-tab value="t6">
+        {{ $t('setting.tools') }}
+      </v-tab>
     </v-tabs>
     <v-card-text>
       <v-row
@@ -532,6 +535,153 @@
             </v-col>
           </v-row>
         </v-window-item>
+
+        <v-window-item value="t6">
+          <v-row>
+            <v-col cols="12">
+              <v-alert
+                type="info"
+                variant="tonal"
+                density="compact"
+              >
+                {{ $t('setting.filterHint') }}
+              </v-alert>
+            </v-col>
+            <v-col
+              cols="12"
+              sm="6"
+              md="4"
+            >
+              <v-text-field
+                v-model.number="filterCheck"
+                type="number"
+                min="0"
+                :label="$t('setting.filterCheck')"
+                :suffix="$t('date.m')"
+                hide-details
+              />
+            </v-col>
+            <v-col
+              cols="12"
+              sm="6"
+              md="4"
+            >
+              <v-switch
+                v-model="filterHide"
+                color="primary"
+                :label="$t('setting.filterHide')"
+                hide-details
+              />
+            </v-col>
+          </v-row>
+          <v-divider class="my-4" />
+          <v-row>
+            <v-col cols="12">
+              <v-alert
+                type="info"
+                variant="tonal"
+                density="compact"
+              >
+                {{ $t('setting.backupHint') }}
+              </v-alert>
+            </v-col>
+            <v-col
+              cols="12"
+              sm="6"
+              md="4"
+            >
+              <v-select
+                v-model="settings.backupKind"
+                :items="backupKinds"
+                :label="$t('setting.backupKind')"
+                hide-details
+              />
+            </v-col>
+            <v-col
+              cols="12"
+              sm="6"
+              md="8"
+            >
+              <v-text-field
+                v-model="settings.backupUrl"
+                :disabled="!settings.backupKind"
+                :label="$t('setting.backupUrl')"
+                :placeholder="settings.backupKind == 's3' ? 'https://s3.example.com/bucket/folder' : 'https://cloud.example.com/remote.php/dav/files/me/backups'"
+                hide-details
+              />
+            </v-col>
+            <v-col
+              cols="12"
+              sm="6"
+              md="4"
+            >
+              <v-text-field
+                v-model="settings.backupUser"
+                :disabled="!settings.backupKind"
+                :label="settings.backupKind == 's3' ? 'Access key' : $t('login.username')"
+                hide-details
+              />
+            </v-col>
+            <v-col
+              cols="12"
+              sm="6"
+              md="4"
+            >
+              <v-text-field
+                v-model="settings.backupPass"
+                :disabled="!settings.backupKind"
+                type="password"
+                autocomplete="new-password"
+                :label="settings.backupKind == 's3' ? 'Secret key' : $t('login.password')"
+                hide-details
+              />
+            </v-col>
+            <v-col
+              v-if="settings.backupKind == 's3'"
+              cols="12"
+              sm="6"
+              md="4"
+            >
+              <v-text-field
+                v-model="settings.backupRegion"
+                label="Region"
+                placeholder="us-east-1"
+                hide-details
+              />
+            </v-col>
+            <v-col
+              cols="12"
+              sm="6"
+              md="4"
+            >
+              <v-text-field
+                v-model.number="backupEvery"
+                :disabled="!settings.backupKind"
+                type="number"
+                min="0"
+                :label="$t('setting.backupEvery')"
+                :suffix="$t('date.h')"
+                hide-details
+              />
+            </v-col>
+            <v-col
+              cols="12"
+              sm="6"
+              md="4"
+            >
+              <v-btn
+                :disabled="!settings.backupKind || stateChange"
+                :loading="sendingBackup"
+                color="primary"
+                variant="tonal"
+                prepend-icon="mdi-cloud-upload"
+                @click="sendBackup"
+              >
+                {{ $t('setting.backupNow') }}
+              </v-btn>
+            </v-col>
+          </v-row>
+        </v-window-item>
       </v-window>
     </v-card-text>
   </v-card>
@@ -573,6 +723,14 @@ const settings = ref({
 	subShowInfo: "false",
 	subPage: "true",
 	subLoadOrder: "false",
+	filterCheck: "0",
+	filterHide: "false",
+	backupKind: "",
+	backupUrl: "",
+	backupUser: "",
+	backupPass: "",
+	backupRegion: "",
+	backupEvery: "0",
 	subURI: "",
   subJsonExt: "",
   subClashExt: "",
@@ -700,6 +858,34 @@ const tgBotNotify = computed({
   get: () => { return settings.value.tgBotNotify == "true" },
   set: (v:boolean) => { settings.value.tgBotNotify = v ? "true" : "false" }
 })
+const filterCheck = computed({
+  get: () => { return parseInt(settings.value.filterCheck) || 0 },
+  set: (v:number) => { settings.value.filterCheck = v>0 ? Math.floor(v).toString() : "0" }
+})
+
+const filterHide = computed({
+  get: () => { return settings.value.filterHide == "true" },
+  set: (v:boolean) => { settings.value.filterHide = v ? "true" : "false" }
+})
+
+const backupEvery = computed({
+  get: () => { return parseInt(settings.value.backupEvery) || 0 },
+  set: (v:number) => { settings.value.backupEvery = v>0 ? Math.floor(v).toString() : "0" }
+})
+
+const backupKinds = [
+  { title: '-', value: '' },
+  { title: 'S3 (AWS, R2, MinIO, Arvan...)', value: 's3' },
+  { title: 'WebDAV (Nextcloud, NAS...)', value: 'webdav' },
+]
+
+const sendingBackup = ref(false)
+const sendBackup = async () => {
+  sendingBackup.value = true
+  await HttpUtils.post('api/remoteBackup', {})
+  sendingBackup.value = false
+}
+
 const subLoadOrder = computed({
   get: () => { return settings.value.subLoadOrder == "true" },
   set: (v:boolean) => { settings.value.subLoadOrder = v ? "true" : "false" }

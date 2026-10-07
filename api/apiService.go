@@ -628,3 +628,8 @@ func (a *ApiService) SaveTotp(c *gin.Context) {
 	}
 	jsonMsg(c, "save", err)
 }
+
+// SendRemoteBackup uploads the database to the backup storage now.
+func (a *ApiService) SendRemoteBackup(c *gin.Context) {
+	jsonMsg(c, "save", service.SendRemoteBackup(c.Request.Context()))
+}

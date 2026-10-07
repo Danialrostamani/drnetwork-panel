@@ -425,7 +425,9 @@ export default {
     hidden: {
       down: "Liên kết bị ẩn: node mất kết nối",
       cap: "Liên kết bị ẩn: đã hết giới hạn",
+      filtered: "Ẩn liên kết: bị chặn ở Iran",
     },
+    filtered: "Bị chặn ở Iran",
     warn: {
       cpu: "CPU ở mức {value}% (cảnh báo từ {limit}%)",
       mem: "RAM ở mức {value}% (cảnh báo từ {limit}%)",

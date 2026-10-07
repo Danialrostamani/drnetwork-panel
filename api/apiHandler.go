@@ -78,6 +78,8 @@ func (a *APIHandler) postHandler(c *gin.Context) {
 		a.ApiService.SaveShop(c)
 	case "totp":
 		a.ApiService.SaveTotp(c)
+	case "remoteBackup":
+		a.ApiService.SendRemoteBackup(c)
 	default:
 		jsonMsg(c, "failed", common.NewError("unknown action: ", action))
 	}

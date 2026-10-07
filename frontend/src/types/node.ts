@@ -138,7 +138,8 @@ export interface NodeStatus {
   certExpiry?: number
   downSince?: number
   // Why the node's links are out of the subscriptions.
-  hidden?: '' | 'down' | 'cap'
+  hidden?: '' | 'down' | 'cap' | 'filtered'
+  filtered?: boolean
   warnings?: NodeWarning[]
   // Percent online; -1 without history.
   uptime24?: number

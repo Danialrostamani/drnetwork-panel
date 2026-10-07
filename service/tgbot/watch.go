@@ -322,8 +322,14 @@ func (b *bot) nodeEventText(e service.NodeEvent) string {
 		why := b.tr("چون مدتی قطع است", "because it is down")
 		if e.Reason == "cap" {
 			why = b.tr("چون سقف ترافیک ماهانه‌اش پر شده", "because its monthly cap is reached")
+		} else if e.Reason == "filtered" {
+			why = b.tr("چون از ایران در دسترس نیست", "because it is not reachable from Iran")
 		}
 		return "🙈 <b>" + b.tr("نود ", "Node ") + name + "</b>\n" + fmt.Sprintf(b.tr("لینک‌های این نود %s از سابسکریپشن‌ها برداشته شد.", "Its links were taken out of the subscriptions %s."), why)
+	case "filtered":
+		return "🚫 <b>" + b.tr("نود ", "Node ") + name + "</b>\n" + b.tr("به نظر فیلتر شده: سرورهای داخل ایران به آن وصل نمی‌شوند، ولی خود نود روشن است.", "Looks filtered: the servers inside Iran cannot connect to it, while the node itself is up.")
+	case "unfiltered":
+		return "✅ <b>" + b.tr("نود ", "Node ") + name + "</b>\n" + b.tr("دوباره از ایران در دسترس است.", "Reachable from Iran again.")
 	case "shown":
 		return "👁 <b>" + b.tr("نود ", "Node ") + name + "</b>\n" + b.tr("لینک‌های این نود دوباره به سابسکریپشن‌ها برگشت.", "Its links are back in the subscriptions.")
 	}

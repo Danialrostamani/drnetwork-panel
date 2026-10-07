@@ -425,7 +425,9 @@ export default {
     hidden: {
       down: "連結已隱藏：節點離線",
       cap: "連結已隱藏：流量上限已用完",
+      filtered: "連結已隱藏：在伊朗被封鎖",
     },
+    filtered: "在伊朗被封鎖",
     warn: {
       cpu: "CPU 為 {value}%（警示門檻 {limit}%）",
       mem: "記憶體為 {value}%（警示門檻 {limit}%）",

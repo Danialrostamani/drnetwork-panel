@@ -90,6 +90,14 @@ var defaultValueMap = map[string]string{
 	"subShowInfo":        "false",
 	"subPage":            "true",
 	"subLoadOrder":       "false",
+	"filterCheck":        "0",
+	"filterHide":         "false",
+	"backupKind":         "",
+	"backupUrl":          "",
+	"backupUser":         "",
+	"backupPass":         "",
+	"backupRegion":       "",
+	"backupEvery":        "0",
 	"subURI":             "",
 	"subJsonExt":         "",
 	"subClashExt":        "",
@@ -609,6 +617,17 @@ func (s *SettingService) Save(tx *gorm.DB, data json.RawMessage) error {
 			if n, perr := strconv.ParseInt(obj, 10, 64); perr != nil || n <= 0 {
 				return common.NewError("invalid Telegram ID for the bot owner <", obj, ">: use the number /id shows")
 			}
+		}
+		if (key == "filterCheck" || key == "backupEvery") && obj != "" {
+			if n, perr := strconv.Atoi(obj); perr != nil || n < 0 {
+				return common.NewError("invalid number <", obj, "> for ", key)
+			}
+		}
+		if key == "backupKind" && obj != "" && obj != "s3" && obj != "webdav" {
+			return common.NewError("unknown backup storage <", obj, ">")
+		}
+		if key == "backupUrl" && obj != "" && !strings.HasPrefix(obj, "https://") && !strings.HasPrefix(obj, "http://") {
+			return common.NewError("the backup URL must start with https://")
 		}
 		if key == "tgBotReport" && obj != "" {
 			if _, err = CronParser.Parse(obj); err != nil {

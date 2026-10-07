@@ -63,6 +63,14 @@
           {{ $t('node.hidden.' + status.hidden) }}
         </v-chip>
         <v-chip
+          v-if="status?.filtered && status?.hidden != 'filtered'"
+          size="x-small"
+          color="error"
+          prepend-icon="mdi-cancel"
+        >
+          {{ $t('node.filtered') }}
+        </v-chip>
+        <v-chip
           v-if="node.dirty"
           size="x-small"
           color="warning"
@@ -321,7 +329,7 @@ const traffic = computed(() => props.status?.traffic)
 const cap = computed(() => capPercent(traffic.value))
 const flag = computed(() => flagEmoji(props.node.country))
 const restricted = computed(() => (props.node.access?.groups?.length ?? 0) > 0 || (props.node.access?.clients?.length ?? 0) > 0)
-const hasChips = computed(() => (props.node.tags?.length ?? 0) > 0 || !!props.status?.hidden || !!props.node.dirty || restricted.value || !!props.node.hideDown)
+const hasChips = computed(() => (props.node.tags?.length ?? 0) > 0 || !!props.status?.hidden || !!props.status?.filtered || !!props.node.dirty || restricted.value || !!props.node.hideDown)
 const warnings = computed(() => (props.node.enable ? (props.status?.warnings ?? []).map(warningText) : []))
 
 const bars = computed(() => {
