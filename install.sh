@@ -83,6 +83,15 @@ d en broken_bin "The installed s-ui binary does not run, the installation is inc
 d en install_finished "installation finished, it is up and running now..."
 d en access_panel "You may access the Panel with following URL(s):"
 d en executing "Executing..."
+d en bad_option "Unknown option: %s"
+d en missing_value "Missing value for %s"
+d en bad_token "The node token must be 16 to 128 letters and digits."
+d en bad_port "The port must be a number from 1 to 65535."
+d en bad_path "The path may only contain letters, digits and . _ ~ - /"
+d en bad_version "Invalid version: %s"
+d en node_mode "Node mode: setting the panel up for a master, without questions."
+d en node_token_fail "Failed to add the node token."
+d en node_ready "This server is ready as a node. Go back to the master panel and press Test."
 
 d fa root_err "لطفاً این اسکریپت را با دسترسی root اجرا کنید"
 d fa os_fail "تشخیص سیستم عامل ناموفق بود، لطفاً با سازنده تماس بگیرید!"
@@ -122,6 +131,15 @@ d fa broken_bin "باینری نصب‌شدهٔ s-ui اجرا نمی‌شود؛ 
 d fa install_finished "نصب به پایان رسید و هم اکنون در حال اجراست..."
 d fa access_panel "می توانید از طریق آدرس (های) زیر به پنل دسترسی داشته باشید:"
 d fa executing "در حال اجرا..."
+d fa bad_option "گزینهٔ ناشناخته: %s"
+d fa missing_value "مقدار %s وارد نشده است"
+d fa bad_token "توکن نود باید ۱۶ تا ۱۲۸ حرف و عدد انگلیسی باشد."
+d fa bad_port "پورت باید عددی بین ۱ تا ۶۵۵۳۵ باشد."
+d fa bad_path "مسیر فقط می‌تواند حرف، عدد و . _ ~ - / داشته باشد"
+d fa bad_version "نسخهٔ نامعتبر: %s"
+d fa node_mode "حالت نود: پنل بدون پرسش برای مدیریت توسط مستر آماده می‌شود."
+d fa node_token_fail "افزودن توکن نود ناموفق بود."
+d fa node_ready "این سرور به‌عنوان نود آماده است. به پنل مستر برگردید و «تست» را بزنید."
 
 d ru root_err "Пожалуйста, запустите этот скрипт с правами root"
 d ru os_fail "Не удалось определить ОС, пожалуйста, свяжитесь с автором!"
@@ -161,6 +179,15 @@ d ru broken_bin "Установленный файл s-ui не запускае�
 d ru install_finished "установка завершена, панель запущена и работает..."
 d ru access_panel "Вы можете получить доступ к панели по следующим URL:"
 d ru executing "Выполнение..."
+d ru bad_option "Неизвестный параметр: %s"
+d ru missing_value "Не указано значение для %s"
+d ru bad_token "Токен ноды должен состоять из 16–128 латинских букв и цифр."
+d ru bad_port "Порт должен быть числом от 1 до 65535."
+d ru bad_path "Путь может содержать только буквы, цифры и . _ ~ - /"
+d ru bad_version "Неверная версия: %s"
+d ru node_mode "Режим ноды: панель настраивается для мастера без вопросов."
+d ru node_token_fail "Не удалось добавить токен ноды."
+d ru node_ready "Сервер готов как нода. Вернитесь в панель мастера и нажмите «Тест»."
 
 d vi root_err "Vui lòng chạy tập lệnh này với quyền root"
 d vi os_fail "Không thể xác định hệ điều hành, vui lòng liên hệ tác giả!"
@@ -200,6 +227,15 @@ d vi broken_bin "Tệp s-ui đã cài đặt không chạy được, quá trình
 d vi install_finished "cài đặt hoàn tất, hiện đang chạy..."
 d vi access_panel "Bạn có thể truy cập bảng điều khiển qua (các) URL sau:"
 d vi executing "Đang thực thi..."
+d vi bad_option "Tùy chọn không xác định: %s"
+d vi missing_value "Thiếu giá trị cho %s"
+d vi bad_token "Token của node phải gồm 16 đến 128 chữ cái và chữ số."
+d vi bad_port "Cổng phải là số từ 1 đến 65535."
+d vi bad_path "Đường dẫn chỉ được chứa chữ cái, chữ số và . _ ~ - /"
+d vi bad_version "Phiên bản không hợp lệ: %s"
+d vi node_mode "Chế độ node: thiết lập bảng điều khiển cho master, không hỏi gì."
+d vi node_token_fail "Không thể thêm token của node."
+d vi node_ready "Máy chủ này đã sẵn sàng làm node. Quay lại bảng điều khiển master và nhấn Kiểm tra."
 
 d zhcn root_err "请使用 root 权限运行此脚本"
 d zhcn os_fail "无法检测系统操作系统，请联系作者！"
@@ -239,6 +275,15 @@ d zhcn broken_bin "已安装的 s-ui 程序无法运行，安装不完整"
 d zhcn install_finished "安装完成，现已运行..."
 d zhcn access_panel "您可以通过以下 URL 访问面板："
 d zhcn executing "正在执行..."
+d zhcn bad_option "未知选项：%s"
+d zhcn missing_value "%s 缺少值"
+d zhcn bad_token "节点令牌必须是 16 到 128 位字母和数字。"
+d zhcn bad_port "端口必须是 1 到 65535 之间的数字。"
+d zhcn bad_path "路径只能包含字母、数字和 . _ ~ - /"
+d zhcn bad_version "无效的版本：%s"
+d zhcn node_mode "节点模式：无需提问，直接为主控面板配置此面板。"
+d zhcn node_token_fail "添加节点令牌失败。"
+d zhcn node_ready "此服务器已可作为节点使用。请回到主控面板并点击测试。"
 
 d zhtw root_err "請使用 root 權限執行此腳本"
 d zhtw os_fail "無法偵測系統作業系統，請聯絡作者！"
@@ -278,6 +323,15 @@ d zhtw broken_bin "已安裝的 s-ui 程式無法執行，安裝不完整"
 d zhtw install_finished "安裝完成，現已執行..."
 d zhtw access_panel "您可以透過以下 URL 存取面板："
 d zhtw executing "正在執行..."
+d zhtw bad_option "未知選項：%s"
+d zhtw missing_value "%s 缺少值"
+d zhtw bad_token "節點權杖必須是 16 到 128 位字母和數字。"
+d zhtw bad_port "連接埠必須是 1 到 65535 之間的數字。"
+d zhtw bad_path "路徑只能包含字母、數字和 . _ ~ - /"
+d zhtw bad_version "無效的版本：%s"
+d zhtw node_mode "節點模式：無需提問，直接為主控面板設定此面板。"
+d zhtw node_token_fail "新增節點權杖失敗。"
+d zhtw node_ready "此伺服器已可作為節點使用。請回到主控面板並點擊測試。"
 
 # t <key> — return the localized message, falling back to English.
 t() {
@@ -381,9 +435,54 @@ EOF
     chmod +x /etc/init.d/s-ui
 }
 
+# set_fresh_credentials gives a new panel a random admin login and prints it.
+set_fresh_credentials() {
+    local usernameTemp=$(head -c 6 /dev/urandom | base64)
+    local passwordTemp=$(head -c 6 /dev/urandom | base64)
+    echo -e "$(t fresh_random)"
+    echo -e "###############################################"
+    echo -e "${green}username:${usernameTemp}${plain}"
+    echo -e "${green}password:${passwordTemp}${plain}"
+    echo -e "###############################################"
+    echo -e "${red}$(t forgot_info)${plain}"
+    if ! /usr/local/s-ui/sui admin -username "${usernameTemp}" -password "${passwordTemp}"; then
+        echo -e "${red}$(t creds_failed)${plain}"
+        exit 1
+    fi
+}
+
+# config_node sets the panel up for a master without asking anything: the
+# port and path the master chose, a random admin login on a new panel, and the
+# API token the master will use.
+config_node() {
+    echo -e "${yellow}$(t node_mode)${plain}"
+    local fresh=0
+    [[ -f "/usr/local/s-ui/db/s-ui.db" ]] || fresh=1
+    local params=()
+    [ -z "$opt_port" ] || params+=(-port "$opt_port")
+    [ -z "$opt_path" ] || params+=(-path "$opt_path")
+    if [[ ${#params[@]} -gt 0 ]]; then
+        /usr/local/s-ui/sui setting "${params[@]}" || exit 1
+    fi
+    if [[ $fresh -eq 1 ]]; then
+        set_fresh_credentials
+    else
+        echo -e "${red}$(t upgrade_keep)${plain}"
+    fi
+    if ! /usr/local/s-ui/sui token -add "$opt_node_token" -desc master; then
+        echo -e "${red}$(t node_token_fail)${plain}"
+        exit 1
+    fi
+}
+
 config_after_install() {
     echo -e "${yellow}$(t migrating)${plain}"
     /usr/local/s-ui/sui migrate
+
+    if [[ -n "$opt_node_token" ]]; then
+        config_node
+        return
+    fi
 
     echo -e "${yellow}$(t finished_modify)${plain}"
     read -r -p "$(t ask_modify)" config_confirm
@@ -437,18 +536,7 @@ config_after_install() {
     else
         echo -e "${red}$(t cancelled)${plain}"
         if [[ ! -f "/usr/local/s-ui/db/s-ui.db" ]]; then
-            local usernameTemp=$(head -c 6 /dev/urandom | base64)
-            local passwordTemp=$(head -c 6 /dev/urandom | base64)
-            echo -e "$(t fresh_random)"
-            echo -e "###############################################"
-            echo -e "${green}username:${usernameTemp}${plain}"
-            echo -e "${green}password:${passwordTemp}${plain}"
-            echo -e "###############################################"
-            echo -e "${red}$(t forgot_info)${plain}"
-            if ! /usr/local/s-ui/sui admin -username "${usernameTemp}" -password "${passwordTemp}"; then
-                echo -e "${red}$(t creds_failed)${plain}"
-                exit 1
-            fi
+            set_fresh_credentials
         else
             echo -e "${red}$(t upgrade_keep)${plain}"
         fi
@@ -602,9 +690,81 @@ install_s-ui() {
     /usr/local/s-ui/sui uri
     echo -e "${plain}"
     echo -e ""
+    if [[ -n "$opt_node_token" ]]; then
+        echo -e "${green}$(t node_ready)${plain}"
+        echo -e ""
+    fi
     s-ui help
 }
 
+# Options. A bare first argument is the version to install, as it always was.
+#   --version <tag>      install this release instead of the latest
+#   --node-token <token> set up a node for a master, without questions
+#   --port <port>        panel port (with --node-token)
+#   --path <path>        panel path (with --node-token)
+opt_version=""
+opt_node_token=""
+opt_port=""
+opt_path=""
+need_value() {
+    if [[ $1 -lt 2 || -z "$3" ]]; then
+        printf "${red}$(t missing_value)${plain}\n" "$2"
+        exit 1
+    fi
+}
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --version | --node-token | --port | --path)
+        need_value $# "$1" "$2"
+        case "$1" in
+        --version) opt_version="$2" ;;
+        --node-token) opt_node_token="$2" ;;
+        --port) opt_port="$2" ;;
+        --path) opt_path="$2" ;;
+        esac
+        shift 2
+        ;;
+    --version=*) opt_version="${1#*=}"; shift ;;
+    --node-token=*) opt_node_token="${1#*=}"; shift ;;
+    --port=*) opt_port="${1#*=}"; shift ;;
+    --path=*) opt_path="${1#*=}"; shift ;;
+    -*)
+        printf "${red}$(t bad_option)${plain}\n" "$1"
+        exit 1
+        ;;
+    *)
+        if [[ -n "$opt_version" ]]; then
+            printf "${red}$(t bad_option)${plain}\n" "$1"
+            exit 1
+        fi
+        opt_version="$1"
+        shift
+        ;;
+    esac
+done
+if [[ -n "$opt_version" && ! "$opt_version" =~ ^[A-Za-z0-9._-]+$ ]]; then
+    printf "${red}$(t bad_version)${plain}\n" "$opt_version"
+    exit 1
+fi
+if [[ -n "$opt_node_token" && ! "$opt_node_token" =~ ^[A-Za-z0-9]{16,128}$ ]]; then
+    echo -e "${red}$(t bad_token)${plain}"
+    exit 1
+fi
+if [[ -n "$opt_port" ]] && { [[ ! "$opt_port" =~ ^[0-9]{1,5}$ ]] || ((10#$opt_port < 1 || 10#$opt_port > 65535)); }; then
+    echo -e "${red}$(t bad_port)${plain}"
+    exit 1
+fi
+# 08080 would read as octal further on.
+[[ -z "$opt_port" ]] || opt_port=$((10#$opt_port))
+if [[ -n "$opt_path" && ! "$opt_path" =~ ^[A-Za-z0-9._~/-]+$ ]]; then
+    echo -e "${red}$(t bad_path)${plain}"
+    exit 1
+fi
+
 echo -e "${green}$(t executing)${plain}"
 install_base
-install_s-ui $1
+if [[ -n "$opt_version" ]]; then
+    install_s-ui "$opt_version"
+else
+    install_s-ui
+fi

@@ -61,7 +61,8 @@ func (j *JsonService) GetJson(subId string, format string) (*string, []string, e
 		return nil, nil, err
 	}
 
-	extOutbounds, extTags := j.LinkService.GetExternalOutbounds(&client.Links)
+	links := service.FilterNodeLinks(client)
+	extOutbounds, extTags := j.LinkService.GetExternalOutbounds(&links)
 	*outbounds = append(*outbounds, extOutbounds...)
 	*outTags = append(*outTags, extTags...)
 

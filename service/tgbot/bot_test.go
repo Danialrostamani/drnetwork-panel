@@ -403,12 +403,17 @@ func TestNewClientConfigCoversEveryProtocol(t *testing.T) {
 
 func testBot(t *testing.T) (*bot, func() []sent) {
 	t.Helper()
+	service.WaitNodeActionProbes()
 	if err := database.InitDB(filepath.Join(t.TempDir(), "bot.db")); err != nil {
 		t.Fatal(err)
 	}
-	// Saves finish their restart/fan-out work in goroutines; let them end
-	// before the next test swaps the global database.
-	t.Cleanup(func() { time.Sleep(300 * time.Millisecond) })
+	// Saves finish their restart/fan-out work in goroutines, and node actions
+	// probe again a little later; let them end before the next test swaps the
+	// global database.
+	t.Cleanup(func() {
+		time.Sleep(300 * time.Millisecond)
+		service.WaitNodeActionProbes()
+	})
 	cs := service.NewConfigService(core.NewCore())
 	if err := (&service.SettingService{}).SetMaintenance(true); err != nil {
 		t.Fatal(err)

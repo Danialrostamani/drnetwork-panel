@@ -6,8 +6,10 @@ import (
 	"encoding/hex"
 	"os"
 	"runtime"
+	"runtime/debug"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Danialrostamani/drnetwork-panel/config"
@@ -16,6 +18,7 @@ import (
 	"github.com/Danialrostamani/drnetwork-panel/logger"
 
 	"github.com/sagernet/sing-box/common/tls"
+	C "github.com/sagernet/sing-box/constant"
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/disk"
 	"github.com/shirou/gopsutil/v4/host"
@@ -43,6 +46,8 @@ func (s *ServerService) GetStatus(request string) *map[string]interface{} {
 			status["swp"] = s.GetSwapInfo()
 		case "net":
 			status["net"] = s.GetNetInfo()
+		case "nic":
+			status["nic"] = s.GetNicInfo()
 		case "sys":
 			status["sys"] = s.GetSystemInfo()
 		case "sbd":
@@ -136,6 +141,95 @@ func (s *ServerService) GetNetInfo() map[string]interface{} {
 	return info
 }
 
+// GetNicInfo is what the server's own network interfaces sent and received,
+// in total and per interface. Loopback and virtual interfaces (containers,
+// bridges, tunnels) are left out: their bytes cross a real interface too, and
+// would count twice.
+func (s *ServerService) GetNicInfo() map[string]interface{} {
+	info := make(map[string]interface{}, 0)
+	ioStats, err := net.IOCounters(true)
+	if err != nil {
+		logger.Warning("get io counters failed:", err)
+		return info
+	}
+	loopback := map[string]bool{}
+	if ifaces, err := net.Interfaces(); err == nil {
+		for _, iface := range ifaces {
+			for _, flag := range iface.Flags {
+				if flag == "loopback" {
+					loopback[iface.Name] = true
+				}
+			}
+		}
+	}
+	var sent, recv uint64
+	ifs := map[string][2]uint64{}
+	for _, st := range ioStats {
+		if loopback[st.Name] || isVirtualNic(st.Name) {
+			continue
+		}
+		sent += st.BytesSent
+		recv += st.BytesRecv
+		ifs[st.Name] = [2]uint64{st.BytesSent, st.BytesRecv}
+	}
+	info["sent"] = sent
+	info["recv"] = recv
+	info["ifs"] = ifs
+	return info
+}
+
+var virtualNicPrefixes = []string{"loopback", "docker", "veth", "br-", "virbr", "vnet", "tun", "tap", "wg", "tailscale", "zt", "utun", "cni", "flannel", "cali", "vxlan", "kube", "ifb", "dummy", "sing", "warp", "cloudflarewarp"}
+
+// isVirtualNic reports whether an interface name is loopback or one of the
+// virtual interfaces containers, VPNs and tunnels create.
+func isVirtualNic(name string) bool {
+	n := strings.ToLower(strings.TrimSpace(name))
+	if n == "lo" {
+		return true
+	}
+	if rest, ok := strings.CutPrefix(n, "lo"); ok && rest != "" && strings.Trim(rest, "0123456789") == "" {
+		return true
+	}
+	for _, p := range virtualNicPrefixes {
+		if strings.HasPrefix(n, p) {
+			return true
+		}
+	}
+	return false
+}
+
+var (
+	singboxVersionOnce sync.Once
+	singboxVersionText string
+)
+
+// singboxVersion is the version of the sing-box the panel is built with. The
+// constant is only set by sing-box's own build, so the module's version is
+// the fallback.
+func singboxVersion() string {
+	singboxVersionOnce.Do(func() {
+		if v := strings.TrimSpace(C.Version); v != "" && v != "unknown" {
+			singboxVersionText = strings.TrimPrefix(v, "v")
+			return
+		}
+		info, ok := debug.ReadBuildInfo()
+		if !ok {
+			return
+		}
+		for _, dep := range info.Deps {
+			if dep.Path == "github.com/sagernet/sing-box" {
+				v := dep.Version
+				if dep.Replace != nil && dep.Replace.Version != "" {
+					v = dep.Replace.Version
+				}
+				singboxVersionText = strings.TrimPrefix(v, "v")
+				return
+			}
+		}
+	})
+	return singboxVersionText
+}
+
 func (s *ServerService) GetSingboxInfo() map[string]interface{} {
 	var rtm runtime.MemStats
 	runtime.ReadMemStats(&rtm)
@@ -150,6 +244,7 @@ func (s *ServerService) GetSingboxInfo() map[string]interface{} {
 	}
 	return map[string]interface{}{
 		"running": isRunning,
+		"version": singboxVersion(),
 		"stats": map[string]interface{}{
 			"NumGoroutine": uint32(runtime.NumGoroutine()),
 			"Alloc":        rtm.Alloc,
@@ -166,12 +261,13 @@ func (s *ServerService) GetSystemInfo() map[string]interface{} {
 	info["appMem"] = rtm.Sys
 	info["appThreads"] = uint32(runtime.NumGoroutine())
 	cpuInfo, err := cpu.Info()
-	if err == nil {
+	if err == nil && len(cpuInfo) > 0 {
 		info["cpuType"] = cpuInfo[0].ModelName
 	}
 	info["cpuCount"] = runtime.NumCPU()
 	info["hostName"], _ = os.Hostname()
 	info["appVersion"] = config.GetVersion()
+	info["appFull"] = config.GetFullVersion()
 	ipv4 := make([]string, 0)
 	ipv6 := make([]string, 0)
 	// get ip address
@@ -183,7 +279,7 @@ func (s *ServerService) GetSystemInfo() map[string]interface{} {
 			for _, address := range addrs {
 				if strings.Contains(address.Addr, ".") {
 					ipv4 = append(ipv4, address.Addr)
-				} else if address.Addr[0:6] != "fe80::" {
+				} else if !strings.HasPrefix(address.Addr, "fe80::") {
 					ipv6 = append(ipv6, address.Addr)
 				}
 			}

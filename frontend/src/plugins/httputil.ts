@@ -4,7 +4,7 @@ import router from '@/router'
 import { push } from 'notivue'
 import { clearAuthenticated } from './auth'
 import Data from '@/store/modules/data'
-import type { AxiosRequestConfig } from 'axios'
+import axios, { type AxiosRequestConfig } from 'axios'
 
 // The envelope every endpoint answers with. What rides in `obj` depends on the
 // endpoint, so it is unknown until a caller names it: HttpUtils.get<Foo>(url).
@@ -104,6 +104,9 @@ const HttpUtils = {
         const resp = await api.get(url, { params: data, ...options })
         msg = _respToMsg<T>(resp)
     } catch (e: unknown) {
+        // A request the client dropped for a newer identical one is no error
+        // to show: the newer one answers.
+        if (axios.isCancel(e)) return _objectlessMsg<T>(false, "")
         const err = e as RequestError
         if (_sessionExpired(err?.response?.status, err?.response?.data?.msg)) {
             push.error({ title: i18n.global.t('invalidLogin') })
@@ -121,6 +124,9 @@ const HttpUtils = {
         const resp = await api.post(url, data, options)
         msg = _respToMsg<T>(resp)
     } catch (e: unknown) {
+        // A request the client dropped for a newer identical one is no error
+        // to show: the newer one answers.
+        if (axios.isCancel(e)) return _objectlessMsg<T>(false, "")
         const err = e as RequestError
         if (_sessionExpired(err?.response?.status, err?.response?.data?.msg)) {
             push.error({ title: i18n.global.t('invalidLogin') })

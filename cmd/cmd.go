@@ -17,6 +17,7 @@ func ParseCmd() {
 	adminCmd := flag.NewFlagSet("admin", flag.ExitOnError)
 	settingCmd := flag.NewFlagSet("setting", flag.ExitOnError)
 	backupCmd := flag.NewFlagSet("backup", flag.ExitOnError)
+	tokenCmd := flag.NewFlagSet("token", flag.ExitOnError)
 
 	var username string
 	var password string
@@ -29,6 +30,10 @@ func ParseCmd() {
 	var show bool
 	var output string
 	var exclude string
+	var tokenAdd string
+	var tokenDesc string
+	tokenCmd.StringVar(&tokenAdd, "add", "", "add this API token (16+ letters and digits) to the first admin")
+	tokenCmd.StringVar(&tokenDesc, "desc", "master", "description of the token")
 	backupCmd.StringVar(&output, "output", "", "backup output file path (use - for stdout)")
 	backupCmd.StringVar(&exclude, "exclude", "", "comma-separated tables to exclude: changes,stats")
 	settingCmd.BoolVar(&reset, "reset", false, "reset all settings")
@@ -55,12 +60,15 @@ func ParseCmd() {
 		fmt.Println("    setting        set/reset/show settings")
 		fmt.Println("    healthcheck    exit 0 if the panel is listening on its configured port")
 		fmt.Println("    backup         create a database backup")
+		fmt.Println("    token          add an API token, such as the one a master uses for this node")
 		fmt.Println()
 		adminCmd.Usage()
 		fmt.Println()
 		settingCmd.Usage()
 		fmt.Println()
 		backupCmd.Usage()
+		fmt.Println()
+		tokenCmd.Usage()
 	}
 
 	flag.Parse()
@@ -130,6 +138,19 @@ func ParseCmd() {
 			return
 		}
 		backupDb(output, exclude)
+	case "token":
+		if err := tokenCmd.Parse(os.Args[2:]); err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		if tokenAdd == "" {
+			tokenCmd.Usage()
+			os.Exit(1)
+		}
+		if err := addToken(tokenAdd, tokenDesc); err != nil {
+			fmt.Println("add token failed:", err)
+			os.Exit(1)
+		}
 	default:
 		fmt.Println("Invalid subcommands")
 		flag.Usage()

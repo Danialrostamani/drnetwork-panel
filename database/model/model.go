@@ -141,4 +141,23 @@ type Node struct {
 	Dirty     bool            `json:"dirty" gorm:"default:false;not null"`
 	LastSync  int64           `json:"lastSync" gorm:"default:0;not null"`
 	Baselines json.RawMessage `json:"-"`
+
+	// Labels for the Nodes page only: they sort and filter it and change
+	// nothing on the node.
+	Tags      []string `json:"tags" gorm:"serializer:json"`
+	Country   string   `json:"country"`
+	SortOrder int      `json:"sortOrder" gorm:"default:0;not null"`
+	// Alerts holds the node's Telegram alert thresholds.
+	Alerts NodeAlerts `json:"alerts" gorm:"serializer:json"`
+	// Cap is the node's monthly traffic allowance.
+	Cap NodeCap `json:"cap" gorm:"serializer:json"`
+	// HideDown leaves the node's links out of subscriptions while it is down.
+	HideDown bool `json:"hideDown" gorm:"default:false;not null"`
+	// Access limits which clients the node serves; empty serves them all.
+	Access NodeAccess `json:"access" gorm:"serializer:json"`
+
+	// Bookkeeping only the master writes; a save from the panel leaves it be.
+	NetBase    json.RawMessage `json:"-"`
+	CapState   json.RawMessage `json:"-"`
+	SyncReport json.RawMessage `json:"-"`
 }

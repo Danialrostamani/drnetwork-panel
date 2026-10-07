@@ -36,6 +36,9 @@ func seedEveryTable(t *testing.T) {
 		&model.Changes{DateTime: 1, Actor: "admin", Key: "clients", Action: "new", Obj: json.RawMessage(`"someone"`)},
 		&model.BotQuota{TgId: 42, Total: 500 << 30, Banked: 120 << 30, Adopted: true},
 		&model.BotQuotaClient{ClientId: 1, TgId: 42, Base: 7 << 20},
+		&model.NodeMetric{NodeId: 1, DateTime: 60, Probes: 12, Up: 12, Latency: 30, Cpu: 5, Mem: 40, Disk: 20, Online: 3, Sent: 1000, Recv: 2000},
+		&model.NodeOutage{NodeId: 1, Start: 100, End: 200, State: "offline", Reason: "timeout", Checked: 190},
+		&model.NodeTraffic{NodeId: 1, DateTime: 3600, Up: 1 << 20, Down: 2 << 20},
 	}
 	for _, row := range rows {
 		if err := db.Create(row).Error; err != nil {
@@ -118,8 +121,14 @@ func TestBackupExcludesOnlyWhatWasAsked(t *testing.T) {
 		}
 	}
 
+	// The per-minute node history goes with the traffic history.
+	var metrics int64
+	if err := restored.Table("node_metrics").Count(&metrics).Error; err != nil || metrics != 0 {
+		t.Errorf("node_metrics with stats excluded: %d rows, %v", metrics, err)
+	}
+
 	// Everything not named must survive.
-	for _, name := range []string{"clients", "inbounds", "services", "tokens"} {
+	for _, name := range []string{"clients", "inbounds", "services", "tokens", "node_outages", "node_traffic"} {
 		var count int64
 		if err := restored.Table(name).Count(&count).Error; err != nil {
 			t.Errorf("counting %s: %v", name, err)

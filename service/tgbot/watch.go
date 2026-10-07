@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Danialrostamani/drnetwork-panel/config"
 	"github.com/Danialrostamani/drnetwork-panel/database"
 	"github.com/Danialrostamani/drnetwork-panel/database/model"
 	"github.com/Danialrostamani/drnetwork-panel/logger"
@@ -31,7 +32,20 @@ type nodeWatch struct {
 	failures int
 	downAt   time.Time
 	alerted  bool
+	// For each threshold warning: the checks in a row it was seen, the ones
+	// announced, and for those the checks in a row it was gone.
+	over   map[string]int
+	warned map[string]bool
+	under  map[string]int
 }
+
+const (
+	// A busy CPU is normal for a moment: it has to stay over the limit longer.
+	cpuWarnAfterChecks = 6
+	// An announced warning clears only after this many checks without it, so
+	// a value going back and forth over the limit does not flood the chat.
+	warnClearChecks = 18
+)
 
 // watch sends node, core and client alerts and the scheduled report. Each
 // alert condition is reported once and again only after it clears.
@@ -57,8 +71,12 @@ func (b *bot) watch(ctx context.Context) {
 			return
 		case <-ticker.C:
 		}
+		// Taken every round, so events from while alerts were off are not
+		// announced later.
+		events := service.DrainNodeEvents()
 		if b.cfg.Notify {
 			b.checkNodes(ctx, nodes)
+			b.announceNodeEvents(ctx, events)
 			b.checkCore(ctx, core)
 			if time.Since(lastClientCheck) >= clientCheckEvery {
 				lastClientCheck = time.Now()
@@ -141,7 +159,8 @@ func (b *bot) checkNodes(ctx context.Context, watched map[uint]*nodeWatch) {
 	}
 	statuses := (&service.NodeService{}).GetStatuses()
 	alive := map[uint]bool{}
-	for _, n := range nodes {
+	for i := range nodes {
+		n := &nodes[i]
 		alive[n.Id] = true
 		st, probed := statuses[n.Id]
 		if !probed {
@@ -152,24 +171,34 @@ func (b *bot) checkNodes(ctx context.Context, watched map[uint]*nodeWatch) {
 			w = &nodeWatch{}
 			watched[n.Id] = w
 		}
-		if st.State == "online" {
+		reachable := st.State == "online" || st.State == "core-stopped"
+		// A node held in maintenance stops its core on purpose.
+		if st.State == "online" || (st.State == "core-stopped" && st.Maintenance) {
 			if w.alerted {
 				b.broadcast(ctx, b.t("nodeUp", esc(n.Name), b.humanDuration(time.Since(w.downAt))), "nodes")
 			}
-			*w = nodeWatch{}
-			continue
-		}
-		if w.failures == 0 {
-			w.downAt = time.Now()
-		}
-		w.failures++
-		if w.failures >= nodeDownAfterChecks && !w.alerted {
-			w.alerted = true
-			reason := st.State
-			if st.Error != "" {
-				reason = st.Error
+			w.failures, w.alerted, w.downAt = 0, false, time.Time{}
+		} else {
+			if w.failures == 0 {
+				w.downAt = time.Now()
 			}
-			b.broadcast(ctx, b.t("nodeDown", esc(n.Name), esc(reason)), "nodes")
+			w.failures++
+			if w.failures >= nodeDownAfterChecks && !w.alerted {
+				w.alerted = true
+				reason := st.State
+				if st.Error != "" {
+					reason = st.Error
+				}
+				b.broadcast(ctx, b.t("nodeDown", esc(n.Name), esc(reason)), "nodes")
+			}
+		}
+		if reachable {
+			b.checkNodeWarnings(ctx, n, st.Warnings, w)
+		} else {
+			// Nothing is measured while the node cannot be reached: the
+			// warnings already announced stay as they are.
+			w.over = nil
+			w.under = nil
 		}
 	}
 	for id := range watched {
@@ -177,6 +206,128 @@ func (b *bot) checkNodes(ctx context.Context, watched map[uint]*nodeWatch) {
 			delete(watched, id)
 		}
 	}
+}
+
+// checkNodeWarnings announces a threshold (CPU, RAM, disk, ping, certificate,
+// version) a node stays over, and again when it is back under it.
+func (b *bot) checkNodeWarnings(ctx context.Context, n *model.Node, warnings []service.NodeWarning, w *nodeWatch) {
+	if w.over == nil {
+		w.over = map[string]int{}
+	}
+	if w.warned == nil {
+		w.warned = map[string]bool{}
+	}
+	if w.under == nil {
+		w.under = map[string]int{}
+	}
+	seen := map[string]bool{}
+	for _, warn := range warnings {
+		if seen[warn.Key] {
+			continue
+		}
+		seen[warn.Key] = true
+		delete(w.under, warn.Key)
+		w.over[warn.Key]++
+		need := nodeDownAfterChecks
+		if warn.Key == "cpu" {
+			need = cpuWarnAfterChecks
+		}
+		if w.over[warn.Key] >= need && !w.warned[warn.Key] {
+			w.warned[warn.Key] = true
+			b.broadcast(ctx, b.nodeWarningText(n.Name, warn), "nodes")
+		}
+	}
+	for key := range w.over {
+		if !seen[key] {
+			delete(w.over, key)
+		}
+	}
+	for key := range w.warned {
+		if seen[key] {
+			continue
+		}
+		w.under[key]++
+		if w.under[key] >= warnClearChecks {
+			delete(w.warned, key)
+			delete(w.under, key)
+			b.broadcast(ctx, b.nodeClearedText(n.Name, key), "nodes")
+		}
+	}
+}
+
+func (b *bot) nodeWarningText(name string, w service.NodeWarning) string {
+	head := "⚠️ <b>" + b.tr("نود ", "Node ") + esc(name) + "</b>\n"
+	switch w.Key {
+	case "cpu":
+		return head + fmt.Sprintf(b.tr("مصرف CPU بالاست: %.0f%% (حد %.0f%%)", "High CPU: %.0f%% (limit %.0f%%)"), w.Value, w.Limit)
+	case "mem":
+		return head + fmt.Sprintf(b.tr("مصرف RAM بالاست: %.0f%% (حد %.0f%%)", "High RAM: %.0f%% (limit %.0f%%)"), w.Value, w.Limit)
+	case "disk":
+		return head + fmt.Sprintf(b.tr("دیسک در حال پر شدن است: %.0f%% (حد %.0f%%)", "Disk filling up: %.0f%% (limit %.0f%%)"), w.Value, w.Limit)
+	case "ping":
+		return head + fmt.Sprintf(b.tr("پینگ بالاست: %.0f ms (حد %.0f ms)", "High ping: %.0f ms (limit %.0f ms)"), w.Value, w.Limit)
+	case "cert":
+		if w.Value <= 0 {
+			return head + b.tr("گواهی TLS پنل نود منقضی شده است.", "The node panel's TLS certificate has expired.")
+		}
+		if w.Value < 1 {
+			return head + b.tr("گواهی TLS پنل نود کمتر از یک روز دیگر منقضی می‌شود.", "The node panel's TLS certificate expires within a day.")
+		}
+		return head + fmt.Sprintf(b.tr("گواهی TLS پنل نود تا %d روز دیگر منقضی می‌شود.", "The node panel's TLS certificate expires in %d days."), int(w.Value))
+	case "version":
+		return head + fmt.Sprintf(b.tr("نسخه نود (%s) از نسخه پنل اصلی (%s) قدیمی‌تر است؛ نود را به‌روز کنید.", "The node runs %s, older than the master's %s; update the node."), esc(w.Info), esc(config.GetFullVersion()))
+	}
+	return head + esc(w.Key)
+}
+
+func (b *bot) nodeClearedText(name, key string) string {
+	head := "✅ <b>" + b.tr("نود ", "Node ") + esc(name) + "</b>\n"
+	switch key {
+	case "cpu":
+		return head + b.tr("مصرف CPU به حالت عادی برگشت.", "CPU is back to normal.")
+	case "mem":
+		return head + b.tr("مصرف RAM به حالت عادی برگشت.", "RAM is back to normal.")
+	case "disk":
+		return head + b.tr("فضای دیسک به حالت عادی برگشت.", "Disk usage is back to normal.")
+	case "ping":
+		return head + b.tr("پینگ به حالت عادی برگشت.", "Ping is back to normal.")
+	case "cert":
+		return head + b.tr("گواهی TLS پنل نود دیگر نزدیک انقضا نیست.", "The node panel's TLS certificate is no longer close to expiring.")
+	case "version":
+		return head + b.tr("نسخه نود به‌روز است.", "The node is up to date.")
+	}
+	return head + esc(key)
+}
+
+// announceNodeEvents tells about the monthly cap levels a node crossed and
+// its links leaving or coming back to the subscriptions.
+func (b *bot) announceNodeEvents(ctx context.Context, events []service.NodeEvent) {
+	for _, e := range events {
+		if text := b.nodeEventText(e); text != "" {
+			b.broadcast(ctx, text, "nodes")
+		}
+	}
+}
+
+func (b *bot) nodeEventText(e service.NodeEvent) string {
+	name := esc(e.Name)
+	switch e.Kind {
+	case "cap":
+		used := fmt.Sprintf("%s / %s", humanBytes(e.Used), humanBytes(e.Limit))
+		if e.Level >= 100 {
+			return "⛔️ <b>" + b.tr("نود ", "Node ") + name + "</b>\n" + b.tr("سقف ترافیک ماهانه تمام شد: ", "Monthly traffic cap reached: ") + used
+		}
+		return "📊 <b>" + b.tr("نود ", "Node ") + name + "</b>\n" + fmt.Sprintf(b.tr("%d%% سقف ترافیک ماهانه مصرف شد: %s", "%d%% of the monthly traffic cap used: %s"), e.Level, used)
+	case "hidden":
+		why := b.tr("چون مدتی قطع است", "because it is down")
+		if e.Reason == "cap" {
+			why = b.tr("چون سقف ترافیک ماهانه‌اش پر شده", "because its monthly cap is reached")
+		}
+		return "🙈 <b>" + b.tr("نود ", "Node ") + name + "</b>\n" + fmt.Sprintf(b.tr("لینک‌های این نود %s از سابسکریپشن‌ها برداشته شد.", "Its links were taken out of the subscriptions %s."), why)
+	case "shown":
+		return "👁 <b>" + b.tr("نود ", "Node ") + name + "</b>\n" + b.tr("لینک‌های این نود دوباره به سابسکریپشن‌ها برگشت.", "Its links are back in the subscriptions.")
+	}
+	return ""
 }
 
 // clientAlert is one line of the client alert; group tells which group-limited

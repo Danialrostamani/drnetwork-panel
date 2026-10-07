@@ -2,6 +2,7 @@ package service
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/Danialrostamani/drnetwork-panel/database"
@@ -212,6 +213,38 @@ func (s *UserService) AddToken(username string, expiry int64, desc string) (stri
 		return "", err
 	}
 	return token.Token, nil
+}
+
+// AddTokenValue gives the first admin an API token with a value chosen
+// elsewhere: the token a master generated for a node it is setting up. It is
+// at least 16 letters and digits and never expires. Adding a token the panel
+// already has does nothing; added tells which happened.
+func (s *UserService) AddTokenValue(token string, desc string) (added bool, err error) {
+	token = strings.TrimSpace(token)
+	if len(token) < 16 || len(token) > 128 {
+		return false, common.NewError("the token must be 16 to 128 characters long")
+	}
+	for _, r := range token {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9') {
+			return false, common.NewError("the token may only contain letters and digits")
+		}
+	}
+	user, err := s.GetFirstUser()
+	if err != nil {
+		return false, err
+	}
+	db := database.GetDB()
+	var count int64
+	if err := db.Model(model.Tokens{}).Where("token = ?", token).Count(&count).Error; err != nil {
+		return false, err
+	}
+	if count > 0 {
+		return false, nil
+	}
+	if err := db.Create(&model.Tokens{Token: token, Desc: strings.TrimSpace(desc), UserId: user.Id}).Error; err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // DeleteToken removes one of the caller's own API tokens. The owner check is

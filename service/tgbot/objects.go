@@ -376,6 +376,13 @@ func (b *bot) objCard(k *kindInfo, id uint) (string, [][]button) {
 			tog = b.tr("✅ فعال", "✅ Enable")
 		}
 		actions = append(actions, []button{{Text: tog, Data: pre + "tog:" + sid}, {Text: b.tr("🔁 همگام‌سازی", "🔁 Sync"), Data: pre + "sync:" + sid}, {Text: b.tr("🩺 تست", "🩺 Test"), Data: pre + "probe:" + sid}})
+		if m["enable"] != false {
+			more := []button{{Text: b.tr("♻️ ری‌استارت هسته", "♻️ Restart core"), Data: pre + "rsb:" + sid}}
+			if b.can("backup") {
+				more = append(more, button{Text: b.tr("💾 بکاپ", "💾 Backup"), Data: pre + "bk:" + sid})
+			}
+			actions = append(actions, more)
+		}
 	default:
 		lines = append(lines, summarize(m)...)
 	}
@@ -393,18 +400,55 @@ func (b *bot) nodeLines(id uint, m map[string]interface{}) []string {
 	} else if state == "" {
 		state = "🔴 " + b.t("nodeOffline")
 	}
+	if st.Maintenance && m["enable"] != false {
+		state += " · 🛠 " + b.tr("حالت تعمیر", "maintenance")
+	}
 	lines := []string{state, "🔗 <code>" + esc(scalar(m["baseUrl"])+scalar(m["webPath"])) + "</code>"}
-	if st.State == "online" || st.State == "core-stopped" {
-		memPct := 0
-		if st.Mem.Total > 0 {
-			memPct = int(st.Mem.Current * 100 / st.Mem.Total)
-		}
+	var meta []string
+	if flag := flagEmoji(scalar(m["country"])); flag != "" {
+		meta = append(meta, flag)
+	}
+	if tags := stringList(m["tags"]); len(tags) > 0 {
+		meta = append(meta, "🏷 "+esc(strings.Join(tags, ", ")))
+	}
+	if len(meta) > 0 {
+		lines = append(lines, strings.Join(meta, " · "))
+	}
+	if m["enable"] != false && (st.State == "online" || st.State == "core-stopped") {
 		lines = append(lines,
 			fmt.Sprintf("🧠 CPU %s %.0f%%", bar(int(st.Cpu), 10), st.Cpu),
-			fmt.Sprintf("💾 RAM %s %d%%", bar(memPct, 10), memPct),
-			fmt.Sprintf("⏱ %d ms · v%s · core %s", st.Latency, esc(st.AppVersion), esc(st.CoreVersion)))
-	} else if st.Error != "" {
+			fmt.Sprintf("💾 RAM %s %d%%", bar(pctOf(uint64(max(st.Mem.Current, 0)), uint64(max(st.Mem.Total, 0))), 10), pctOf(uint64(max(st.Mem.Current, 0)), uint64(max(st.Mem.Total, 0)))))
+		if st.Disk.Total > 0 {
+			p := pctOf(uint64(max(st.Disk.Current, 0)), uint64(st.Disk.Total))
+			lines = append(lines, fmt.Sprintf("🗄 %s %s %d%%", b.tr("دیسک", "Disk"), bar(p, 10), p))
+		}
+		version := st.AppFull
+		if version == "" {
+			version = st.AppVersion
+		}
+		lines = append(lines, fmt.Sprintf("⏱ %d ms · v%s · core %s", st.Latency, esc(version), esc(st.CoreVersion)))
+		lines = append(lines, fmt.Sprintf("👥 %s: %d · ⬆️ %s/s ⬇️ %s/s", b.tr("آنلاین", "Online"), st.Online, humanBytes(st.NetUp), humanBytes(st.NetDown)))
+	} else if st.Error != "" && m["enable"] != false {
 		lines = append(lines, "⚠️ "+esc(st.Error))
+	}
+	if st.Uptime24 >= 0 || st.Uptime7d >= 0 {
+		lines = append(lines, fmt.Sprintf("📈 %s: 24h %s · 7d %s", b.tr("آپتایم", "Uptime"), uptimeText(st.Uptime24), uptimeText(st.Uptime7d)))
+	}
+	if t := st.Traffic; t != nil {
+		lines = append(lines, fmt.Sprintf("📦 %s %s · %s %s", b.tr("امروز", "Today"), humanBytes(t.TodayUp+t.TodayDown), b.tr("این ماه", "This month"), humanBytes(t.MonthUp+t.MonthDown)))
+		if t.CapLimit > 0 {
+			p := int(percentOfInt(t.CapUsed, t.CapLimit))
+			lines = append(lines, fmt.Sprintf("🎚 %s %s %d%% · %s / %s · %s %s", b.tr("سقف", "Cap"), bar(p, 10), p, humanBytes(t.CapUsed), humanBytes(t.CapLimit), b.tr("ریست", "resets"), b.stamp(t.CapEnd)))
+		}
+	}
+	switch st.Hidden {
+	case "down":
+		lines = append(lines, "🙈 "+b.tr("لینک‌ها به‌خاطر قطعی از سابسکریپشن‌ها برداشته شده‌اند", "Links taken out of the subscriptions while it is down"))
+	case "cap":
+		lines = append(lines, "🙈 "+b.tr("لینک‌ها به‌خاطر پر شدن سقف از سابسکریپشن‌ها برداشته شده‌اند", "Links taken out of the subscriptions: the cap is reached"))
+	}
+	for _, w := range st.Warnings {
+		lines = append(lines, "⚠️ "+b.warningShort(w))
 	}
 	if ls := int64(toFloat(jsonFloat(m["lastSeen"]))); ls > 0 {
 		lines = append(lines, "👁 "+b.t("lastSeen")+": "+b.stamp(ls))
@@ -419,6 +463,73 @@ func (b *bot) nodeLines(id uint, m map[string]interface{}) []string {
 		lines = append(lines, "📝 "+esc(desc))
 	}
 	return lines
+}
+
+// warningShort is one threshold warning on a node card.
+func (b *bot) warningShort(w service.NodeWarning) string {
+	switch w.Key {
+	case "cpu":
+		return fmt.Sprintf("CPU %.0f%% ≥ %.0f%%", w.Value, w.Limit)
+	case "mem":
+		return fmt.Sprintf("RAM %.0f%% ≥ %.0f%%", w.Value, w.Limit)
+	case "disk":
+		return fmt.Sprintf("%s %.0f%% ≥ %.0f%%", b.tr("دیسک", "Disk"), w.Value, w.Limit)
+	case "ping":
+		return fmt.Sprintf("%s %.0f ms ≥ %.0f ms", b.tr("پینگ", "Ping"), w.Value, w.Limit)
+	case "cert":
+		if w.Value <= 0 {
+			return b.tr("گواهی TLS منقضی شده", "TLS certificate expired")
+		}
+		return fmt.Sprintf(b.tr("گواهی TLS: %.0f روز مانده", "TLS certificate: %.0f days left"), w.Value)
+	case "version":
+		return fmt.Sprintf(b.tr("نسخه قدیمی: %s", "Old version: %s"), esc(w.Info))
+	}
+	return esc(w.Key)
+}
+
+func uptimeText(p float64) string {
+	if p < 0 {
+		return "—"
+	}
+	if p >= 99.95 && p < 100 {
+		return "99.9%"
+	}
+	return strconv.FormatFloat(p, 'f', 1, 64) + "%"
+}
+
+func percentOfInt(cur, total int64) float64 {
+	if total <= 0 {
+		return 0
+	}
+	p := float64(cur) * 100 / float64(total)
+	if p < 0 {
+		return 0
+	}
+	return p
+}
+
+// flagEmoji turns a two-letter country code into its flag.
+func flagEmoji(code string) string {
+	code = strings.ToUpper(strings.TrimSpace(code))
+	if len(code) != 2 || code[0] < 'A' || code[0] > 'Z' || code[1] < 'A' || code[1] > 'Z' {
+		return ""
+	}
+	return string([]rune{rune(code[0]) - 'A' + 0x1F1E6, rune(code[1]) - 'A' + 0x1F1E6})
+}
+
+func stringList(v interface{}) []string {
+	var out []string
+	switch x := v.(type) {
+	case []string:
+		out = append(out, x...)
+	case []interface{}:
+		for _, e := range x {
+			if s, ok := e.(string); ok && s != "" {
+				out = append(out, s)
+			}
+		}
+	}
+	return out
 }
 
 func jsonFloat(v interface{}) interface{} {
@@ -441,6 +552,9 @@ func (b *bot) objEditable(k *kindInfo, id uint) (map[string]interface{}, error) 
 	delete(m, "lastSeen")
 	delete(m, "lastSync")
 	delete(m, "dirty")
+	delete(m, "inboundCount")
+	delete(m, "clientCount")
+	delete(m, "syncReport")
 	return m, nil
 }
 
@@ -638,7 +752,11 @@ func (b *bot) objCallback(ctx context.Context, cbID string, chatID, msgID int64,
 		card()
 	case "probe":
 		b.answer(ctx, cbID, b.tr("در حال بررسی…", "Probing…"))
-		(&service.NodeService{}).RefreshAll()
+		if id == 0 {
+			(&service.NodeService{}).RefreshAll()
+		} else {
+			_, _ = (&service.NodeService{}).ProbeNow([]uint{id})
+		}
 		if id == 0 {
 			text, kb := b.objListScreen(k, 0)
 			show(text, kb)
@@ -737,11 +855,33 @@ func (b *bot) objCallback(ctx context.Context, cbID string, chatID, msgID int64,
 		card()
 	case "sync":
 		b.answer(ctx, cbID, b.tr("همگام‌سازی…", "Syncing…"))
-		if err := (&service.NodeSyncService{}).Reconcile(id); err != nil {
+		if err := (&service.NodeSyncService{}).ReconcileNow(id); err != nil {
 			b.send(ctx, chatID, b.t("failed", esc(err.Error())))
 			return
 		}
 		card()
+	case "rsb":
+		b.answer(ctx, cbID, b.tr("ری‌استارت هسته…", "Restarting the core…"))
+		res, err := (&service.NodeSyncService{}).NodeAction([]uint{id}, "restartSb", b.actor())
+		if err == nil && len(res) > 0 && !res[0].Ok {
+			err = fmt.Errorf("%s", res[0].Error)
+		}
+		if err != nil {
+			b.send(ctx, chatID, b.t("failed", esc(err.Error())))
+			return
+		}
+		b.send(ctx, chatID, "♻️ "+b.tr("هسته نود ری‌استارت شد.", "The node's core was restarted."))
+		card()
+	case "bk":
+		if !b.can("backup") {
+			b.answer(ctx, cbID, "")
+			b.send(ctx, chatID, b.denied())
+			return
+		}
+		b.answer(ctx, cbID, b.tr("در حال گرفتن بکاپ از نود…", "Fetching the node's backup…"))
+		// A big database takes a while to come over: the bot keeps answering
+		// meanwhile.
+		go b.sendNodeBackup(ctx, chatID, id)
 	default:
 		b.answer(ctx, cbID, "")
 	}

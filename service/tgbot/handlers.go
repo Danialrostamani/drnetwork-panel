@@ -158,9 +158,41 @@ func (b *bot) nodesText() string {
 			if st.Mem.Total > 0 {
 				memPct = float64(st.Mem.Current) * 100 / float64(st.Mem.Total)
 			}
-			lines = append(lines, fmt.Sprintf("   CPU %.0f%% · RAM %.0f%% · %d ms · v%s", st.Cpu, memPct, st.Latency, esc(st.AppVersion)))
+			line := fmt.Sprintf("   CPU %.0f%% · RAM %.0f%%", st.Cpu, memPct)
+			if st.Disk.Total > 0 {
+				line += fmt.Sprintf(" · %s %.0f%%", b.tr("دیسک", "Disk"), float64(st.Disk.Current)*100/float64(st.Disk.Total))
+			}
+			version := st.AppFull
+			if version == "" {
+				version = st.AppVersion
+			}
+			lines = append(lines, line+fmt.Sprintf(" · %d ms · v%s", st.Latency, esc(version)))
 		} else if st.Error != "" {
 			lines = append(lines, "   "+esc(st.Error))
+		}
+		if n.Enable && probed {
+			var extra []string
+			if st.State == "online" {
+				extra = append(extra, fmt.Sprintf("👥 %d", st.Online))
+			}
+			if st.Maintenance {
+				extra = append(extra, "🛠 "+b.tr("حالت تعمیر", "maintenance"))
+			}
+			if st.Traffic != nil {
+				extra = append(extra, "📦 "+b.tr("امروز ", "today ")+humanBytes(st.Traffic.TodayUp+st.Traffic.TodayDown))
+			}
+			if st.Uptime24 >= 0 {
+				extra = append(extra, "📈 24h "+uptimeText(st.Uptime24))
+			}
+			if st.Hidden != "" {
+				extra = append(extra, "🙈 "+b.tr("لینک‌ها مخفی", "links hidden"))
+			}
+			if len(st.Warnings) > 0 {
+				extra = append(extra, fmt.Sprintf("⚠️ %d", len(st.Warnings)))
+			}
+			if len(extra) > 0 {
+				lines = append(lines, "   "+strings.Join(extra, " · "))
+			}
 		}
 		seen := n.LastSeen
 		if st.LastOnline > seen {

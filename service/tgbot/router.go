@@ -307,6 +307,33 @@ func (b *bot) sendBackup(ctx context.Context, chatID int64) {
 	}
 }
 
+// telegramFileMax keeps a file under the 50 MB a bot may send.
+const telegramFileMax = 49 << 20
+
+// sendNodeBackup fetches a node's database and sends it. It runs on its own,
+// so it recovers from a panic itself.
+func (b *bot) sendNodeBackup(ctx context.Context, chatID int64, id uint) {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Error("telegram bot: node backup panic: ", r)
+		}
+	}()
+	node, data, err := (&service.NodeSyncService{}).NodeBackup(id, "")
+	if err != nil {
+		b.fail(ctx, chatID, err)
+		return
+	}
+	if len(data) > telegramFileMax {
+		b.send(ctx, chatID, "⚠️ "+b.tr("بکاپ این نود ", "This node's backup is ")+humanBytes(int64(len(data)))+b.tr(" است و از حد ارسال تلگرام بزرگ‌تر است؛ آن را از پنل وب دانلود کنید.", ", over what Telegram lets a bot send; download it from the web panel."))
+		return
+	}
+	now := time.Now().In(b.loc)
+	caption := "💾 " + b.tr("بکاپ نود", "Backup of node") + " <b>" + esc(node.Name) + "</b>\n" + now.Format("2006-01-02 15:04")
+	if err := b.upload(ctx, "sendDocument", "document", chatID, service.NodeBackupName(node, now), caption, data); err != nil {
+		b.fail(ctx, chatID, err)
+	}
+}
+
 func (b *bot) fail(ctx context.Context, chatID int64, err error) {
 	b.send(ctx, chatID, b.t("failed", esc(b.errText(err))))
 }

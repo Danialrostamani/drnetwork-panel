@@ -239,6 +239,26 @@ To run backend (from root folder of repository):
 - HTTPS for secure access to the web panel and subscription service (self-provided domain + SSL certificate)
 - Dark/Light theme
 
+## Nodes
+
+A node is another DrNetwork panel that the master monitors and keeps in sync. Open **Nodes** on the master:
+
+- **Add a node** - *New server* gives a one-line command to run as root on a fresh server; it installs the latest release with a random panel port, path and API token for this master, then the wizard waits for the node to answer. *Existing panel* takes the address and an API token made on that panel (**Admins → API token**, or `s-ui token -add <token> -desc master` on its shell). **Add several nodes** takes one `name URL token [path]` per line. For security the master never logs in to your servers over SSH or asks for their passwords: you run the command yourself.
+  ```sh
+  bash <(curl -Ls https://raw.githubusercontent.com/Danialrostamani/drnetwork-panel/main/install.sh) --node-token <token> --port <port> --path /<path>/
+  ```
+  The installer also takes `--version <tag>`.
+- **Overview** - a summary bar (online, down, users online, live speed, today's traffic, warnings), search, status/tag/country filters, sorting, cards or a table, tags, a country flag and a manual order per node.
+- **Each card** - status and how long it has been down, latency, CPU/RAM/disk, users online, speed, today's and this month's traffic, monthly cap, 24 h uptime, versions, warnings.
+- **Details** - who is online, history charts (load, latency, users, traffic) up to 7 days, traffic per day or month with the clients that used the node most, uptime and outages, the node's logs and change history, an outbound test run by the node's own core, and the sync tab: what a sync would change, the last sync report, and a full sync that rewrites every client on the node.
+- **Actions** - check now, sync, full sync, restart core or panel, maintenance on/off, enable/disable, clone, backup of a node's database or of all nodes in one zip; select several nodes to run an action on all of them.
+- **Alerts** - per node CPU, RAM, disk, ping and certificate-expiry thresholds and an older-version warning, sent by the Telegram bot when passed for a while and again on recovery (empty = default, 0 = off).
+- **Monthly cap** - the traffic the node's server may move in a month (upload, download or both) with a reset day; the bot warns at 80%, 90% and 100%, and the node's links can leave subscriptions once it is used up.
+- **Subscriptions** - optionally leave a node's links out of subscriptions while it is down (off by default; after 3 minutes, back as soon as it answers).
+- **Access** - limit a node to some client groups and/or clients: only they are synced to it and get its links. Empty (the default) serves every client.
+
+Update the nodes together with the master: an older node shows less (no NIC traffic, disk, host or per-client figures).
+
 ## Telegram bot
 
 DrNetwork includes an optional Telegram bot for administrators (**Settings → Telegram Bot**):

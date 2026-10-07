@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -320,7 +321,7 @@ func (s *NodeSyncService) Reconcile(nodeID uint) error {
 		return nil
 	}
 	defer s.releaseReconcile(nodeID)
-	return s.runReconcile(nodeID, gen)
+	return s.runReconcile(nodeID, gen, syncAuto)
 }
 
 func (s *NodeSyncService) ReconcileNow(nodeID uint) error {
@@ -329,14 +330,116 @@ func (s *NodeSyncService) ReconcileNow(nodeID uint) error {
 		return common.NewError("a sync for this node is already running; try again shortly")
 	}
 	defer s.releaseReconcile(nodeID)
-	return s.runReconcile(nodeID, gen)
+	return s.runReconcile(nodeID, gen, syncManual)
 }
 
-func (s *NodeSyncService) runReconcile(nodeID uint, startGen uint64) error {
+// ReconcileFull syncs a node and sends every client it has again, changed or
+// not: for a node whose copies went wrong in a way the comparison misses.
+func (s *NodeSyncService) ReconcileFull(nodeID uint) error {
+	gen, ok := s.claimReconcile(nodeID, true)
+	if !ok {
+		return common.NewError("a sync for this node is already running; try again shortly")
+	}
+	defer s.releaseReconcile(nodeID)
+	return s.runReconcile(nodeID, gen, syncFull)
+}
+
+// What started a sync.
+const (
+	syncAuto   = "auto"
+	syncManual = "manual"
+	syncFull   = "full"
+	// A report names this many clients of each kind at most.
+	syncReportNames = 50
+)
+
+// SyncPlan is what a sync changes on a node: the clients it creates, edits
+// and deletes there, and how many it leaves as they are.
+type SyncPlan struct {
+	Add  []string `json:"add"`
+	Edit []string `json:"edit"`
+	Del  []string `json:"del"`
+	Same int      `json:"same"`
+}
+
+// planSync compares the clients a node should have with those it has. full
+// edits every client the node has, changed or not.
+func planSync(expected map[string]map[string]interface{}, actual map[string]nodeClientState, full bool) SyncPlan {
+	plan := SyncPlan{Add: []string{}, Edit: []string{}, Del: []string{}}
+	for name, want := range expected {
+		current, exists := actual[name]
+		switch {
+		case !exists:
+			plan.Add = append(plan.Add, name)
+		case full || clientDiffers(want, current):
+			plan.Edit = append(plan.Edit, name)
+		default:
+			plan.Same++
+		}
+	}
+	for name := range actual {
+		if _, exists := expected[name]; !exists {
+			plan.Del = append(plan.Del, name)
+		}
+	}
+	sort.Strings(plan.Add)
+	sort.Strings(plan.Edit)
+	sort.Strings(plan.Del)
+	return plan
+}
+
+// SyncReport is what the last sync of a node did.
+type SyncReport struct {
+	At int64 `json:"at"`
+	// Milliseconds the sync took.
+	Duration int64 `json:"duration"`
+	// auto, manual or full.
+	Trigger string `json:"trigger"`
+	// The clients created, edited and deleted on the node; the lists stop at
+	// syncReportNames names, the counts do not.
+	Added        []string `json:"added"`
+	Edited       []string `json:"edited"`
+	Deleted      []string `json:"deleted"`
+	AddedCount   int      `json:"addedCount"`
+	EditedCount  int      `json:"editedCount"`
+	DeletedCount int      `json:"deletedCount"`
+	Unchanged    int      `json:"unchanged"`
+	// Clients with one of the node's inbounds that its access list leaves out.
+	Skipped int    `json:"skipped"`
+	Error   string `json:"error,omitempty"`
+}
+
+func (r *SyncReport) note(list *[]string, count *int, name string) {
+	*count++
+	if len(*list) < syncReportNames {
+		*list = append(*list, name)
+	}
+}
+
+func saveSyncReport(nodeID uint, r *SyncReport) {
+	raw, err := json.Marshal(r)
+	if err != nil {
+		return
+	}
+	if err := database.GetDB().Model(model.Node{}).Where("id = ?", nodeID).Update("sync_report", raw).Error; err != nil {
+		logger.Warning("nodes: save sync report: ", err)
+	}
+}
+
+func (s *NodeSyncService) runReconcile(nodeID uint, startGen uint64, trigger string) (err error) {
 	node, err := s.getNodeByID(nodeID)
 	if err != nil {
 		return err
 	}
+	started := time.Now()
+	report := SyncReport{At: started.Unix(), Trigger: trigger, Added: []string{}, Edited: []string{}, Deleted: []string{}}
+	defer func() {
+		report.Duration = time.Since(started).Milliseconds()
+		if err != nil {
+			report.Error = err.Error()
+		}
+		saveSyncReport(nodeID, &report)
+	}()
 	client := nodePushClient(node)
 	defer closeNodeIdle(client)
 	tagToID, err := s.nodeInboundTagMap(node, client)
@@ -346,33 +449,36 @@ func (s *NodeSyncService) runReconcile(nodeID uint, startGen uint64) error {
 	if s.refreshReplicas(node, client, tagToID) {
 		s.refreshNodeLinks(node)
 	}
-	expected, err := s.expectedClients(nodeID, tagToID)
+	expected, skipped, err := s.expectedClientsFor(node, tagToID)
 	if err != nil {
 		return err
 	}
+	report.Skipped = skipped
 	actual, err := s.actualClusterClients(node, client)
 	if err != nil {
 		return err
 	}
-	for name, want := range expected {
-		current, exists := actual[name]
-		if !exists {
-			if err := s.pushClient(node, client, "new", want); err != nil {
-				return common.NewErrorf("push new client %s to %s: %v", name, node.Name, err)
-			}
-		} else if clientDiffers(want, current) {
-			want["id"] = current.Id
-			if err := s.pushClient(node, client, "edit", want); err != nil {
-				return common.NewErrorf("push edit client %s to %s: %v", name, node.Name, err)
-			}
+	plan := planSync(expected, actual, trigger == syncFull)
+	report.Unchanged = plan.Same
+	for _, name := range plan.Add {
+		if err := s.pushClient(node, client, "new", expected[name]); err != nil {
+			return common.NewErrorf("push new client %s to %s: %v", name, node.Name, err)
 		}
+		report.note(&report.Added, &report.AddedCount, name)
 	}
-	for name, current := range actual {
-		if _, exists := expected[name]; !exists {
-			if err := s.pushClient(node, client, "del", current.Id); err != nil {
-				return common.NewErrorf("delete stale client %s from %s: %v", name, node.Name, err)
-			}
+	for _, name := range plan.Edit {
+		want := expected[name]
+		want["id"] = actual[name].Id
+		if err := s.pushClient(node, client, "edit", want); err != nil {
+			return common.NewErrorf("push edit client %s to %s: %v", name, node.Name, err)
 		}
+		report.note(&report.Edited, &report.EditedCount, name)
+	}
+	for _, name := range plan.Del {
+		if err := s.pushClient(node, client, "del", actual[name].Id); err != nil {
+			return common.NewErrorf("delete stale client %s from %s: %v", name, node.Name, err)
+		}
+		report.note(&report.Deleted, &report.DeletedCount, name)
 	}
 	s.refreshNodeLinks(node)
 	now := time.Now().Unix()
@@ -388,9 +494,22 @@ func (s *NodeSyncService) runReconcile(nodeID uint, startGen uint64) error {
 }
 
 func (s *NodeSyncService) expectedClients(nodeID uint, tagToID map[string]uint) (map[string]map[string]interface{}, error) {
+	node := &model.Node{Id: nodeID}
+	var stored model.Node
+	if err := database.GetDB().First(&stored, nodeID).Error; err == nil {
+		node = &stored
+	}
+	expected, _, err := s.expectedClientsFor(node, tagToID)
+	return expected, err
+}
+
+// expectedClientsFor is the clients the node should have, as the master pushes
+// them, and how many clients with one of its inbounds its access list leaves
+// out.
+func (s *NodeSyncService) expectedClientsFor(node *model.Node, tagToID map[string]uint) (map[string]map[string]interface{}, int, error) {
 	var replicas []model.Inbound
-	if err := database.GetDB().Where("node_id = ?", nodeID).Find(&replicas).Error; err != nil {
-		return nil, err
+	if err := database.GetDB().Where("node_id = ?", node.Id).Find(&replicas).Error; err != nil {
+		return nil, 0, err
 	}
 	replicaTag := make(map[uint]string, len(replicas))
 	for _, replica := range replicas {
@@ -398,9 +517,10 @@ func (s *NodeSyncService) expectedClients(nodeID uint, tagToID map[string]uint) 
 	}
 	var clients []model.Client
 	if err := database.GetDB().Find(&clients).Error; err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	expected := map[string]map[string]interface{}{}
+	skipped := 0
 	for i := range clients {
 		client := &clients[i]
 		var inboundIDs []uint
@@ -418,6 +538,10 @@ func (s *NodeSyncService) expectedClients(nodeID uint, tagToID map[string]uint) 
 		if len(remoteIDs) == 0 {
 			continue
 		}
+		if !node.Access.Allows(client.Id, client.Group) {
+			skipped++
+			continue
+		}
 		encodedIDs, _ := json.Marshal(remoteIDs)
 		expected[client.Name] = map[string]interface{}{
 			"name": client.Name, "enable": client.Enable, "config": client.Config,
@@ -426,7 +550,70 @@ func (s *NodeSyncService) expectedClients(nodeID uint, tagToID map[string]uint) 
 			"limitIp": client.LimitIp,
 		}
 	}
-	return expected, nil
+	return expected, skipped, nil
+}
+
+// SyncPreview is what a sync of the node would do now, and what stands in its
+// way.
+type SyncPreview struct {
+	SyncPlan
+	// Inbounds adopted from the node, and the tags of those it no longer has.
+	Replicas int      `json:"replicas"`
+	Missing  []string `json:"missing"`
+	// The node serves only some clients; Skipped is how many it leaves out.
+	Restricted bool `json:"restricted"`
+	Skipped    int  `json:"skipped"`
+}
+
+// PreviewSync tells what a sync of the node would change, without changing
+// anything.
+func (s *NodeSyncService) PreviewSync(nodeID uint) (*SyncPreview, error) {
+	node, err := s.getNodeByID(nodeID)
+	if err != nil {
+		return nil, err
+	}
+	client := nodePushClient(node)
+	defer closeNodeIdle(client)
+	tagToID, err := s.nodeInboundTagMap(node, client)
+	if err != nil {
+		return nil, err
+	}
+	expected, skipped, err := s.expectedClientsFor(node, tagToID)
+	if err != nil {
+		return nil, err
+	}
+	actual, err := s.actualClusterClients(node, client)
+	if err != nil {
+		return nil, err
+	}
+	var replicas []model.Inbound
+	if err := database.GetDB().Select("id", "tag").Where("node_id = ?", nodeID).Find(&replicas).Error; err != nil {
+		return nil, err
+	}
+	out := &SyncPreview{SyncPlan: planSync(expected, actual, false), Replicas: len(replicas), Missing: []string{}, Restricted: node.Access.Restricted(), Skipped: skipped}
+	for _, r := range replicas {
+		if _, ok := tagToID[r.Tag]; !ok {
+			out.Missing = append(out.Missing, r.Tag)
+		}
+	}
+	sort.Strings(out.Missing)
+	return out, nil
+}
+
+// GetSyncReport is what the last sync of the node did; nil before the first.
+func (s *NodeSyncService) GetSyncReport(nodeID uint) (*SyncReport, error) {
+	var node model.Node
+	if err := database.GetDB().Select("id", "sync_report").First(&node, nodeID).Error; err != nil {
+		return nil, common.NewError("node not found")
+	}
+	if len(node.SyncReport) == 0 {
+		return nil, nil
+	}
+	var r SyncReport
+	if err := json.Unmarshal(node.SyncReport, &r); err != nil {
+		return nil, nil
+	}
+	return &r, nil
 }
 
 func (s *NodeSyncService) actualClusterClients(node *model.Node, client *http.Client) (map[string]nodeClientState, error) {
@@ -654,6 +841,10 @@ func (s *NodeSyncService) refreshNodeLinks(node *model.Node) {
 		var inboundIDs []uint
 		_ = json.Unmarshal(client.Inbounds, &inboundIDs)
 		desired := []map[string]string{}
+		if !node.Access.Allows(client.Id, client.Group) {
+			// The node does not serve this client: none of its links.
+			inboundIDs = nil
+		}
 		for _, inboundID := range inboundIDs {
 			replica, exists := replicaByID[inboundID]
 			if !exists {

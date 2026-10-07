@@ -34,7 +34,16 @@ func schema() []table {
 		{"changes", &model.Changes{}, copyRows[model.Changes]},
 		{"bot_quotas", &model.BotQuota{}, copyRows[model.BotQuota]},
 		{"bot_quota_clients", &model.BotQuotaClient{}, copyRows[model.BotQuotaClient]},
+		{"node_metrics", &model.NodeMetric{}, copyRows[model.NodeMetric]},
+		{"node_outages", &model.NodeOutage{}, copyRows[model.NodeOutage]},
+		{"node_traffic", &model.NodeTraffic{}, copyRows[model.NodeTraffic]},
 	}
+}
+
+// excludedWith names the tables a backup leaves out along with another: the
+// per-minute node history is traffic history just like stats.
+var excludedWith = map[string][]string{
+	"stats": {"node_metrics"},
 }
 
 // schemaModels returns the models in schema order, for AutoMigrate.
@@ -47,13 +56,20 @@ func schemaModels() []any {
 	return models
 }
 
+// copyRowsBatch is how many rows one statement writes. A single INSERT of a
+// big table runs into SQLite's limit on bound variables.
+const copyRowsBatch = 200
+
 func copyRows[T any](src, dst *gorm.DB) error {
 	var rows []T
 	if err := src.Model(new(T)).Scan(&rows).Error; err != nil {
 		return err
 	}
-	if len(rows) == 0 {
-		return nil
+	for start := 0; start < len(rows); start += copyRowsBatch {
+		end := min(start+copyRowsBatch, len(rows))
+		if err := dst.Save(rows[start:end]).Error; err != nil {
+			return err
+		}
 	}
-	return dst.Save(rows).Error
+	return nil
 }

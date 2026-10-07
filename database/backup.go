@@ -28,6 +28,9 @@ func GetDb(exclude string) ([]byte, error) {
 		name = strings.TrimSpace(name)
 		if name != "" {
 			excluded[name] = true
+			for _, with := range excludedWith[name] {
+				excluded[with] = true
+			}
 		}
 	}
 

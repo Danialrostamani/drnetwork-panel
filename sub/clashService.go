@@ -83,7 +83,8 @@ func (s *ClashService) GetClash(subId string) (*string, []string, error) {
 		return nil, nil, err
 	}
 
-	extOutbounds, extTags := s.LinkService.GetExternalOutbounds(&client.Links)
+	links := service.FilterNodeLinks(client)
+	extOutbounds, extTags := s.LinkService.GetExternalOutbounds(&links)
 	*outbounds = append(*outbounds, extOutbounds...)
 	*outTags = append(*outTags, extTags...)
 

@@ -72,6 +72,8 @@ func (a *APIHandler) postHandler(c *gin.Context) {
 		a.ApiService.AdoptInbounds(c, loginUser)
 	case "reconcileNode":
 		a.ApiService.ReconcileNode(c)
+	case "nodeAction":
+		a.ApiService.NodeAction(c, loginUser)
 	default:
 		jsonMsg(c, "failed", common.NewError("unknown action: ", action))
 	}
@@ -121,6 +123,30 @@ func (a *APIHandler) getHandler(c *gin.Context) {
 		a.ApiService.GetCheckOutbound(c)
 	case "nodeInbounds":
 		a.ApiService.GetNodeInbounds(c)
+	case "nodeOnlines":
+		a.ApiService.GetNodeOnlines(c)
+	case "nodeHistory":
+		a.ApiService.GetNodeHistory(c)
+	case "nodeOutages":
+		a.ApiService.GetNodeOutages(c)
+	case "nodeTraffic":
+		a.ApiService.GetNodeTraffic(c)
+	case "nodeLogs":
+		a.ApiService.GetNodeLogs(c)
+	case "nodeChanges":
+		a.ApiService.GetNodeChanges(c)
+	case "nodeOutbounds":
+		a.ApiService.GetNodeOutbounds(c)
+	case "nodeCheckOutbound":
+		a.ApiService.GetNodeCheckOutbound(c)
+	case "nodeSyncPreview":
+		a.ApiService.GetNodeSyncPreview(c)
+	case "nodeSyncReport":
+		a.ApiService.GetNodeSyncReport(c)
+	case "nodeBackup":
+		a.ApiService.GetNodeBackup(c)
+	case "nodesBackup":
+		a.ApiService.GetNodesBackup(c)
 	default:
 		jsonMsg(c, "failed", common.NewError("unknown action: ", action))
 	}
