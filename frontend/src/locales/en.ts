@@ -300,6 +300,7 @@ export default {
     subEncode: "Enable Encoding",
     subInfo: "Enable Client Info",
     subPage: "Status page in browsers",
+    subLoadOrder: "Least loaded nodes first",
     path: "Default Path",
     update: "Automatic Update Time",
     subUri: "Subscription URI",

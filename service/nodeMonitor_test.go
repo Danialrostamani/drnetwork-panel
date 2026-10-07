@@ -584,3 +584,42 @@ func TestFilterNodeLinksHidesDownAndRestrictedNodes(t *testing.T) {
 		t.Fatal("no client, no links")
 	}
 }
+
+func TestFilterNodeLinksOrdersByLoad(t *testing.T) {
+	resetNodeState(t)
+	db := database.GetDB()
+	busy := model.Node{Name: "busy", Enable: true, BaseUrl: "http://a", Token: "t"}
+	idle := model.Node{Name: "idle", Enable: true, BaseUrl: "http://b", Token: "t"}
+	down := model.Node{Name: "down", Enable: true, BaseUrl: "http://c", Token: "t"}
+	for _, n := range []*model.Node{&busy, &idle, &down} {
+		db.Create(n)
+	}
+	nodeStatusMu.Lock()
+	nodeStatuses[busy.Id] = NodeStatus{State: "online", Cpu: 85, CpuCount: 2, Online: 40}
+	nodeStatuses[idle.Id] = NodeStatus{State: "online", Cpu: 12, CpuCount: 2, Online: 3}
+	nodeStatuses[down.Id] = NodeStatus{State: "offline"}
+	nodeStatusMu.Unlock()
+	links := json.RawMessage(`[{"type":"local","remark":"mine","uri":"1"},{"type":"external","remark":"[down] x","uri":"2"},` +
+		`{"type":"external","remark":"[busy] y","uri":"3"},{"type":"external","remark":"other","uri":"4"},{"type":"external","remark":"[idle] z","uri":"5"}]`)
+	order := func() string {
+		var ls []map[string]string
+		_ = json.Unmarshal(FilterNodeLinks(&model.Client{Id: 1, Links: links}), &ls)
+		out := ""
+		for _, l := range ls {
+			out += l["uri"]
+		}
+		return out
+	}
+	invalidateNodeLinkRules()
+	if got := order(); got != "12345" {
+		t.Fatalf("ordering off: %s", got)
+	}
+	db.Where("key = ?", "subLoadOrder").Delete(&model.Setting{})
+	db.Create(&model.Setting{Key: "subLoadOrder", Value: "true"})
+	t.Cleanup(func() { db.Where("key = ?", "subLoadOrder").Delete(&model.Setting{}) })
+	invalidateNodeLinkRules()
+	// Node links trade places, least loaded first; the others stay put.
+	if got := order(); got != "15342" {
+		t.Fatalf("by load: %s, want 15342", got)
+	}
+}

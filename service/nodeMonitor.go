@@ -884,6 +884,23 @@ func deleteNodeHistory(tx *gorm.DB, id uint) error {
 type nodeLinkRule struct {
 	hidden bool
 	access model.NodeAccess
+	// load orders the node's links when the subscriptions put the least
+	// loaded nodes first; lower comes first. Zero while that is off.
+	load int64
+}
+
+// nodeLoadScore ranks a node for the load ordering: by CPU in steps of ten
+// percent, so a small swing does not reshuffle the links, then by the users
+// online per core. A node not online goes last.
+func nodeLoadScore(st NodeStatus) int64 {
+	if st.State != "online" {
+		return 1 << 40
+	}
+	cores := st.CpuCount
+	if cores < 1 {
+		cores = 1
+	}
+	return 1 + int64(st.Cpu/10)*1_000_000 + int64(st.Online*100/cores)
 }
 
 var (
@@ -913,11 +930,17 @@ func currentNodeLinkRules() map[string]nodeLinkRule {
 		logger.Warning("nodes: load link rules: ", err)
 		return nodeLinkRulesCache
 	}
+	var settings SettingService
+	byLoad, _ := settings.getBool("subLoadOrder")
 	nodeStatusMu.RLock()
 	rules := map[string]nodeLinkRule{}
 	for _, n := range nodes {
-		r := nodeLinkRule{hidden: nodeStatuses[n.Id].Hidden != "", access: n.Access}
-		if r.hidden || r.access.Restricted() {
+		st := nodeStatuses[n.Id]
+		r := nodeLinkRule{hidden: st.Hidden != "", access: n.Access}
+		if byLoad {
+			r.load = nodeLoadScore(st)
+		}
+		if r.hidden || r.access.Restricted() || byLoad {
 			rules[n.Name] = r
 		}
 	}
@@ -948,7 +971,9 @@ func FilterNodeLinks(client *model.Client) json.RawMessage {
 	// Longest first, so node "a" never claims the links of node "a b".
 	sort.Slice(names, func(i, j int) bool { return len(names[i]) > len(names[j]) })
 	kept := make([]map[string]interface{}, 0, len(links))
-	dropped := false
+	// The load of each kept node link, by its place in kept.
+	loads := map[int]int64{}
+	changed := false
 	for _, link := range links {
 		typ, _ := link["type"].(string)
 		remark, _ := link["remark"].(string)
@@ -958,17 +983,23 @@ func FilterNodeLinks(client *model.Client) json.RawMessage {
 				if strings.HasPrefix(remark, nodeLinkPrefix(name)) {
 					r := rules[name]
 					drop = r.hidden || !r.access.Allows(client.Id, client.Group)
+					if !drop && r.load > 0 {
+						loads[len(kept)] = r.load
+					}
 					break
 				}
 			}
 			if drop {
-				dropped = true
+				changed = true
 				continue
 			}
 		}
 		kept = append(kept, link)
 	}
-	if !dropped {
+	if orderByLoad(kept, loads) {
+		changed = true
+	}
+	if !changed {
 		return client.Links
 	}
 	out, err := json.Marshal(kept)
@@ -976,4 +1007,32 @@ func FilterNodeLinks(client *model.Client) json.RawMessage {
 		return client.Links
 	}
 	return out
+}
+
+// orderByLoad sorts the node links among themselves, least loaded first, in
+// the places node links held; every other link stays where it was. It tells
+// whether anything moved.
+func orderByLoad(links []map[string]interface{}, loads map[int]int64) bool {
+	if len(loads) < 2 {
+		return false
+	}
+	slots := make([]int, 0, len(loads))
+	for i := range loads {
+		slots = append(slots, i)
+	}
+	sort.Ints(slots)
+	order := append([]int(nil), slots...)
+	sort.SliceStable(order, func(a, b int) bool { return loads[order[a]] < loads[order[b]] })
+	moved := false
+	picked := make([]map[string]interface{}, len(order))
+	for k, from := range order {
+		picked[k] = links[from]
+		if from != slots[k] {
+			moved = true
+		}
+	}
+	for k, at := range slots {
+		links[at] = picked[k]
+	}
+	return moved
 }

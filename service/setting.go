@@ -89,6 +89,7 @@ var defaultValueMap = map[string]string{
 	"subEncode":          "true",
 	"subShowInfo":        "false",
 	"subPage":            "true",
+	"subLoadOrder":       "false",
 	"subURI":             "",
 	"subJsonExt":         "",
 	"subClashExt":        "",

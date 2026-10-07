@@ -202,6 +202,7 @@ export default {
     subEncode: "Kích hoạt mã hóa",
     subInfo: "Kích hoạt thông tin khách hàng",
     subPage: "Trang trạng thái trong trình duyệt",
+    subLoadOrder: "Ưu tiên node ít tải",
     path: "Đường dẫn mặc định",
     update: "Thời gian cập nhật tự động",
     subUri: "URI đăng ký",
