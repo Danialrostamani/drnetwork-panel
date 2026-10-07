@@ -330,6 +330,9 @@ func (b *bot) nodeEventText(e service.NodeEvent) string {
 	return ""
 }
 
+// firstCheckKey marks in the reported set that the clients were checked once.
+const firstCheckKey = "\x00checked"
+
 // clientAlert is one line of the client alert; group tells which group-limited
 // administrators it is for.
 type clientAlert struct {
@@ -352,22 +355,34 @@ func (b *bot) checkClients(ctx context.Context, reported map[string]bool) {
 			b.send(ctx, owner.TgId, b.t("userAlertTitle", esc(owner.Name))+"\n"+reason)
 		}
 	}
+	// The first check after the start only notes what is already over: those
+	// clients were told before, and the chat should not fill up with them.
+	first := !reported[firstCheckKey]
+	current[firstCheckKey] = true
 	for _, c := range b.loadClients() {
-		if !c.Enable {
-			continue
-		}
 		owner = c
+		// The panel turns a client off a few seconds after its volume or time
+		// runs out, so a client that is off still gets those two alerts; the
+		// early warnings are for the clients still on.
+		over := func(key, reason string) {
+			if first && !c.Enable {
+				current[key] = true
+				reported[key] = true
+				return
+			}
+			add(key, reason)
+		}
 		if p := usagePercent(c); p >= 100 {
-			add(c.Name+"|vol", b.t("alertDepleted"))
-		} else if p >= volumeAlertPercent {
-			add(c.Name+"|vol", b.t("alertVolume", p))
+			over(c.Name+"|vol100", b.t("alertDepleted"))
+		} else if p >= volumeAlertPercent && c.Enable {
+			add(c.Name+"|vol90", b.t("alertVolume", p))
 		}
 		if c.Expiry > 0 {
 			left := time.Unix(c.Expiry, 0).Sub(now)
 			if left <= 0 {
-				add(c.Name+"|exp", b.t("alertExpired"))
-			} else if left <= expiryAlertDays*24*time.Hour {
-				add(c.Name+"|exp", b.t("alertExpiry", expiryAlertDays))
+				over(c.Name+"|expired", b.t("alertExpired"))
+			} else if left <= expiryAlertDays*24*time.Hour && c.Enable {
+				add(c.Name+"|exp3d", b.t("alertExpiry", expiryAlertDays))
 			}
 		}
 	}

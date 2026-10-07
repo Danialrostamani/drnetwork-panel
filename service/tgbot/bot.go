@@ -10,10 +10,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -376,36 +378,67 @@ func (b *bot) scrub(s string) string {
 	return strings.ReplaceAll(s, b.cfg.Token, "***")
 }
 
+// maxRetryAfter is the longest flood-control wait the bot sits out before
+// trying a request again; longer ones fail as before.
+var maxRetryAfter = 30 * time.Second
+
 func (b *bot) call(ctx context.Context, method string, params, out interface{}) error {
 	body, err := json.Marshal(params)
 	if err != nil {
 		return err
 	}
+	for attempt := 0; ; attempt++ {
+		wait, err := b.callOnce(ctx, method, body, out)
+		// Telegram answers 429 with the seconds to wait when messages go
+		// out too fast, as in a burst of alerts: wait and send again rather
+		// than lose the message. Long polls are not worth waiting for.
+		if wait <= 0 || attempt >= 2 || method == "getUpdates" || wait > maxRetryAfter {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return err
+		case <-time.After(wait):
+		}
+	}
+}
+
+// callOnce sends one request; on flood control it also returns how long
+// Telegram asked to wait.
+func (b *bot) callOnce(ctx context.Context, method string, body []byte, out interface{}) (time.Duration, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiBase+"/bot"+b.cfg.Token+"/"+method, bytes.NewReader(body))
 	if err != nil {
-		return errors.New(b.scrub(err.Error()))
+		return 0, errors.New(b.scrub(err.Error()))
 	}
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := b.client.Do(req)
 	if err != nil {
-		return errors.New(b.scrub(err.Error()))
+		return 0, errors.New(b.scrub(err.Error()))
 	}
 	defer resp.Body.Close()
 	var reply struct {
 		Ok          bool            `json:"ok"`
 		Result      json.RawMessage `json:"result"`
 		Description string          `json:"description"`
+		ErrorCode   int             `json:"error_code"`
+		Parameters  struct {
+			RetryAfter int `json:"retry_after"`
+		} `json:"parameters"`
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 8<<20)).Decode(&reply); err != nil {
-		return fmt.Errorf("telegram %s: HTTP %d", method, resp.StatusCode)
+		return 0, fmt.Errorf("telegram %s: HTTP %d", method, resp.StatusCode)
 	}
 	if !reply.Ok {
-		return fmt.Errorf("telegram %s: %s", method, b.scrub(reply.Description))
+		err := fmt.Errorf("telegram %s: %s", method, b.scrub(reply.Description))
+		if reply.ErrorCode == http.StatusTooManyRequests && reply.Parameters.RetryAfter > 0 {
+			return time.Duration(reply.Parameters.RetryAfter) * time.Second, err
+		}
+		return 0, err
 	}
 	if out != nil && len(reply.Result) > 0 {
-		return json.Unmarshal(reply.Result, out)
+		return 0, json.Unmarshal(reply.Result, out)
 	}
-	return nil
+	return 0, nil
 }
 
 type chat struct {
@@ -525,11 +558,31 @@ func (b *bot) sendKeyboard(ctx context.Context, chatID int64, text string, keybo
 		if keyboard != nil && i == len(parts)-1 {
 			params["reply_markup"] = map[string]any{"inline_keyboard": keyboard}
 		}
-		if err := b.call(ctx, "sendMessage", params, nil); err != nil && ctx.Err() == nil {
+		err := b.call(ctx, "sendMessage", params, nil)
+		if err != nil && ctx.Err() == nil && isEntityError(err) {
+			// A split can cut an HTML tag in two, which Telegram refuses:
+			// the text still gets through without the formatting.
+			params["text"] = plainText(chunk)
+			delete(params, "parse_mode")
+			err = b.call(ctx, "sendMessage", params, nil)
+		}
+		if err != nil && ctx.Err() == nil {
 			logger.Warning("telegram bot: send failed: ", err)
 			return
 		}
 	}
+}
+
+var htmlTag = regexp.MustCompile(`</?[a-zA-Z][^<>]*>?`)
+
+// isEntityError tells a message Telegram could not parse as HTML.
+func isEntityError(err error) bool {
+	return strings.Contains(err.Error(), "can't parse entities")
+}
+
+// plainText drops the HTML formatting of a message.
+func plainText(s string) string {
+	return html.UnescapeString(htmlTag.ReplaceAllString(s, ""))
 }
 
 // edit rewrites a message in place, which keeps button presses from piling up

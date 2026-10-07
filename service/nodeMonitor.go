@@ -127,7 +127,6 @@ type nodeMonitorState struct {
 	capCycle             int64
 	hidden               string
 	hiddenKnown          bool
-	lastFlushHourChecked int64
 }
 
 var (
