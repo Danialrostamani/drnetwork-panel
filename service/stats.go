@@ -38,18 +38,24 @@ var (
 type StatsService struct {
 }
 
+// SaveStats drains the core's counters into the database, then hands the core
+// the quotas that follow from it. Both under quotaMu: the quotas count from
+// the drain, so the database must have exactly the traffic up to it.
 func (s *StatsService) SaveStats(enableTraffic bool, bucketSeconds int64) error {
-	if corePtr == nil || !corePtr.IsRunning() {
-		return nil
-	}
-	box := corePtr.GetInstance()
-	if box == nil {
-		return nil
-	}
-	st := box.SessionTracker()
+	quotaMu.Lock()
+	defer quotaMu.Unlock()
+	st := liveSessionTracker()
 	if st == nil {
 		return nil
 	}
+	err := s.saveStats(st, enableTraffic, bucketSeconds)
+	// Also after a failed commit: the traffic held back for the next cycle is
+	// counted as used.
+	refreshQuotasLocked(st)
+	return err
+}
+
+func (s *StatsService) saveStats(st *core.SessionTracker, enableTraffic bool, bucketSeconds int64) error {
 	drained := st.GetStats()
 
 	statsMu.Lock()

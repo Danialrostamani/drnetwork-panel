@@ -266,6 +266,7 @@ func (s *ConfigService) startCoreLocked(bypassCooldown bool) error {
 	failMu.Lock()
 	lastStartFailTime = time.Time{}
 	failMu.Unlock()
+	RefreshQuotas()
 	logger.Info("sing-box started")
 	return nil
 }
@@ -336,6 +337,7 @@ func (s *ConfigService) restartCoreNow() error {
 	failMu.Lock()
 	lastStartFailTime = time.Time{}
 	failMu.Unlock()
+	RefreshQuotas()
 	logger.Info("sing-box restarted with new config")
 	return nil
 }

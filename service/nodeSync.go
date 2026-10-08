@@ -972,7 +972,7 @@ func (s *NodeSyncService) collectNodeTraffic(node *model.Node) error {
 			seenOnline[name] = true
 		}
 	}
-	return db.Transaction(func(tx *gorm.DB) error {
+	err = db.Transaction(func(tx *gorm.DB) error {
 		for name, value := range deltas {
 			if err := tx.Model(model.Client{}).Where("name = ?", name).Updates(map[string]interface{}{
 				"up":        gorm.Expr("up + ?", value.up),
@@ -992,6 +992,33 @@ func (s *NodeSyncService) collectNodeTraffic(node *model.Node) error {
 		}
 		return tx.Model(model.Node{}).Where("id = ?", node.Id).Update("baselines", encoded).Error
 	})
+	if err != nil {
+		return err
+	}
+	s.pushQuotas(node, client, current)
+	return nil
+}
+
+// pushQuotas tells the node what each capped client may still use there, so
+// its core cuts the client off at the byte instead of when the master gets to
+// see the traffic. A node too old to know the action answers with an error,
+// which only costs it the byte-exact cut.
+func (s *NodeSyncService) pushQuotas(node *model.Node, client *http.Client, current map[string]nodeClientState) {
+	totals, err := masterQuotaTotals(current)
+	if err != nil {
+		logger.Debug("nodes: quotas for ", node.Name, ": ", err)
+		return
+	}
+	if totals == nil {
+		totals = map[string]int64{}
+	}
+	data, err := json.Marshal(totals)
+	if err != nil {
+		return
+	}
+	if _, err := s.nodePost(node, client, "quota", url.Values{"data": {string(data)}}); err != nil {
+		logger.Debug("nodes: push quotas to ", node.Name, ": ", err)
+	}
 }
 
 // nodeFreshOnlineUsers returns the users a node reported as connected within

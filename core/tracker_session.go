@@ -72,6 +72,11 @@ type SessionTracker struct {
 	outbounds map[string]Counter
 	users     map[string]Counter
 	sessions  map[uint64]*Session
+	// quotas holds every user to the volume the panel set with SetQuotas.
+	quotas map[string]*userQuota
+	// onExhausted, set before the core starts, cuts the protocol sessions of a
+	// user who ran out of volume.
+	onExhausted func(user string)
 	// nextID only has to be unique among live sessions, so it is a counter
 	// rather than a UUID: this runs on every connection.
 	nextID uint64
@@ -83,6 +88,7 @@ func NewSessionTracker() *SessionTracker {
 		outbounds: make(map[string]Counter),
 		users:     make(map[string]Counter),
 		sessions:  make(map[uint64]*Session),
+		quotas:    make(map[string]*userQuota),
 	}
 }
 
@@ -96,10 +102,18 @@ func (t *SessionTracker) loadOrCreateCounter(obj map[string]Counter, name string
 	return counter
 }
 
-// newSession registers the session and returns the counter slices to hand to
-// the counting conn: index 0 is the session's own counter, the rest are the
-// aggregates GetStats drains.
-func (t *SessionTracker) newSession(metadata adapter.InboundContext, matchedRule adapter.Rule, matchOutbound adapter.Outbound, network string) (*Session, []*atomic.Int64, []*atomic.Int64) {
+func countInto(counter *atomic.Int64) N.CountFunc {
+	return func(n int64) {
+		counter.Add(n)
+	}
+}
+
+// newSession registers the session and returns the count functions to hand to
+// the counting conn: the session's own counter first, then the aggregates
+// GetStats drains, then the user's quota. The quota comes last so that every
+// byte it has seen is already in the user's aggregate, and a drain can never
+// leave the database short of what the quota was told it has.
+func (t *SessionTracker) newSession(metadata adapter.InboundContext, matchedRule adapter.Rule, matchOutbound adapter.Outbound, network string) (*Session, *userQuota, []N.CountFunc, []N.CountFunc) {
 	// The router fills RouteRule and RouteOutbound in just before it calls the
 	// trackers, so both are reused rather than formatted a second time: a rule's
 	// String() is not free and this runs per connection.
@@ -130,8 +144,9 @@ func (t *SessionTracker) newSession(metadata adapter.InboundContext, matchedRule
 		session.Rule = matchedRule.String()
 	}
 
-	readCounter := []*atomic.Int64{session.Upload}
-	writeCounter := []*atomic.Int64{session.Download}
+	readCounter := []N.CountFunc{countInto(session.Upload)}
+	writeCounter := []N.CountFunc{countInto(session.Download)}
+	var quota *userQuota
 
 	t.access.Lock()
 	defer t.access.Unlock()
@@ -139,21 +154,25 @@ func (t *SessionTracker) newSession(metadata adapter.InboundContext, matchedRule
 	session.ID = t.nextID
 	if session.Inbound != "" {
 		counter := t.loadOrCreateCounter(t.inbounds, session.Inbound)
-		readCounter = append(readCounter, counter.read)
-		writeCounter = append(writeCounter, counter.write)
+		readCounter = append(readCounter, countInto(counter.read))
+		writeCounter = append(writeCounter, countInto(counter.write))
 	}
 	if session.Outbound != "" {
 		counter := t.loadOrCreateCounter(t.outbounds, session.Outbound)
-		readCounter = append(readCounter, counter.read)
-		writeCounter = append(writeCounter, counter.write)
+		readCounter = append(readCounter, countInto(counter.read))
+		writeCounter = append(writeCounter, countInto(counter.write))
 	}
 	if session.User != "" {
 		counter := t.loadOrCreateCounter(t.users, session.User)
-		readCounter = append(readCounter, counter.read)
-		writeCounter = append(writeCounter, counter.write)
+		readCounter = append(readCounter, countInto(counter.read))
+		writeCounter = append(writeCounter, countInto(counter.write))
+		quota = t.loadOrCreateQuota(session.User)
+		charge := t.chargeFunc(session.User, quota)
+		readCounter = append(readCounter, charge)
+		writeCounter = append(writeCounter, charge)
 	}
 	t.sessions[session.ID] = session
-	return session, readCounter, writeCounter
+	return session, quota, readCounter, writeCounter
 }
 
 func (t *SessionTracker) leave(session *Session) {
@@ -163,24 +182,33 @@ func (t *SessionTracker) leave(session *Session) {
 }
 
 func (t *SessionTracker) RoutedConnection(ctx context.Context, conn net.Conn, metadata adapter.InboundContext, matchedRule adapter.Rule, matchOutbound adapter.Outbound) net.Conn {
-	session, readCounter, writeCounter := t.newSession(metadata, matchedRule, matchOutbound, N.NetworkTCP)
+	session, quota, readCounter, writeCounter := t.newSession(metadata, matchedRule, matchOutbound, N.NetworkTCP)
 	tracked := &sessionConn{
-		ExtendedConn: bufio.NewInt64CounterConn(conn, readCounter, writeCounter),
+		ExtendedConn: bufio.NewCounterConn(conn, readCounter, writeCounter),
 		tracker:      t,
 		session:      session,
 	}
 	session.closer = tracked
+	// A user out of volume gets no new connection either. Checked after the
+	// session is registered, so a cut-off running at the same time cannot miss
+	// it.
+	if quota != nil && quota.exhausted() {
+		_ = tracked.Close()
+	}
 	return tracked
 }
 
 func (t *SessionTracker) RoutedPacketConnection(ctx context.Context, conn N.PacketConn, metadata adapter.InboundContext, matchedRule adapter.Rule, matchOutbound adapter.Outbound) N.PacketConn {
-	session, readCounter, writeCounter := t.newSession(metadata, matchedRule, matchOutbound, N.NetworkUDP)
+	session, quota, readCounter, writeCounter := t.newSession(metadata, matchedRule, matchOutbound, N.NetworkUDP)
 	tracked := &sessionPacketConn{
-		PacketConn: bufio.NewInt64CounterPacketConn(conn, readCounter, nil, writeCounter, nil),
+		PacketConn: bufio.NewCounterPacketConn(conn, readCounter, writeCounter),
 		tracker:    t,
 		session:    session,
 	}
 	session.closer = tracked
+	if quota != nil && quota.exhausted() {
+		_ = tracked.Close()
+	}
 	return tracked
 }
 
@@ -189,7 +217,8 @@ func (t *SessionTracker) RoutedFlow(ctx context.Context, metadata adapter.Inboun
 }
 
 // GetStats drains the aggregate counters. Destructive: every counter is reset,
-// so the caller owns the returned traffic.
+// so the caller owns the returned traffic. It is also the point the next
+// SetQuotas counts from.
 func (t *SessionTracker) GetStats() *[]model.Stats {
 	t.access.Lock()
 	defer t.access.Unlock()
@@ -208,6 +237,11 @@ func (t *SessionTracker) GetStats() *[]model.Stats {
 		}
 	}
 
+	// Before the user counters are drained: a byte counted between the two
+	// then makes the next SetQuotas stricter, never looser.
+	for _, quota := range t.quotas {
+		quota.atDrain = quota.used.Load()
+	}
 	for inbound, counter := range t.inbounds {
 		appendStat("inbound", inbound, counter.write.Swap(0), counter.read.Swap(0))
 	}

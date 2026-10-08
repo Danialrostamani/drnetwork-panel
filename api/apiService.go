@@ -310,6 +310,17 @@ func (a *ApiService) ApplyClusterBans(c *gin.Context) {
 	jsonMsg(c, "clusterBans", service.ApplyClusterBans(bans))
 }
 
+// ApplyNodeQuotas is the master telling this node how much each of its
+// clients may still use here.
+func (a *ApiService) ApplyNodeQuotas(c *gin.Context) {
+	var totals map[string]int64
+	if err := json.Unmarshal([]byte(c.PostForm("data")), &totals); err != nil {
+		jsonMsg(c, "quota", err)
+		return
+	}
+	jsonMsg(c, "quota", service.ApplyNodeQuotas(totals))
+}
+
 func (a *ApiService) GetSessions(c *gin.Context) {
 	resource := c.Query("resource")
 	if resource == "" {

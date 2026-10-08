@@ -109,8 +109,14 @@ func (c *Core) KickUserSessions(user string) int {
 	if err != nil {
 		return 0
 	}
+	return box.kickUserSessions(user)
+}
+
+// kickUserSessions cuts the protocol-level sessions of one user on every
+// inbound that keeps them.
+func (s *Box) kickUserSessions(user string) int {
 	kicked := 0
-	for _, inb := range box.inbound.Inbounds() {
+	for _, inb := range s.inbound.Inbounds() {
 		if closer, ok := inb.(usersession.Closer); ok {
 			kicked += closer.KickUserSessions(user)
 		}

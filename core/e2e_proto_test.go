@@ -355,3 +355,141 @@ func TestProtocolsEndToEnd(t *testing.T) {
 		})
 	}
 }
+
+// TestQuotaEndToEnd: a user who runs out of volume in the middle of a download
+// is cut off right there by the core itself, on every protocol, and cannot
+// connect again until the volume is renewed.
+func TestQuotaEndToEnd(t *testing.T) {
+	if raceEnabled {
+		t.Skip("starting a Box trips sing-box's own race in route.NetworkManager; see race_on_test.go")
+	}
+	if testing.Short() {
+		t.Skip("end-to-end protocol test")
+	}
+	const bigSize = 64 << 20
+	const quota = 256 << 10
+	web := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/big" {
+			_, _ = io.WriteString(w, "drnetwork-ok")
+			return
+		}
+		w.Header().Set("Content-Length", fmt.Sprint(bigSize))
+		chunk := make([]byte, 64<<10)
+		for sent := 0; sent < bigSize; sent += len(chunk) {
+			if _, err := w.Write(chunk); err != nil {
+				return
+			}
+		}
+	}))
+	defer web.Close()
+	target := strings.TrimPrefix(web.URL, "http://")
+
+	certPath, keyPath := e2eCert(t)
+	cases := e2eCases(certPath, keyPath)
+	var inbounds, outbounds []map[string]any
+	outbounds = append(outbounds, map[string]any{"type": "direct", "tag": "direct"})
+	for _, c := range cases {
+		p := e2ePort(t, c.udp)
+		in := c.in(p, []string{"u1", "u2"})
+		in["tag"] = "in-" + c.name
+		inbounds = append(inbounds, in)
+		out := c.out(p)
+		out["tag"] = "out-" + c.name
+		outbounds = append(outbounds, out)
+	}
+	cfg, _ := json.Marshal(map[string]any{
+		"log":       map[string]any{"level": "error"},
+		"inbounds":  inbounds,
+		"outbounds": outbounds,
+		"route":     map[string]any{"final": "direct"},
+	})
+	core := NewCore()
+	if err := core.Start(cfg); err != nil {
+		t.Fatalf("core start: %v", err)
+	}
+	t.Cleanup(func() { _ = core.Stop() })
+	box := core.GetInstance()
+	tracker := box.SessionTracker()
+
+	dialVia := func(name string) (net.Conn, error) {
+		ob, ok := box.Outbound().Outbound("out-" + name)
+		if !ok {
+			return nil, fmt.Errorf("no outbound")
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+		defer cancel()
+		return ob.DialContext(ctx, N.NetworkTCP, M.ParseSocksaddr(target))
+	}
+	fetch := func(name string) error {
+		conn, err := dialVia(name)
+		if err != nil {
+			return err
+		}
+		defer conn.Close()
+		body, err := e2eGet(conn, target)
+		if err != nil {
+			return err
+		}
+		if body != "drnetwork-ok" {
+			return fmt.Errorf("body %q", body)
+		}
+		return nil
+	}
+	download := func(name string) (int64, error) {
+		conn, err := dialVia(name)
+		if err != nil {
+			return 0, err
+		}
+		defer conn.Close()
+		_ = conn.SetDeadline(time.Now().Add(20 * time.Second))
+		if _, err := fmt.Fprintf(conn, "GET /big HTTP/1.1\r\nHost: %s\r\n\r\n", target); err != nil {
+			return 0, err
+		}
+		return io.Copy(io.Discard, conn)
+	}
+	u1Quota := func() *userQuota {
+		tracker.access.Lock()
+		defer tracker.access.Unlock()
+		return tracker.quotas["u1"]
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			// A fresh volume for this protocol: what the database has, plus
+			// quota bytes.
+			tracker.GetStats()
+			tracker.SetQuotas(map[string]int64{"u1": quota})
+			if err := fetch(c.name); err != nil {
+				t.Fatalf("fetch with volume left: %v", err)
+			}
+
+			got, _ := download(c.name)
+			if got >= bigSize {
+				t.Fatalf("the whole %d bytes came through a %d byte volume", got, quota)
+			}
+			q := u1Quota()
+			if q == nil || !q.exhausted() {
+				t.Fatal("u1 is not out of volume after the download")
+			}
+			over := q.used.Load() - q.limit.Load()
+			t.Logf("received %d bytes; %d bytes past the volume", got, over)
+			if over > 16<<20 {
+				t.Errorf("%d bytes past the volume", over)
+			}
+			if err := fetch(c.name); err == nil {
+				t.Fatal("a user out of volume could connect again")
+			}
+
+			// QUIC sessions are muted for a while after a kick; the renewal is
+			// checked on the others.
+			if c.udp {
+				return
+			}
+			tracker.GetStats()
+			tracker.SetQuotas(map[string]int64{"u1": 1 << 30})
+			if err := fetch(c.name); err != nil {
+				t.Fatalf("fetch after the volume was renewed: %v", err)
+			}
+		})
+	}
+}

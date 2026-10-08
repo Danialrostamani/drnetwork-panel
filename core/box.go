@@ -473,7 +473,7 @@ func NewBox(options Options) (*Box, error) {
 	router.AppendTracker(sessionTracker)
 	router.AppendTracker(connTracker)
 
-	return &Box{
+	box := &Box{
 		ctx:                 ctx,
 		network:             networkManager,
 		endpoint:            endpointManager,
@@ -494,7 +494,9 @@ func NewBox(options Options) (*Box, error) {
 		sessionTracker:      sessionTracker,
 		connTracker:         connTracker,
 		done:                make(chan struct{}),
-	}, nil
+	}
+	sessionTracker.onExhausted = func(user string) { box.kickUserSessions(user) }
+	return box, nil
 }
 
 func (s *Box) PreStart() error {

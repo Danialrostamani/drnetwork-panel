@@ -68,6 +68,8 @@ func (a *APIv2Handler) postHandler(c *gin.Context) {
 		a.ApiService.GetCertPing(c)
 	case "clusterBans":
 		a.ApiService.ApplyClusterBans(c)
+	case "quota":
+		a.ApiService.ApplyNodeQuotas(c)
 	default:
 		jsonMsg(c, "failed", common.NewError("unknown action: ", action))
 	}
