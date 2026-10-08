@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import {
   alertValue, bytesToGb, capPercent, cloneNode, defaultNode, editableNode, emptyFilter, flagEmoji, gbToBytes, historySeries,
-  installCommand, matchesFilter, needsAttention, newNode, nodeCountries, nodePayload, nodeTags, nodeView, nodesHealth,
-  nodesSummary, panelUrl, parseMultiAdd, randomToken, sortNodes, uniqueName, usage, validHost, validPath,
+  installCommand, matchesFilter, needsAttention, newNode, nodeCountries, nodePayload, nodeTags, nodeVersion, nodeView,
+  nodesHealth, nodesSummary, panelUrl, parseMultiAdd, randomToken, sortNodes, uniqueName, usage, validHost, validPath,
+  versionLabel,
   type Node, type NodeHistory, type NodeState, type NodeStatus,
 } from './node'
 
@@ -314,5 +315,17 @@ describe('the history charts', () => {
     expect(s.times).toEqual([600, 900, 1200, 1500])
     expect(s.points.map(x => x?.t ?? null)).toEqual([600, null, 1200, null])
     expect(historySeries({ since: 0, bucket: 0, points: [p(5)] }, 10).times).toEqual([5])
+  })
+})
+
+describe('versions', () => {
+  it('writes panel versions with a v, old and new numbering alike', () => {
+    expect(versionLabel('32')).toBe('v32')
+    expect(versionLabel('v32')).toBe('v32')
+    expect(versionLabel('1.6.3-drnetwork.31')).toBe('v1.6.3-drnetwork.31')
+    expect(versionLabel('')).toBe('')
+    expect(nodeVersion({ appFull: '32', appVersion: '32' })).toBe('v32')
+    expect(nodeVersion({ appVersion: '1.6.3' })).toBe('v1.6.3')
+    expect(nodeVersion(undefined)).toBe('')
   })
 })

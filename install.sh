@@ -656,8 +656,10 @@ install_s-ui() {
         fi
         printf "${green}$(t got_version)${plain}\n" "${last_version}"
     else
+        # A bare number such as 32 is the release tagged v32.
         last_version=$1
-        printf "$(t begin_install)\n" "${1#v}" # the message has its own v
+        [[ "$last_version" == [0-9]* ]] && last_version="v${last_version}"
+        printf "$(t begin_install)\n" "${last_version#v}" # the message has its own v
     fi
 
     # No --no-check-certificate. It was on every download here, which turns the
@@ -734,7 +736,7 @@ install_s-ui() {
 }
 
 # Options. A bare first argument is the version to install, as it always was.
-#   --version <tag>      install this release instead of the latest
+#   --version <version>  install this release (such as 32) instead of the latest
 #   --node-token <token> set up a node for a master, without questions
 #   --port <port>        panel port (with --node-token)
 #   --path <path>        panel path (with --node-token)

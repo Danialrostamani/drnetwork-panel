@@ -104,7 +104,7 @@ func fetchLatestRelease() latestRelease {
 		return r
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("User-Agent", "drnetwork-panel/"+config.GetFullVersion())
+	req.Header.Set("User-Agent", "drnetwork-panel/"+config.GetVersion())
 	resp, err := (&http.Client{Timeout: 15 * time.Second}).Do(req)
 	if err != nil {
 		r.err = err
@@ -164,8 +164,8 @@ func versionNumbers(v string) []int {
 }
 
 // compareVersions orders two versions by their numbers, read left to right:
-// "v1.6.3-drnetwork.31" is 1 6 3 31, newer than "1.6.3-drnetwork.30" and
-// than a plain "1.6.3".
+// "v33" is newer than "32", and both are newer than "1.6.3-drnetwork.31"
+// (1 6 3 31), the numbering before DrNetwork had its own.
 func compareVersions(a, b string) int {
 	na, nb := versionNumbers(a), versionNumbers(b)
 	for i := 0; i < len(na) || i < len(nb); i++ {
@@ -323,7 +323,7 @@ func (s *PanelUpdateService) Start(lang, by string) (string, error) {
 	if rel.err != nil {
 		return "", common.NewError("the latest release is unknown: ", rel.err.Error())
 	}
-	current := config.GetFullVersion()
+	current := config.GetVersion()
 	if compareVersions(rel.tag, current) <= 0 {
 		return "", common.NewError("the panel is up to date: ", current)
 	}
@@ -356,7 +356,7 @@ func appendUpdateLog(path, text string) {
 // Info is the panel's version, the latest release (asked of GitHub again when
 // check is set) and the state of the last update.
 func (s *PanelUpdateService) Info(check bool) PanelUpdate {
-	out := PanelUpdate{Current: config.GetFullVersion()}
+	out := PanelUpdate{Current: config.GetVersion()}
 	h, why := updateHostCheck()
 	out.Unsupported = why
 	if why == "" {

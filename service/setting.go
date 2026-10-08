@@ -128,7 +128,7 @@ var defaultValueMap = map[string]string{
 	"globalReset":        "",
 	"globalResetLast":    "0",
 	"config":             defaultConfig,
-	"version":            config.GetVersion(),
+	"version":            config.GetSchemaVersion(),
 }
 
 type SettingService struct {

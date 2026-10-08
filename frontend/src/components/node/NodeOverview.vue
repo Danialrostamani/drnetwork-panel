@@ -80,7 +80,7 @@ import { computed } from 'vue'
 import { i18n } from '@/locales'
 import { fmtBytes, fmtDate, fmtDuration, fmtPercent, fmtTime } from './format'
 import { warningText } from './warnings'
-import { alertDefaults, usage, type AlertKey, type Node, type NodeStatus } from '@/types/node'
+import { alertDefaults, nodeVersion, usage, type AlertKey, type Node, type NodeStatus } from '@/types/node'
 import Data from '@/store/modules/data'
 
 const props = defineProps<{ node: Node; status?: NodeStatus; now: number }>()
@@ -101,7 +101,7 @@ const serverRows = computed(() => {
     { label: 'Swap', value: mem(s?.swap) },
     { label: t('node.bootTime'), value: s?.bootTime ? `${fmtTime(s.bootTime)} (${fmtDuration(props.now - s.bootTime)})` : '-' },
     { label: t('node.coreUptime'), value: s?.coreUptime ? fmtDuration(s.coreUptime) : '-' },
-    { label: t('node.panelVersion'), value: s?.appFull || s?.appVersion || '-' },
+    { label: t('node.panelVersion'), value: nodeVersion(s) || '-' },
     { label: t('node.coreVersion'), value: s?.coreVersion || '-' },
     { label: t('node.certExpiry'), value: s?.certExpiry ? `${fmtDate(s.certExpiry)} (${t('node.daysLeft', { n: Math.floor((s.certExpiry - props.now) / 86400) })})` : '-' },
     { label: t('node.checkedAt'), value: fmtTime(s?.checkedAt) },

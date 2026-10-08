@@ -337,7 +337,7 @@ jobs:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref_name }}
           # Releases go out under the project's name, e.g.
-          # "drnetwork-panel v1.6.3-drnetwork.31"; the tag stays as it is, since
+          # "drnetwork-panel v32"; the tag stays as it is, since
           # install.sh installs whatever tag the latest release has.
           release_name: "drnetwork-panel ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref_name }}"
           file: dist/*

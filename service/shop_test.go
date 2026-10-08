@@ -52,6 +52,43 @@ func TestShopWalletNeverGoesNegative(t *testing.T) {
 	}
 }
 
+// Every ledger line shows the balance its own change left, even when changes
+// race: adding up the amounts line by line gives each line's balance.
+func TestShopLedgerFollowsTheBalance(t *testing.T) {
+	shopDB(t)
+	s := &ShopService{}
+	if _, err := s.AddFunds(nil, 9, 100, "topup", 0, 0); err != nil {
+		t.Fatal(err)
+	}
+	var wg sync.WaitGroup
+	for i := 0; i < 40; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			amount := int64(20)
+			if i%2 == 1 {
+				amount = -30
+			}
+			_, _ = s.AddFunds(nil, 9, amount, "race", 0, 0)
+		}(i)
+	}
+	wg.Wait()
+	var txs []model.ShopWalletTx
+	if err := database.GetDB().Where("tg_id = ?", 9).Order("id ASC").Find(&txs).Error; err != nil {
+		t.Fatal(err)
+	}
+	var sum int64
+	for _, tx := range txs {
+		sum += tx.Amount
+		if tx.Balance != sum || sum < 0 {
+			t.Fatalf("line %d shows balance %d, the changes up to it add up to %d", tx.Id, tx.Balance, sum)
+		}
+	}
+	if len(txs) < 21 || sum != s.Balance(9) {
+		t.Fatalf("%d lines adding up to %d, wallet holds %d", len(txs), sum, s.Balance(9))
+	}
+}
+
 func TestShopOrderIsDecidedOnce(t *testing.T) {
 	shopDB(t)
 	s := &ShopService{}

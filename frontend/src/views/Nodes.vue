@@ -541,7 +541,7 @@
         {{ fmtUptime(statuses[item.id]?.uptime24) }}
       </template>
       <template #item.version="{ item }">
-        <span dir="ltr">{{ statuses[item.id]?.appFull || statuses[item.id]?.appVersion || '-' }}</span>
+        <span dir="ltr">{{ nodeVersion(statuses[item.id]) || '-' }}</span>
       </template>
       <template #item.actions="{ item }">
         <div class="d-flex align-center justify-end">
@@ -617,8 +617,8 @@ import { fmtBytes, fmtPercent, fmtSpeed, fmtUptime } from '@/components/node/for
 import { warningText } from '@/components/node/warnings'
 import { runNodeAction } from '@/components/node/actions'
 import {
-  capPercent, cloneNode, confirmActions, flagEmoji, matchesFilter, nodeCountries, nodeSortKeys, nodeTags, nodeView,
-  nodesSummary, sortNodes, usage, viewColor, viewIcon, viewLabelKey,
+  capPercent, cloneNode, confirmActions, flagEmoji, matchesFilter, nodeCountries, nodeSortKeys, nodeTags, nodeVersion,
+  nodeView, nodesSummary, sortNodes, usage, viewColor, viewIcon, viewLabelKey,
   type Node, type NodeAction, type NodeSortKey, type NodeStateFilter, type NodeStatus, type NodeView,
 } from '@/types/node'
 import { i18n } from '@/locales'

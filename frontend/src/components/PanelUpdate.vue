@@ -31,7 +31,7 @@
           <tr>
             <td>{{ $t('panelUpdate.current') }}</td>
             <td dir="ltr">
-              {{ info.current || '—' }}
+              {{ info.current ? versionLabel(info.current) : '—' }}
             </td>
           </tr>
           <tr>
@@ -153,6 +153,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import api from '@/plugins/api'
 import HttpUtils from '@/plugins/httputil'
 import { i18n, locale } from '@/locales'
+import { versionLabel } from '@/types/node'
 
 // What GET api/panelUpdate answers: the panel's version, the latest release
 // and the last update started from the panel.
@@ -219,7 +220,7 @@ const statusText = computed(() => {
     case 'restarting':
       return t('panelUpdate.restarting')
     case 'done':
-      return t('panelUpdate.done', [info.value.current])
+      return t('panelUpdate.done', [versionLabel(info.value.current)])
     case 'failed':
       return t('panelUpdate.failed')
     case 'lost':

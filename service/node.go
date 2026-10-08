@@ -39,8 +39,8 @@ type NodeStatus struct {
 	Mem     NodeMem `json:"mem"`
 	Disk    NodeMem `json:"disk"`
 	Swap    NodeMem `json:"swap"`
-	// AppFull is the whole release, such as 1.6.3-drnetwork.22; older nodes
-	// only report AppVersion.
+	// AppFull is the release, such as 32 (1.6.3-drnetwork.31 before DrNetwork
+	// had version numbers of its own); older nodes only report AppVersion.
 	AppVersion  string   `json:"appVersion"`
 	AppFull     string   `json:"appFull,omitempty"`
 	CoreVersion string   `json:"coreVersion"`

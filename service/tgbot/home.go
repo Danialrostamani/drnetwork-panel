@@ -69,7 +69,7 @@ func (b *bot) homeText() string {
 	netw, sbd, dbi := asMap(st["net"]), asMap(st["sbd"]), asMap(st["db"])
 
 	cpu := toFloat(st["cpu"])
-	lines := []string{b.header("🏠", "DrNetwork "+esc(config.GetFullVersion()))}
+	lines := []string{b.header("🏠", "DrNetwork "+esc(config.VersionLabel(config.GetVersion())))}
 	if h, _ := sys["hostName"].(string); h != "" {
 		lines = append(lines, "🖥 <b>"+esc(h)+"</b>")
 	}

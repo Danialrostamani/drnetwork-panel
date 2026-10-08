@@ -275,7 +275,7 @@ func (b *bot) nodeWarningText(name string, w service.NodeWarning) string {
 		}
 		return head + fmt.Sprintf(b.tr("گواهی TLS پنل نود تا %d روز دیگر منقضی می‌شود.", "The node panel's TLS certificate expires in %d days."), int(w.Value))
 	case "version":
-		return head + fmt.Sprintf(b.tr("نسخه نود (%s) از نسخه پنل اصلی (%s) قدیمی‌تر است؛ نود را به‌روز کنید.", "The node runs %s, older than the master's %s; update the node."), esc(w.Info), esc(config.GetFullVersion()))
+		return head + fmt.Sprintf(b.tr("نسخه نود (%s) از نسخه پنل اصلی (%s) قدیمی‌تر است؛ نود را به‌روز کنید.", "The node runs %s, older than the master's %s; update the node."), esc(config.VersionLabel(w.Info)), esc(config.VersionLabel(config.GetVersion())))
 	}
 	return head + esc(w.Key)
 }

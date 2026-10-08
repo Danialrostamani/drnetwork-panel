@@ -209,7 +209,7 @@
                   >
                     {{ statusLabel(testResult.state) }}
                     <template v-if="testResult.state === 'online'">
-                      · {{ testResult.latency }} ms · {{ testResult.appFull || testResult.appVersion }} / {{ testResult.coreVersion }}
+                      · {{ testResult.latency }} ms · {{ nodeVersion(testResult) }} / {{ testResult.coreVersion }}
                     </template>
                   </v-chip>
                   <div
@@ -403,7 +403,7 @@ import Data from '@/store/modules/data'
 import HttpUtils from '@/plugins/httputil'
 import {
   alertDefaults, alertMax, alertValue, bytesToGb, editableNode, flagEmoji, gbToBytes, nodePayload, nodeTags,
-  type AlertKey, type EditableNode, type Node, type NodeStatus,
+  nodeVersion, type AlertKey, type EditableNode, type Node, type NodeStatus,
 } from '@/types/node'
 import { i18n } from '@/locales'
 

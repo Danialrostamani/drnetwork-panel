@@ -41,7 +41,7 @@ func MigrateDb() error {
 		}
 	}()
 
-	currentVersion := config.GetVersion()
+	currentVersion := config.GetSchemaVersion()
 	dbVersion := ""
 	// An unreadable settings table must not look like an unset version, which
 	// would send the whole legacy chain through again.

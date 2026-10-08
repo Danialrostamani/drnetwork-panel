@@ -231,7 +231,7 @@
                 class="mt-3"
               >
                 <template v-if="answered">
-                  {{ $t('node.wizard.answered') }} · {{ result.latency }} ms · {{ result.appFull || result.appVersion }} / {{ result.coreVersion }}
+                  {{ $t('node.wizard.answered') }} · {{ result.latency }} ms · {{ nodeVersion(result) }} / {{ result.coreVersion }}
                 </template>
                 <template v-else>
                   {{ result.error || $t('node.status.offline') }}
@@ -317,7 +317,7 @@ import HttpUtils from '@/plugins/httputil'
 import { copyText } from '@/plugins/clipboard'
 import { i18n } from '@/locales'
 import {
-  installCommand, newNode, nodePayload, panelUrl, randomToken, validHost, validPath, validPort, webPathOf,
+  installCommand, newNode, nodePayload, nodeVersion, panelUrl, randomToken, validHost, validPath, validPort, webPathOf,
   type NodeStatus,
 } from '@/types/node'
 

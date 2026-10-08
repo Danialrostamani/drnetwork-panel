@@ -31,7 +31,7 @@ func NewApp() *APP {
 }
 
 func (a *APP) Init() error {
-	log.Printf("%v %v", config.GetName(), config.GetVersion())
+	log.Printf("DrNetwork Panel %v", config.VersionLabel(config.GetVersion()))
 
 	a.initLog()
 

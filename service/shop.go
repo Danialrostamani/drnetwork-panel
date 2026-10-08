@@ -407,14 +407,29 @@ func (s *ShopService) Balance(tgID int64) int64 {
 }
 
 // AddFunds changes a wallet by amount (negative takes money out) and records
-// why. Taking out more than there is fails with ErrNoFunds.
+// why. Taking out more than there is fails with ErrNoFunds. Without tx the
+// change and its ledger line are written in a transaction of their own, so the
+// balance on every line is the one that change left.
 func (s *ShopService) AddFunds(tx *gorm.DB, tgID, amount int64, reason string, orderID uint, by int64) (int64, error) {
-	if tx == nil {
-		tx = database.GetDB()
-	}
 	if amount == 0 {
 		return s.Balance(tgID), nil
 	}
+	if tx != nil {
+		return s.addFunds(tx, tgID, amount, reason, orderID, by)
+	}
+	var balance int64
+	err := database.GetDB().Transaction(func(tx *gorm.DB) error {
+		var err error
+		balance, err = s.addFunds(tx, tgID, amount, reason, orderID, by)
+		return err
+	})
+	if err != nil {
+		return 0, err
+	}
+	return balance, nil
+}
+
+func (s *ShopService) addFunds(tx *gorm.DB, tgID, amount int64, reason string, orderID uint, by int64) (int64, error) {
 	if err := tx.Exec(`INSERT INTO shop_wallets (tg_id, balance) VALUES (?, 0) ON CONFLICT (tg_id) DO NOTHING`, tgID).Error; err != nil {
 		return 0, err
 	}
@@ -429,8 +444,10 @@ func (s *ShopService) AddFunds(tx *gorm.DB, tgID, amount int64, reason string, o
 	if err := tx.First(&w, "tg_id = ?", tgID).Error; err != nil {
 		return 0, err
 	}
-	err := tx.Create(&model.ShopWalletTx{TgId: tgID, Amount: amount, Balance: w.Balance, Reason: reason, OrderId: orderID, By: by, CreatedAt: time.Now().Unix()}).Error
-	return w.Balance, err
+	if err := tx.Create(&model.ShopWalletTx{TgId: tgID, Amount: amount, Balance: w.Balance, Reason: reason, OrderId: orderID, By: by, CreatedAt: time.Now().Unix()}).Error; err != nil {
+		return 0, err
+	}
+	return w.Balance, nil
 }
 
 func (s *ShopService) WalletTxs(tgID int64, limit int) ([]model.ShopWalletTx, error) {

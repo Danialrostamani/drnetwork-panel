@@ -9,18 +9,22 @@ import (
 	"strings"
 )
 
+// release is the DrNetwork version, such as 32: what the panel, the bot, the
+// nodes and the installer show. It is bumped by hand in the commit that is
+// tagged v<release>.
+//
+//go:embed release
+var release string
+
+// schemaVersion is the S-UI release whose database layout this code uses. It
+// is never shown: the migrations count by it and the database records it, as
+// in S-UI itself, so changes taken over from S-UI bring their migrations along.
+//
 //go:embed version
-var version string
+var schemaVersion string
 
 //go:embed name
 var name string
-
-// build is the DrNetwork release number ("drnetwork.11"). It is bumped by hand
-// in the commit that is tagged v<version>-<build>, so the bot and the panel can
-// show exactly which release is running.
-//
-//go:embed build
-var build string
 
 type LogLevel string
 
@@ -31,21 +35,22 @@ const (
 	Error LogLevel = "error"
 )
 
+// GetVersion returns the DrNetwork version, such as "32".
 func GetVersion() string {
-	return strings.TrimSpace(version)
+	return strings.TrimSpace(release)
 }
 
-// GetBuild returns the DrNetwork release number, or "" when unset.
-func GetBuild() string {
-	return strings.TrimSpace(build)
-}
-
-// GetFullVersion returns "1.6.3-drnetwork.11" (or just "1.6.3" without a build).
-func GetFullVersion() string {
-	if b := GetBuild(); b != "" {
-		return GetVersion() + "-" + b
+// VersionLabel writes a version the way it is shown, with a v: "v32".
+func VersionLabel(v string) string {
+	if v != "" && v[0] >= '0' && v[0] <= '9' {
+		return "v" + v
 	}
-	return GetVersion()
+	return v
+}
+
+// GetSchemaVersion returns the version the database migrations count by.
+func GetSchemaVersion() string {
+	return strings.TrimSpace(schemaVersion)
 }
 
 func GetName() string {

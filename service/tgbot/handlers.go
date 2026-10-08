@@ -96,7 +96,7 @@ func (b *bot) statusText() string {
 	}
 	status := (&service.ServerService{}).GetStatus("cpu,mem,sbd")
 	var lines []string
-	lines = append(lines, b.t("status", esc(config.GetFullVersion())))
+	lines = append(lines, b.t("status", esc(config.VersionLabel(config.GetVersion()))))
 	mem, _ := (*status)["mem"].(map[string]interface{})
 	lines = append(lines, b.t("cpuMem", toFloat((*status)["cpu"]), humanBytes(int64(toFloat(mem["current"]))), humanBytes(int64(toFloat(mem["total"])))))
 	coreState, uptime := b.t("stopped"), int64(0)
@@ -169,7 +169,7 @@ func (b *bot) nodesText() string {
 			if version == "" {
 				version = st.AppVersion
 			}
-			lines = append(lines, line+fmt.Sprintf(" · %d ms · v%s", st.Latency, esc(version)))
+			lines = append(lines, line+fmt.Sprintf(" · %d ms · %s", st.Latency, esc(config.VersionLabel(version))))
 		} else if st.Error != "" {
 			lines = append(lines, "   "+esc(st.Error))
 		}

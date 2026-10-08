@@ -198,7 +198,7 @@
           <div class="text-medium-emphasis text-caption">
             {{ $t('node.panelVersion') }} · {{ $t('node.coreVersion') }}
           </div>
-          <span dir="ltr">{{ status?.appFull || status?.appVersion || '-' }} · {{ status?.coreVersion || '-' }}</span>
+          <span dir="ltr">{{ nodeVersion(status) || '-' }} · {{ status?.coreVersion || '-' }}</span>
         </v-col>
         <v-col cols="6">
           <div class="text-medium-emphasis text-caption">
@@ -309,7 +309,7 @@ import { computed } from 'vue'
 import NodeMenu from './NodeMenu.vue'
 import { fmtBytes, fmtDate, fmtDuration, fmtPercent, fmtSpeed, fmtTime, fmtUptime, loadColor } from './format'
 import { warningText } from './warnings'
-import { capPercent, flagEmoji, nodeView, usage, viewColor, viewIcon, viewLabelKey, type Node, type NodeStatus } from '@/types/node'
+import { capPercent, flagEmoji, nodeVersion, nodeView, usage, viewColor, viewIcon, viewLabelKey, type Node, type NodeStatus } from '@/types/node'
 import { i18n } from '@/locales'
 
 const props = defineProps<{

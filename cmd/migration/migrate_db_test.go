@@ -115,7 +115,7 @@ func TestMigrateDbFrom152(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if version != config.GetVersion() {
-		t.Errorf("version = %q, want %q", version, config.GetVersion())
+	if version != config.GetSchemaVersion() {
+		t.Errorf("version = %q, want %q", version, config.GetSchemaVersion())
 	}
 }

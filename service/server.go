@@ -267,7 +267,7 @@ func (s *ServerService) GetSystemInfo() map[string]interface{} {
 	info["cpuCount"] = runtime.NumCPU()
 	info["hostName"], _ = os.Hostname()
 	info["appVersion"] = config.GetVersion()
-	info["appFull"] = config.GetFullVersion()
+	info["appFull"] = config.GetVersion()
 	ipv4 := make([]string, 0)
 	ipv6 := make([]string, 0)
 	// get ip address

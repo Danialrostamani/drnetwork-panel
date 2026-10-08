@@ -1,7 +1,10 @@
 package core
 
 import (
+	"bytes"
+	"io"
 	"net"
+	"strings"
 	"testing"
 	"time"
 
@@ -9,6 +12,7 @@ import (
 	"github.com/sagernet/sing/common/buf"
 	"github.com/sagernet/sing/common/bufio"
 	M "github.com/sagernet/sing/common/metadata"
+	N "github.com/sagernet/sing/common/network"
 )
 
 // pump moves n bytes from the client end through the tracked conn, the way an
@@ -262,5 +266,82 @@ func TestQuotaConcurrentUse(t *testing.T) {
 	}
 	if !tracker.Exhausted("alice") {
 		t.Fatal("alice should be out of volume")
+	}
+}
+
+// lingeringConn ignores Close, the way the server side of a gRPC stream keeps
+// carrying data until its handler returns.
+type lingeringConn struct{ net.Conn }
+
+func (lingeringConn) Close() error { return nil }
+
+// A user out of volume gets nothing through a new connection, even where the
+// transport keeps carrying data for a moment after the close: the router
+// copies past the closed wrappers, straight to the innermost connection.
+func TestQuotaRefusesNewConnectionsOutright(t *testing.T) {
+	tracker := NewSessionTracker()
+	tracker.onExhausted = func(string) {}
+	tracker.SetQuotas(map[string]int64{"alice": -1})
+	metadata := adapter.InboundContext{
+		Inbound:     "in",
+		User:        "alice",
+		Source:      M.ParseSocksaddr("10.0.0.1:1234"),
+		Destination: M.ParseSocksaddr("example.com:80"),
+	}
+	refused := func() (net.Conn, net.Conn) {
+		client, server := net.Pipe()
+		t.Cleanup(func() { _ = client.Close() })
+		return client, tracker.RoutedConnection(t.Context(), lingeringConn{server}, metadata, nil, &testOutbound{tag: "direct"})
+	}
+
+	// The request does not go upstream.
+	client, conn := refused()
+	go func() {
+		_, _ = client.Write([]byte("GET / HTTP/1.1\r\nHost: example.com\r\n\r\n"))
+		_ = client.Close()
+	}()
+	var upstream bytes.Buffer
+	if n, _ := bufio.Copy(&upstream, conn); n != 0 {
+		t.Errorf("a refused connection sent %q upstream", upstream.String())
+	}
+	_ = client.Close()
+
+	// No answer comes back.
+	client, conn = refused()
+	answer := make(chan []byte, 1)
+	go func() {
+		got, _ := io.ReadAll(client)
+		answer <- got
+	}()
+	if n, _ := bufio.Copy(conn, strings.NewReader("HTTP/1.1 200 OK\r\n\r\n")); n != 0 {
+		t.Errorf("%d bytes of an answer went down a refused connection", n)
+	}
+	_ = client.Close()
+	if got := <-answer; len(got) != 0 {
+		t.Errorf("the client of a refused connection got %q", got)
+	}
+	if len(tracker.Sessions()) != 0 {
+		t.Error("a refused connection is listed as a session")
+	}
+
+	udp, err := net.ListenPacket("udp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer udp.Close()
+	packets := tracker.RoutedPacketConnection(t.Context(), bufio.NewPacketConn(udp), metadata, nil, &testOutbound{tag: "direct"})
+	if N.UnwrapPacketReader(packets) != packets || N.UnwrapPacketWriter(packets) != packets {
+		t.Error("the router can get past a refused packet connection")
+	}
+	if err := packets.WritePacket(buf.As([]byte("x")), M.SocksaddrFromNet(udp.LocalAddr())); err == nil {
+		t.Error("a refused packet connection sent a packet")
+	}
+	buffer := buf.New()
+	defer buffer.Release()
+	if _, err := packets.ReadPacket(buffer); err == nil {
+		t.Error("a refused packet connection read a packet")
+	}
+	if len(tracker.Sessions()) != 0 {
+		t.Error("a refused packet connection is listed as a session")
 	}
 }

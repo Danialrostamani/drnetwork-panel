@@ -110,7 +110,7 @@ update() {
 }
 
 custom_version() {
-    echo "Enter the panel version (like 0.0.1):"
+    echo "Enter the panel version (like 32):"
     read panel_version
 
     if [ -z "$panel_version" ]; then

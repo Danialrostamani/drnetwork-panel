@@ -170,6 +170,17 @@ export const defaultNode: Node = {
 }
 
 // A fresh copy of defaultNode, sharing no object with it.
+// A panel version written the way the panel writes versions, with a v: v32.
+export function versionLabel(v: string): string {
+  return /^\d/.test(v) ? `v${v}` : v
+}
+
+// The panel release a node runs, such as v32. Nodes older than DrNetwork's own
+// numbers report 1.6.3-drnetwork.N.
+export function nodeVersion(status?: Pick<NodeStatus, 'appFull' | 'appVersion'> | null): string {
+  return versionLabel(status?.appFull || status?.appVersion || '')
+}
+
 export function newNode(): Node {
   return JSON.parse(JSON.stringify(defaultNode)) as Node
 }
@@ -398,7 +409,7 @@ export function matchesFilter(node: Node, status: NodeStatus | undefined, f: Nod
   if (words.length > 0) {
     const hay = [
       node.name, node.baseUrl, node.webPath, node.desc ?? '', node.country ?? '', ...(node.tags ?? []),
-      status?.hostName ?? '', ...(status?.ipv4 ?? []), ...(status?.ipv6 ?? []), status?.appFull || status?.appVersion || '',
+      status?.hostName ?? '', ...(status?.ipv4 ?? []), ...(status?.ipv6 ?? []), nodeVersion(status),
     ].join('\n').toLowerCase()
     if (!words.every(w => hay.includes(w))) return false
   }

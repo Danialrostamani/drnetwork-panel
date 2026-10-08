@@ -49,7 +49,7 @@ func startFakeNode(t *testing.T, token string) (*httptest.Server, *fakeNodeState
 		case "/app/apiv2/status":
 			fmt.Fprintf(w, `{"success":true,"obj":{"cpu":%v,"mem":{"current":%d,"total":100},"dsk":{"current":%d,"total":100},`+
 				`"sys":{"appVersion":"1.6.3","appFull":%q},"sbd":{"running":%v,"maintenance":%v,"version":"1.12.0"}}}`,
-				st.cpu, st.memPct, st.diskPct, config.GetFullVersion(), st.running, st.maintenance)
+				st.cpu, st.memPct, st.diskPct, config.GetVersion(), st.running, st.maintenance)
 		case "/app/apiv2/onlines":
 			_, _ = w.Write([]byte(`{"success":true,"obj":{"user":["alice","bob"]}}`))
 		case "/app/apiv2/restartSb":
@@ -171,7 +171,7 @@ func TestNodeAlertsCardAndActions(t *testing.T) {
 
 	// The card shows the new details.
 	text, kb := b.objCard(kindByCode("nd"), node.Id)
-	for _, want := range []string{"🇩🇪", "🏷 germany, fast", "Disk", "Online: 2", "v" + config.GetFullVersion(), "Disk 96% ≥ 90%"} {
+	for _, want := range []string{"🇩🇪", "🏷 germany, fast", "Disk", "Online: 2", "v" + config.GetVersion(), "Disk 96% ≥ 90%"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("card lacks %q:\n%s", want, text)
 		}

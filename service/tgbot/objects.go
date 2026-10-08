@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Danialrostamani/drnetwork-panel/config"
 	"github.com/Danialrostamani/drnetwork-panel/database"
 	"github.com/Danialrostamani/drnetwork-panel/service"
 	"github.com/Danialrostamani/drnetwork-panel/util"
@@ -426,7 +427,7 @@ func (b *bot) nodeLines(id uint, m map[string]interface{}) []string {
 		if version == "" {
 			version = st.AppVersion
 		}
-		lines = append(lines, fmt.Sprintf("⏱ %d ms · v%s · core %s", st.Latency, esc(version), esc(st.CoreVersion)))
+		lines = append(lines, fmt.Sprintf("⏱ %d ms · %s · core %s", st.Latency, esc(config.VersionLabel(version)), esc(st.CoreVersion)))
 		lines = append(lines, fmt.Sprintf("👥 %s: %d · ⬆️ %s/s ⬇️ %s/s", b.tr("آنلاین", "Online"), st.Online, humanBytes(st.NetUp), humanBytes(st.NetDown)))
 	} else if st.Error != "" && m["enable"] != false {
 		lines = append(lines, "⚠️ "+esc(st.Error))
@@ -487,7 +488,7 @@ func (b *bot) warningShort(w service.NodeWarning) string {
 		}
 		return fmt.Sprintf(b.tr("گواهی TLS: %.0f روز مانده", "TLS certificate: %.0f days left"), w.Value)
 	case "version":
-		return fmt.Sprintf(b.tr("نسخه قدیمی: %s", "Old version: %s"), esc(w.Info))
+		return fmt.Sprintf(b.tr("نسخه قدیمی: %s", "Old version: %s"), esc(config.VersionLabel(w.Info)))
 	}
 	return esc(w.Key)
 }

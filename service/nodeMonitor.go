@@ -270,7 +270,8 @@ func netDelta(base nodeNetBase, haveBase bool, cur nodeNetBase) (up, down int64,
 	return up, down, true
 }
 
-// versionParts splits a version such as 1.6.3-drnetwork.21 into its numbers.
+// versionParts splits a version such as 32 or 1.6.3-drnetwork.21 into its
+// numbers.
 func versionParts(v string) []int {
 	var parts []int
 	for _, f := range strings.FieldsFunc(v, func(r rune) bool { return r < '0' || r > '9' }) {
@@ -285,7 +286,8 @@ func versionParts(v string) []int {
 
 // versionOlder reports whether version a comes before version b. A version
 // that stops where the other goes on is the older one: 1.6.3 came before
-// 1.6.3-drnetwork.1.
+// 1.6.3-drnetwork.1. Every 1.6.3-drnetwork.N came before 32, the first
+// release under DrNetwork's own numbers.
 func versionOlder(a, b string) bool {
 	pa, pb := versionParts(a), versionParts(b)
 	for i := 0; i < len(pa) && i < len(pb); i++ {
@@ -632,7 +634,7 @@ func (s *NodeService) applyProbes(nodes []*model.Node, fresh map[uint]NodeStatus
 	nodeMonitorOnce.Do(closeStaleOutages)
 	now := time.Now().Unix()
 	loc := nodeLocation()
-	masterVersion := config.GetFullVersion()
+	masterVersion := config.GetVersion()
 
 	nodeMonitorMu.Lock()
 	defer nodeMonitorMu.Unlock()

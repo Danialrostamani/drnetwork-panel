@@ -13,6 +13,7 @@ import (
 
 	"github.com/sagernet/sing-box/adapter"
 	"github.com/sagernet/sing-tun"
+	"github.com/sagernet/sing/common/buf"
 	"github.com/sagernet/sing/common/bufio"
 	M "github.com/sagernet/sing/common/metadata"
 	N "github.com/sagernet/sing/common/network"
@@ -194,6 +195,7 @@ func (t *SessionTracker) RoutedConnection(ctx context.Context, conn net.Conn, me
 	// it.
 	if quota != nil && quota.exhausted() {
 		_ = tracked.Close()
+		return refusedConn{tracked}
 	}
 	return tracked
 }
@@ -208,6 +210,7 @@ func (t *SessionTracker) RoutedPacketConnection(ctx context.Context, conn N.Pack
 	session.closer = tracked
 	if quota != nil && quota.exhausted() {
 		_ = tracked.Close()
+		return refusedPacketConn{tracked}
 	}
 	return tracked
 }
@@ -390,4 +393,27 @@ func (c *sessionPacketConn) ReaderReplaceable() bool {
 
 func (c *sessionPacketConn) WriterReplaceable() bool {
 	return true
+}
+
+// refusedConn is the connection a user out of volume gets: closed, and failing
+// every read and write. Closing alone is not enough where the transport ends
+// its stream only a moment later (gRPC): the router copies past the closed
+// wrappers to the innermost connection, so it would still pass on the request
+// that came with the connection and write the answer back. refusedConn shows
+// nothing but the net.Conn methods, so nothing can get past it.
+type refusedConn struct{ net.Conn }
+
+func (refusedConn) Read([]byte) (int, error)  { return 0, net.ErrClosed }
+func (refusedConn) Write([]byte) (int, error) { return 0, net.ErrClosed }
+
+// refusedPacketConn is refusedConn for packets.
+type refusedPacketConn struct{ N.PacketConn }
+
+func (refusedPacketConn) ReadPacket(*buf.Buffer) (M.Socksaddr, error) {
+	return M.Socksaddr{}, net.ErrClosed
+}
+
+func (refusedPacketConn) WritePacket(buffer *buf.Buffer, _ M.Socksaddr) error {
+	buffer.Release()
+	return net.ErrClosed
 }

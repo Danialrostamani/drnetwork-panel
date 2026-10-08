@@ -239,7 +239,7 @@ A node is another DrNetwork panel that the master monitors and keeps in sync. Op
   ```sh
   bash <(curl -Ls https://raw.githubusercontent.com/Danialrostamani/drnetwork-panel/main/install.sh) --node-token <token> --port <port> --path /<path>/
   ```
-  The installer also takes `--version <tag>`.
+  The installer also takes `--version <version>`, such as `--version 32`.
 - **Overview** - a summary bar (online, down, users online, live speed, today's traffic, warnings), search, status/tag/country filters, sorting, cards or a table, tags, a country flag and a manual order per node.
 - **Each card** - status and how long it has been down, latency, CPU/RAM/disk, users online, speed, today's and this month's traffic, monthly cap, 24 h uptime, versions, warnings.
 - **Details** - who is online, history charts (load, latency, users, traffic) up to 7 days, traffic per day or month with the clients that used the node most, uptime and outages, the node's logs and change history, an outbound test run by the node's own core, and the sync tab: what a sync would change, the last sync report, and a full sync that rewrites every client on the node.

@@ -27,6 +27,13 @@ func TestCompareVersions(t *testing.T) {
 		{"v1.7.0-drnetwork.1", "1.6.3-drnetwork.30", 1},
 		{"v1.6.3-drnetwork.1", "1.6.3", 1},
 		{"v1.6.3", "1.6.3-drnetwork.1", -1},
+		// DrNetwork's own numbers come after every 1.6.3-drnetwork.N.
+		{"v32", "1.6.3-drnetwork.31", 1},
+		{"v32", "1.6.3-drnetwork.99", 1},
+		{"v1.6.3-drnetwork.31", "32", -1},
+		{"v33", "32", 1},
+		{"v32", "32", 0},
+		{"v99", "100", -1},
 	}
 	for _, c := range cases {
 		if got := compareVersions(c.a, c.b); got != c.want {
@@ -72,13 +79,13 @@ func stubUpdateHost(t *testing.T, h updateHost, why string) {
 
 func TestPanelUpdateInfo(t *testing.T) {
 	var tag atomic.Value
-	tag.Store("v99.0.0-drnetwork.1")
+	tag.Store("v99")
 	calls := fakeReleases(t, &tag)
 	stubUpdateHost(t, updateHost{}, "docker")
 	s := &PanelUpdateService{}
 
 	info := s.Info(false)
-	if info.Current != config.GetFullVersion() || info.Latest != "v99.0.0-drnetwork.1" || !info.Newer ||
+	if info.Current != config.GetVersion() || info.Latest != "v99" || !info.Newer ||
 		info.LatestURL != "https://example.com/r" || info.Published != 1791469743 || info.Unsupported != "docker" {
 		t.Fatalf("info = %+v", info)
 	}
@@ -100,7 +107,7 @@ func TestPanelUpdateInfo(t *testing.T) {
 
 func TestStartPanelUpdate(t *testing.T) {
 	var tag atomic.Value
-	tag.Store("v99.0.0-drnetwork.1")
+	tag.Store("v99")
 	fakeReleases(t, &tag)
 	dir := t.TempDir()
 	stubUpdateHost(t, updateHost{dir: dir, init: "openrc", bash: "/bin/bash"}, "")
@@ -114,16 +121,16 @@ func TestStartPanelUpdate(t *testing.T) {
 	s := &PanelUpdateService{}
 
 	got, err := s.Start("zhHans", "admin")
-	if err != nil || got != "v99.0.0-drnetwork.1" {
+	if err != nil || got != "v99" {
 		t.Fatalf("Start = %q, %v", got, err)
 	}
 	logPath := filepath.Join(dir, updateLogName)
-	want := []string{"v99.0.0-drnetwork.1", logPath, updateRawBase + "/" + updateRepo + "/v99.0.0-drnetwork.1/install.sh", "zhcn"}
+	want := []string{"v99", logPath, updateRawBase + "/" + updateRepo + "/v99/install.sh", "zhcn"}
 	if len(launched) != 1 || !reflect.DeepEqual(launched[0], want) {
 		t.Fatalf("launched %q", launched)
 	}
 	info := s.Info(false)
-	if !info.Running || info.Target != "v99.0.0-drnetwork.1" || info.From != config.GetFullVersion() || info.Exit != nil {
+	if !info.Running || info.Target != "v99" || info.From != config.GetVersion() || info.Exit != nil {
 		t.Fatalf("while running: %+v", info)
 	}
 	if _, err := s.Start("en", "admin"); err == nil || !strings.Contains(err.Error(), "already running") {
@@ -145,7 +152,7 @@ func TestStartPanelUpdate(t *testing.T) {
 		t.Fatalf("an older release was installed: %v", err)
 	}
 	stubUpdateHost(t, updateHost{}, "path")
-	tag.Store("v99.0.0-drnetwork.2")
+	tag.Store("v100")
 	s.Info(true)
 	if _, err := s.Start("en", "admin"); err == nil {
 		t.Fatal("an update started where the panel cannot update itself")

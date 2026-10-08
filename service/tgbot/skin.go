@@ -91,7 +91,7 @@ var dashTips = [][2]string{
 func (b *bot) dashText(withTip bool) string {
 	st := *(&service.ServerService{}).GetStatus("cpu,mem,sbd")
 	mem, sbd := asMap(st["mem"]), asMap(st["sbd"])
-	lines := []string{"✨ <b>" + b.tr("پنل DrNetwork", "DrNetwork panel") + "</b> ✨  <i>" + esc(config.GetFullVersion()) + "</i>", ""}
+	lines := []string{"✨ <b>" + b.tr("پنل DrNetwork", "DrNetwork panel") + "</b> ✨  <i>" + esc(config.VersionLabel(config.GetVersion())) + "</i>", ""}
 
 	core := "🔴 " + b.tr("هسته خاموش", "Core stopped")
 	if running, _ := sbd["running"].(bool); running {
