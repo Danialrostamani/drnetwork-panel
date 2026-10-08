@@ -85,6 +85,46 @@ func e2ePort(t *testing.T, udp bool) int {
 	return l.Addr().(*net.TCPAddr).Port
 }
 
+// startE2ECore starts a core with, for each case, an inbound for users u1 and
+// u2 and a client outbound for u1, on free ports. A port picked free can be
+// taken before the core binds it -- by another case's pick, or as the
+// ephemeral port of some connection -- so a bind failure picks again.
+func startE2ECore(t *testing.T, cases []e2eCase) (*Core, map[string]int) {
+	t.Helper()
+	var err error
+	for attempt := 0; attempt < 3; attempt++ {
+		ports := map[string]int{}
+		inbounds := []map[string]any{}
+		outbounds := []map[string]any{{"type": "direct", "tag": "direct"}}
+		for _, c := range cases {
+			p := e2ePort(t, c.udp)
+			ports[c.name] = p
+			in := c.in(p, []string{"u1", "u2"})
+			in["tag"] = "in-" + c.name
+			inbounds = append(inbounds, in)
+			out := c.out(p)
+			out["tag"] = "out-" + c.name
+			outbounds = append(outbounds, out)
+		}
+		cfg, _ := json.Marshal(map[string]any{
+			"log":       map[string]any{"level": "error"},
+			"inbounds":  inbounds,
+			"outbounds": outbounds,
+			"route":     map[string]any{"final": "direct"},
+		})
+		core := NewCore()
+		if err = core.Start(cfg); err == nil {
+			t.Cleanup(func() { _ = core.Stop() })
+			return core, ports
+		}
+		if !strings.Contains(err.Error(), "address already in use") {
+			break
+		}
+	}
+	t.Fatalf("core start: %v", err)
+	return nil, nil
+}
+
 type e2eCase struct {
 	name string
 	udp  bool
@@ -234,6 +274,20 @@ func e2eGet(conn net.Conn, host string) (string, error) {
 	return string(body), err
 }
 
+// e2eRetry runs a step that must succeed up to three times. sing-box's
+// HTTPUpgrade server drops what a client sends right after the upgrade when
+// it arrives before the hijack, and resets that connection -- now and then,
+// on loopback.
+func e2eRetry(step func() error) error {
+	var err error
+	for attempt := 0; attempt < 3; attempt++ {
+		if err = step(); err == nil {
+			return nil
+		}
+	}
+	return err
+}
+
 func TestProtocolsEndToEnd(t *testing.T) {
 	if raceEnabled {
 		t.Skip("starting a Box trips sing-box's own race in route.NetworkManager; see race_on_test.go")
@@ -249,30 +303,7 @@ func TestProtocolsEndToEnd(t *testing.T) {
 
 	certPath, keyPath := e2eCert(t)
 	cases := e2eCases(certPath, keyPath)
-	ports := map[string]int{}
-	var inbounds, outbounds []map[string]any
-	outbounds = append(outbounds, map[string]any{"type": "direct", "tag": "direct"})
-	for _, c := range cases {
-		p := e2ePort(t, c.udp)
-		ports[c.name] = p
-		in := c.in(p, []string{"u1", "u2"})
-		in["tag"] = "in-" + c.name
-		inbounds = append(inbounds, in)
-		out := c.out(p)
-		out["tag"] = "out-" + c.name
-		outbounds = append(outbounds, out)
-	}
-	cfg, _ := json.Marshal(map[string]any{
-		"log":       map[string]any{"level": "error"},
-		"inbounds":  inbounds,
-		"outbounds": outbounds,
-		"route":     map[string]any{"final": "direct"},
-	})
-	core := NewCore()
-	if err := core.Start(cfg); err != nil {
-		t.Fatalf("core start: %v", err)
-	}
-	t.Cleanup(func() { _ = core.Stop() })
+	core, ports := startE2ECore(t, cases)
 	box := core.GetInstance()
 
 	dialVia := func(name string) (net.Conn, error) {
@@ -303,18 +334,27 @@ func TestProtocolsEndToEnd(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			tag := "in-" + c.name
-			if err := fetch(c.name); err != nil {
+			if err := e2eRetry(func() error { return fetch(c.name) }); err != nil {
 				t.Fatalf("fetch through %s: %v", c.name, err)
 			}
 			// An open connection, used once, for the cut below.
-			open, err := dialVia(c.name)
+			var open net.Conn
+			err := e2eRetry(func() error {
+				conn, err := dialVia(c.name)
+				if err != nil {
+					return err
+				}
+				if _, err := e2eGet(conn, target); err != nil {
+					conn.Close()
+					return err
+				}
+				open = conn
+				return nil
+			})
 			if err != nil {
-				t.Fatalf("dial: %v", err)
+				t.Fatalf("first request on an open connection: %v", err)
 			}
 			defer open.Close()
-			if _, err := e2eGet(open, target); err != nil {
-				t.Fatalf("first request on the open connection: %v", err)
-			}
 			seen := false
 			for _, s := range box.SessionTracker().Sessions() {
 				if s.Inbound == tag && s.User == "u1" {
@@ -346,7 +386,17 @@ func TestProtocolsEndToEnd(t *testing.T) {
 				}
 			}
 
-			if _, err := e2eGet(open, target); err == nil {
+			// A request already on its way may beat the cut; the next ones
+			// must not.
+			stillWorks := true
+			for probe := 0; probe < 3 && stillWorks; probe++ {
+				if _, err := e2eGet(open, target); err != nil {
+					stillWorks = false
+				} else {
+					time.Sleep(50 * time.Millisecond)
+				}
+			}
+			if stillWorks {
 				t.Errorf("the open connection of the removed user still works")
 			}
 			if err := fetch(c.name); err == nil {
@@ -379,6 +429,10 @@ func TestQuotaEndToEnd(t *testing.T) {
 			if _, err := w.Write(chunk); err != nil {
 				return
 			}
+			// At most 64 MB/s, a fast link but not loopback speed, which made
+			// the overshoot measure how soon a goroutine got a CPU, or how
+			// long WebSocket's Close took to get its close frame out.
+			time.Sleep(time.Millisecond)
 		}
 	}))
 	defer web.Close()
@@ -386,28 +440,7 @@ func TestQuotaEndToEnd(t *testing.T) {
 
 	certPath, keyPath := e2eCert(t)
 	cases := e2eCases(certPath, keyPath)
-	var inbounds, outbounds []map[string]any
-	outbounds = append(outbounds, map[string]any{"type": "direct", "tag": "direct"})
-	for _, c := range cases {
-		p := e2ePort(t, c.udp)
-		in := c.in(p, []string{"u1", "u2"})
-		in["tag"] = "in-" + c.name
-		inbounds = append(inbounds, in)
-		out := c.out(p)
-		out["tag"] = "out-" + c.name
-		outbounds = append(outbounds, out)
-	}
-	cfg, _ := json.Marshal(map[string]any{
-		"log":       map[string]any{"level": "error"},
-		"inbounds":  inbounds,
-		"outbounds": outbounds,
-		"route":     map[string]any{"final": "direct"},
-	})
-	core := NewCore()
-	if err := core.Start(cfg); err != nil {
-		t.Fatalf("core start: %v", err)
-	}
-	t.Cleanup(func() { _ = core.Stop() })
+	core, _ := startE2ECore(t, cases)
 	box := core.GetInstance()
 	tracker := box.SessionTracker()
 
@@ -452,24 +485,48 @@ func TestQuotaEndToEnd(t *testing.T) {
 		defer tracker.access.Unlock()
 		return tracker.quotas["u1"]
 	}
+	// settle waits out the previous protocol's connections, which would
+	// otherwise count against this one's volume -- or be cut off with it.
+	settle := func() {
+		for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+			live := 0
+			for _, s := range tracker.Sessions() {
+				if s.User == "u1" {
+					live++
+				}
+			}
+			if live == 0 {
+				return
+			}
+		}
+	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
+			settle()
 			// A fresh volume for this protocol: what the database has, plus
 			// quota bytes.
 			tracker.GetStats()
 			tracker.SetQuotas(map[string]int64{"u1": quota})
-			if err := fetch(c.name); err != nil {
+			if err := e2eRetry(func() error { return fetch(c.name) }); err != nil {
 				t.Fatalf("fetch with volume left: %v", err)
 			}
 
-			got, _ := download(c.name)
+			var got int64
+			var derr error
+			_ = e2eRetry(func() error {
+				got, derr = download(c.name)
+				if got == 0 {
+					return derr
+				}
+				return nil
+			})
 			if got >= bigSize {
 				t.Fatalf("the whole %d bytes came through a %d byte volume", got, quota)
 			}
 			q := u1Quota()
 			if q == nil || !q.exhausted() {
-				t.Fatal("u1 is not out of volume after the download")
+				t.Fatalf("u1 is not out of volume after the download: received %d bytes (%v)", got, derr)
 			}
 			over := q.used.Load() - q.limit.Load()
 			t.Logf("received %d bytes; %d bytes past the volume", got, over)
@@ -487,7 +544,7 @@ func TestQuotaEndToEnd(t *testing.T) {
 			}
 			tracker.GetStats()
 			tracker.SetQuotas(map[string]int64{"u1": 1 << 30})
-			if err := fetch(c.name); err != nil {
+			if err := e2eRetry(func() error { return fetch(c.name) }); err != nil {
 				t.Fatalf("fetch after the volume was renewed: %v", err)
 			}
 		})

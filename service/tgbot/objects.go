@@ -656,7 +656,7 @@ func (b *bot) objPortEdit(id uint, port string) error {
 
 func (b *bot) inboundClients(id uint) []string {
 	var names []string
-	_ = database.GetDB().Raw("SELECT clients.name FROM clients, json_each(clients.inbounds) AS je WHERE je.value = ? ORDER BY clients.name", id).Scan(&names).Error
+	_ = database.GetDB().Raw("SELECT clients.name FROM clients, json_each(CAST(clients.inbounds AS TEXT)) AS je WHERE je.value = ? ORDER BY clients.name", id).Scan(&names).Error
 	return names
 }
 

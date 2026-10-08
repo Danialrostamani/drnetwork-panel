@@ -2,6 +2,7 @@ package service
 
 import (
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -211,5 +212,51 @@ func TestInboundListAndAttachAllAgreeOnWhichInboundsTakeClients(t *testing.T) {
 	touched, err := (&ClientService{}).Save(db, "attachall", json.RawMessage(`{}`), "example.com")
 	if err != nil || !reflect.DeepEqual(touched, want) {
 		t.Fatalf("attach-all picked %v (err %v), want %v", touched, err, want)
+	}
+}
+
+// The inbounds page adds one inbound, or the inbounds of a new node, to every
+// client: only those are attached.
+func TestAttachSelectedInboundsToAllClients(t *testing.T) {
+	db, eligible := attachFixture(t)
+	trojan, remote := eligible[1], eligible[4]
+	var direct model.Inbound
+	if err := db.Where("tag = ?", "in-direct").First(&direct).Error; err != nil {
+		t.Fatal(err)
+	}
+	sorted := func(ids ...uint) []uint {
+		out := append([]uint(nil), ids...)
+		sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+		return out
+	}
+
+	data, _ := json.Marshal(map[string][]uint{"inbounds": {remote, trojan, direct.Id}})
+	touched, err := (&ClientService{}).Save(db, "attachall", data, "example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := sorted(trojan, remote); !reflect.DeepEqual(touched, want) {
+		t.Fatalf("inbounds reported as changed = %v, want %v", touched, want)
+	}
+	for name, want := range map[string][]uint{
+		"alice": sorted(eligible[0], trojan, remote),
+		"bob":   sorted(trojan, remote),
+		"carol": sorted(eligible...),
+		"dave":  sorted(trojan, remote),
+	} {
+		if got := clientInbounds(t, db, name); !reflect.DeepEqual(got, want) {
+			t.Fatalf("%s inbounds = %v, want %v", name, got, want)
+		}
+	}
+	if got := clientInbounds(t, db, "pushed"); len(got) != 0 {
+		t.Fatalf("a client pushed by the master was changed: %v", got)
+	}
+
+	// An inbound that takes no clients is never attached.
+	if touched, err := (&ClientService{}).Save(db, "attachall", json.RawMessage(`{"inbounds":[`+fmt.Sprint(direct.Id)+`]}`), "example.com"); err != nil || len(touched) != 0 {
+		t.Fatalf("attaching an inbound without clients: changed=%v err=%v", touched, err)
+	}
+	if _, err := (&ClientService{}).Save(db, "attachall", json.RawMessage(`{"inbounds":[]}`), "example.com"); err == nil {
+		t.Fatal("an empty selection was accepted")
 	}
 }

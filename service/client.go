@@ -133,6 +133,9 @@ func (s *ClientService) Save(tx *gorm.DB, act string, data json.RawMessage, host
 		if err = setConfigIdentity(&client); err != nil {
 			return nil, err
 		}
+		if err = s.fillCredentials(tx, []*model.Client{&client}); err != nil {
+			return nil, err
+		}
 		err = s.updateLinksWithFixedInbounds(tx, []*model.Client{&client}, hostname)
 		if err != nil {
 			return nil, err
@@ -184,6 +187,9 @@ func (s *ClientService) Save(tx *gorm.DB, act string, data json.RawMessage, host
 			}
 			inboundIds = common.UnionUintArray(inboundIds, ids)
 		}
+		if err = s.fillCredentials(tx, clients); err != nil {
+			return nil, err
+		}
 		err = s.updateLinksWithFixedInbounds(tx, clients, hostname)
 		if err != nil {
 			return nil, err
@@ -219,6 +225,9 @@ func (s *ClientService) Save(tx *gorm.DB, act string, data json.RawMessage, host
 				inboundIds = common.UnionUintArray(inboundIds, changedInboundIds)
 			}
 		}
+		if err = s.fillCredentials(tx, clients); err != nil {
+			return nil, err
+		}
 		if len(inboundIds) > 0 {
 			err = s.updateLinksWithFixedInbounds(tx, clients, hostname)
 			if err != nil {
@@ -230,7 +239,12 @@ func (s *ClientService) Save(tx *gorm.DB, act string, data json.RawMessage, host
 			return nil, err
 		}
 	case "attachall":
-		inboundIds, err = s.attachAllInbounds(tx, hostname)
+		var only []uint
+		only, err = attachSelection(data)
+		if err != nil {
+			return nil, err
+		}
+		inboundIds, err = s.attachAllInbounds(tx, hostname, only)
 		if err != nil {
 			return nil, err
 		}
@@ -292,6 +306,27 @@ func (s *ClientService) Save(tx *gorm.DB, act string, data json.RawMessage, host
 	return inboundIds, nil
 }
 
+// attachSelection reads which inbounds "attachall" is limited to: {} or no
+// list means every inbound that takes clients, {"inbounds":[...]} only those
+// (the inbounds page, for one inbound or the inbounds of a new node).
+func attachSelection(data json.RawMessage) ([]uint, error) {
+	var req struct {
+		Inbounds *[]uint `json:"inbounds"`
+	}
+	if trimmed := strings.TrimSpace(string(data)); trimmed != "" && trimmed != "null" {
+		if err := json.Unmarshal(data, &req); err != nil {
+			return nil, err
+		}
+	}
+	if req.Inbounds == nil {
+		return nil, nil
+	}
+	if len(*req.Inbounds) == 0 {
+		return nil, common.NewError("no inbound selected")
+	}
+	return *req.Inbounds, nil
+}
+
 // attachPlan is what "add every inbound to every client" would do.
 type attachPlan struct {
 	// inbounds are all the inbounds that take clients, ascending.
@@ -305,16 +340,26 @@ type attachPlan struct {
 
 // planAttachAll works out which clients lack which inbounds. It writes nothing.
 // The inbounds are those that take clients (see inboundTakesClients; the ones
-// hosted on nodes included). The clients the master pushed to this node (the
-// cluster group) are left out: the master owns them and would put them back on
-// its next sync.
-func (s *ClientService) planAttachAll(tx *gorm.DB) (*attachPlan, error) {
+// hosted on nodes included), or of those only the ones in only when it is not
+// nil. The clients the master pushed to this node (the cluster group) are left
+// out: the master owns them and would put them back on its next sync.
+func (s *ClientService) planAttachAll(tx *gorm.DB, only []uint) (*attachPlan, error) {
 	plan := &attachPlan{}
 	var inbounds []model.Inbound
 	if err := tx.Model(model.Inbound{}).Select("id", "type", "tag", "options").Order("id").Find(&inbounds).Error; err != nil {
 		return nil, err
 	}
+	var wanted map[uint]bool
+	if only != nil {
+		wanted = make(map[uint]bool, len(only))
+		for _, id := range only {
+			wanted[id] = true
+		}
+	}
 	for i := range inbounds {
+		if wanted != nil && !wanted[inbounds[i].Id] {
+			continue
+		}
 		if inbounds[i].Tag != "" && inboundTakesClients(&inbounds[i]) {
 			plan.inbounds = append(plan.inbounds, inbounds[i].Id)
 		}
@@ -373,34 +418,37 @@ func (s *ClientService) planAttachAll(tx *gorm.DB) (*attachPlan, error) {
 // AttachAllPreview counts what attachAllInbounds would change: the clients that
 // lack some inbound, and the inbounds that take clients.
 func (s *ClientService) AttachAllPreview() (clients int, inbounds int, err error) {
-	plan, err := s.planAttachAll(database.GetDB())
+	plan, err := s.planAttachAll(database.GetDB(), nil)
 	if err != nil {
 		return 0, 0, err
 	}
 	return len(plan.changed), len(plan.inbounds), nil
 }
 
-// attachAllInbounds adds every inbound that takes clients to every client, so
-// nobody has to open the clients one by one after adding a node or an inbound.
-// A client that already has an inbound keeps it.
+// attachAllInbounds adds every inbound that takes clients (or the ones in
+// only) to every client, so nobody has to open the clients one by one after
+// adding a node or an inbound. A client that already has an inbound keeps it.
 //
 // Only the inbounds and links columns are written, so the traffic counters the
 // stats job keeps updating and the client's other settings are untouched. It
 // returns the inbounds that gained at least one client, for the running core to
 // pick the new users up.
-func (s *ClientService) attachAllInbounds(tx *gorm.DB, hostname string) ([]uint, error) {
-	plan, err := s.planAttachAll(tx)
+func (s *ClientService) attachAllInbounds(tx *gorm.DB, hostname string, only []uint) ([]uint, error) {
+	plan, err := s.planAttachAll(tx, only)
 	if err != nil {
 		return nil, err
 	}
 	if len(plan.changed) == 0 {
 		return nil, nil
 	}
+	if err := s.fillCredentials(tx, plan.changed); err != nil {
+		return nil, err
+	}
 	if err := s.updateLinksWithFixedInbounds(tx, plan.changed, hostname); err != nil {
 		return nil, err
 	}
 	for _, client := range plan.changed {
-		if err := tx.Model(client).Select("Inbounds", "Links").Updates(client).Error; err != nil {
+		if err := tx.Model(client).Select("Inbounds", "Links", "Config").Updates(client).Error; err != nil {
 			return nil, err
 		}
 	}
@@ -594,7 +642,7 @@ func (s *ClientService) UpdateClientsOnInboundAdd(tx *gorm.DB, initIds string, i
 
 func (s *ClientService) UpdateClientsOnInboundDelete(tx *gorm.DB, id uint, tag string) error {
 	var clientIds []uint
-	err := tx.Raw("SELECT clients.id FROM clients, json_each(clients.inbounds) AS je WHERE je.value = ?", id).Scan(&clientIds).Error
+	err := tx.Raw("SELECT clients.id FROM clients, json_each(CAST(clients.inbounds AS TEXT)) AS je WHERE je.value = ?", id).Scan(&clientIds).Error
 	if err != nil {
 		return err
 	}
@@ -647,7 +695,7 @@ func (s *ClientService) UpdateLinksByInboundChange(tx *gorm.DB, inbounds *[]mode
 	var err error
 	for _, inbound := range *inbounds {
 		var clientIds []uint
-		err = tx.Raw("SELECT clients.id FROM clients, json_each(clients.inbounds) AS je WHERE je.value = ?", inbound.Id).Scan(&clientIds).Error
+		err = tx.Raw("SELECT clients.id FROM clients, json_each(CAST(clients.inbounds AS TEXT)) AS je WHERE je.value = ?", inbound.Id).Scan(&clientIds).Error
 		if err != nil {
 			return err
 		}
@@ -916,6 +964,100 @@ func setConfigIdentity(client *model.Client) error {
 		return err
 	}
 	client.Config = newConfig
+	return nil
+}
+
+// clientConfigKey is the key of a client's config an inbound takes the
+// client's credentials from: its type, but for Shadowsocks the method's.
+func clientConfigKey(inbound *model.Inbound) string {
+	if inbound.Type != "shadowsocks" {
+		return inbound.Type
+	}
+	var options struct {
+		Method string `json:"method"`
+	}
+	_ = json.Unmarshal(inbound.Options, &options)
+	return util.ShadowsocksClientConfigKey(options.Method)
+}
+
+// withCredentials returns config with fresh credentials, made out to name,
+// for each protocol in keys it has none for.
+func withCredentials(config json.RawMessage, name string, keys []string) (json.RawMessage, error) {
+	configs := map[string]json.RawMessage{}
+	if len(config) > 0 {
+		if err := json.Unmarshal(config, &configs); err != nil {
+			return nil, err
+		}
+		if configs == nil { // the config was null
+			configs = map[string]json.RawMessage{}
+		}
+	}
+	var fresh map[string]json.RawMessage
+	for _, key := range keys {
+		if v := configs[key]; len(v) > 0 && string(v) != "null" {
+			continue
+		}
+		if fresh == nil {
+			if err := json.Unmarshal(util.NewClientConfig(name), &fresh); err != nil {
+				return nil, err
+			}
+		}
+		if v, ok := fresh[key]; ok {
+			configs[key] = v
+		}
+	}
+	if fresh == nil {
+		return config, nil
+	}
+	return json.Marshal(configs)
+}
+
+// fillCredentials gives each client credentials for the protocol of every
+// inbound it is on and has none for. The panel and the bot make a client with
+// a set for every protocol, but one made before a protocol existed, or over
+// the API with fewer, had none, and every save touching such an inbound then
+// failed. The clients a master pushed keep the master's config.
+func (s *ClientService) fillCredentials(tx *gorm.DB, clients []*model.Client) error {
+	lists := make([][]uint, len(clients))
+	var ids []uint
+	for i, client := range clients {
+		if client.Group == clusterGroup || len(client.Inbounds) == 0 {
+			continue
+		}
+		if err := json.Unmarshal(client.Inbounds, &lists[i]); err != nil {
+			return common.NewErrorf("client %q has an unreadable inbound list: %v", client.Name, err)
+		}
+		ids = common.UnionUintArray(ids, lists[i])
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	var inbounds []model.Inbound
+	if err := tx.Model(model.Inbound{}).Select("id", "type", "options").Where("id IN ?", ids).Find(&inbounds).Error; err != nil {
+		return err
+	}
+	keys := make(map[uint]string, len(inbounds))
+	for i := range inbounds {
+		if inboundTakesClients(&inbounds[i]) {
+			keys[inbounds[i].Id] = clientConfigKey(&inbounds[i])
+		}
+	}
+	for i, client := range clients {
+		var need []string
+		for _, id := range lists[i] {
+			if key, ok := keys[id]; ok {
+				need = append(need, key)
+			}
+		}
+		if len(need) == 0 {
+			continue
+		}
+		config, err := withCredentials(client.Config, client.Name, need)
+		if err != nil {
+			return common.NewErrorf("client %q has an unreadable config: %v", client.Name, err)
+		}
+		client.Config = config
+	}
 	return nil
 }
 

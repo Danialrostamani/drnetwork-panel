@@ -21,6 +21,12 @@
     :tag="sessions.tag"
     @close="closeSessions"
   />
+  <AttachInbounds
+    v-model="attach.visible"
+    :visible="attach.visible"
+    :preselect="attach.preselect"
+    @close="attach.visible = false"
+  />
   <v-row>
     <v-col
       cols="12"
@@ -32,6 +38,15 @@
         @click="showModal(0)"
       >
         {{ $t('actions.add') }}
+      </v-btn>
+      <v-btn
+        color="primary"
+        variant="outlined"
+        class="ms-2"
+        prepend-icon="mdi-account-multiple-plus"
+        @click="showAttach([])"
+      >
+        {{ $t('bulk.attachToAll') }}
       </v-btn>
     </v-col>
   </v-row>
@@ -89,18 +104,34 @@
             <v-col>{{ $t('pages.clients') }}</v-col>
             <v-col>
               <template v-if="item.users">
-                <v-tooltip
-                  v-if="item.users.length > 0"
-                  activator="parent"
-                  dir="ltr"
-                  location="bottom"
+                <span>
+                  <v-tooltip
+                    v-if="item.users.length > 0"
+                    activator="parent"
+                    dir="ltr"
+                    location="bottom"
+                  >
+                    <span
+                      v-for="u in item.users"
+                      :key="u"
+                    >{{ u }}<br></span>
+                  </v-tooltip>
+                  {{ item.users.length }}
+                </span>
+                <v-icon
+                  v-if="lacking(item.id) > 0"
+                  icon="mdi-account-multiple-plus"
+                  size="small"
+                  color="primary"
+                  class="ms-1"
+                  @click="showAttach([item.id])"
                 >
-                  <span
-                    v-for="u in item.users"
-                    :key="u"
-                  >{{ u }}<br></span>
-                </v-tooltip>
-                {{ item.users.length }}
+                  <v-tooltip
+                    activator="parent"
+                    location="top"
+                    :text="$t('bulk.attachToAll')"
+                  />
+                </v-icon>
               </template>
               <template v-else>
                 -
@@ -225,6 +256,7 @@ import Data from '@/store/modules/data'
 import InboundVue from '@/layouts/modals/Inbound.vue'
 import Stats from '@/layouts/modals/Stats.vue'
 import Sessions from '@/layouts/modals/Sessions.vue'
+import AttachInbounds from '@/layouts/modals/AttachInbounds.vue'
 import { computed, ref } from 'vue'
 import { createInbound, Inbound } from '@/types/inbounds'
 import { tls } from '@/types/tls'
@@ -312,5 +344,22 @@ const showSessions = (tag: string) => {
 }
 const closeSessions = () => {
   sessions.value.visible = false
+}
+
+// Adding inbounds to every client: one from its card, or any of them (say a
+// new node's) from the button at the top.
+const attach = ref({
+  visible: false,
+  preselect: <number[]>[],
+})
+
+const showAttach = (ids: number[]) => {
+  attach.value.preselect = ids
+  attach.value.visible = true
+}
+
+// How many clients lack the inbound; those a master pushed here are its own.
+const lacking = (id: number): number => {
+  return (Data().clients ?? []).filter(c => c.group !== '@cluster' && !(c.inbounds ?? []).includes(id)).length
 }
 </script>

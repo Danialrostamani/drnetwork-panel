@@ -1,12 +1,8 @@
 package tgbot
 
 import (
-	"crypto/rand"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"math/big"
 	"net"
 	"net/url"
 	"os"
@@ -17,6 +13,7 @@ import (
 	"github.com/Danialrostamani/drnetwork-panel/database"
 	"github.com/Danialrostamani/drnetwork-panel/database/model"
 	"github.com/Danialrostamani/drnetwork-panel/service"
+	"github.com/Danialrostamani/drnetwork-panel/util"
 
 	qrcode "github.com/skip2/go-qrcode"
 )
@@ -25,65 +22,13 @@ const gib = int64(1) << 30
 
 var clientNameRe = regexp.MustCompile(`^[A-Za-z0-9_.@-]{1,64}$`)
 
-const randomAlphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-
-func randomSeq(n int) string {
-	out := make([]byte, n)
-	max := big.NewInt(int64(len(randomAlphabet)))
-	for i := range out {
-		v, err := rand.Int(rand.Reader, max)
-		if err != nil {
-			panic(err)
-		}
-		out[i] = randomAlphabet[v.Int64()]
-	}
-	return string(out)
-}
-
-func randomBase64(n int) string {
-	raw := make([]byte, n)
-	if _, err := rand.Read(raw); err != nil {
-		panic(err)
-	}
-	return base64.StdEncoding.EncodeToString(raw)
-}
-
-func randomUUID() string {
-	raw := make([]byte, 16)
-	if _, err := rand.Read(raw); err != nil {
-		panic(err)
-	}
-	raw[6] = (raw[6] & 0x0f) | 0x40
-	raw[8] = (raw[8] & 0x3f) | 0x80
-	return fmt.Sprintf("%x-%x-%x-%x-%x", raw[0:4], raw[4:6], raw[6:8], raw[8:10], raw[10:16])
-}
-
-// newClientConfig mirrors randomConfigs() in the web panel: one credential set
-// per protocol, so the client works on every inbound type.
-func newClientConfig(name string) json.RawMessage {
-	pass := randomSeq(10)
-	ss16, ss32 := randomBase64(16), randomBase64(32)
-	id := randomUUID()
-	m := map[string]map[string]interface{}{
-		"mixed":         {"username": name, "password": pass},
-		"socks":         {"username": name, "password": pass},
-		"http":          {"username": name, "password": pass},
-		"shadowsocks":   {"name": name, "password": ss32},
-		"shadowsocks16": {"name": name, "password": ss16},
-		"shadowtls":     {"name": name, "password": ss32},
-		"vmess":         {"name": name, "uuid": id, "alterId": 0},
-		"vless":         {"name": name, "uuid": id, "flow": "xtls-rprx-vision"},
-		"anytls":        {"name": name, "password": pass},
-		"trojan":        {"name": name, "password": pass},
-		"naive":         {"username": name, "password": pass},
-		"hysteria":      {"name": name, "auth_str": pass},
-		"snell":         {"name": name, "userkey": randomSeq(32)},
-		"tuic":          {"name": name, "uuid": id, "password": pass},
-		"hysteria2":     {"name": name, "password": pass},
-	}
-	out, _ := json.Marshal(m)
-	return out
-}
+// The credential helpers live in util, shared with the panel's own saves.
+var (
+	randomSeq       = util.RandomSeq
+	randomBase64    = util.RandomBase64
+	randomUUID      = util.RandomUUID
+	newClientConfig = util.NewClientConfig
+)
 
 // host is the address written into generated client links and the
 // subscription URL: the sub or web domain if one is set, else the machine's
