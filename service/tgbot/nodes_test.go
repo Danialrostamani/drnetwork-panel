@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -298,5 +299,89 @@ func TestNodeEventTexts(t *testing.T) {
 	raw, _ := json.Marshal(map[string]interface{}{"tags": []string{"a", "b"}})
 	if got := stringList(normalize(json.RawMessage(raw))["tags"]); strings.Join(got, ",") != "a,b" {
 		t.Fatalf("stringList = %v", got)
+	}
+}
+
+// A node going down or coming back, and its links leaving or coming back to
+// the subscriptions, are for the owner alone. The other node notices still
+// reach every administrator of the nodes, and a bot without an owner sends
+// everything to them as before.
+func TestNodeUpDownReachOnlyTheOwner(t *testing.T) {
+	b, got := testBot(t)
+	b.setAccess(buildAccess(7, []int64{42}, nil, nil, nil))
+	ctx := context.Background()
+	const token = "node-token-654321"
+	srv, fake := startFakeNode(t, token)
+	node := model.Node{Name: "fi-1", Enable: true, BaseUrl: srv.URL, WebPath: "/app/", Token: token}
+	if err := database.GetDB().Create(&node).Error; err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		service.WaitNodeActionProbes()
+		database.GetDB().Model(model.Node{}).Where("1 = 1").Update("enable", false)
+		(&service.NodeService{}).RefreshAll()
+		service.DrainNodeEvents()
+	})
+	probe := func() {
+		t.Helper()
+		if _, err := (&service.NodeService{}).ProbeNow([]uint{node.Id}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// recipients lists the chats of the messages sent after the first n that
+	// contain part.
+	recipients := func(n int, part string) []int64 {
+		var out []int64
+		for _, m := range got()[n:] {
+			if m.Method == "sendMessage" && strings.Contains(m.Text, part) {
+				out = append(out, m.ChatID)
+			}
+		}
+		return out
+	}
+	watched := map[uint]*nodeWatch{}
+	checks := func(n int) {
+		for i := 0; i < n; i++ {
+			b.checkNodes(ctx, watched)
+		}
+	}
+	probe()
+	checks(1)
+
+	before := len(got())
+	fake.set(func(s *fakeNodeState) { s.broken = true })
+	probe()
+	checks(nodeDownAfterChecks)
+	if r := recipients(before, "Node fi-1 is down"); !reflect.DeepEqual(r, []int64{7}) {
+		t.Fatalf("the down alert went to %v", r)
+	}
+	before = len(got())
+	fake.set(func(s *fakeNodeState) { s.broken, s.diskPct = false, 95 })
+	probe()
+	checks(nodeDownAfterChecks)
+	if r := recipients(before, "Node fi-1 is back online"); !reflect.DeepEqual(r, []int64{7}) {
+		t.Fatalf("the back-online alert went to %v", r)
+	}
+	if r := recipients(before, "Disk filling up"); !reflect.DeepEqual(r, []int64{7, 42}) {
+		t.Fatalf("the disk warning went to %v", r)
+	}
+
+	before = len(got())
+	b.announceNodeEvents(ctx, []service.NodeEvent{
+		{Name: "fi-1", Kind: "hidden", Reason: "down"},
+		{Name: "fi-1", Kind: "cap", Level: 80, Used: 80 << 30, Limit: 100 << 30},
+	})
+	if r := recipients(before, "taken out of the subscriptions"); !reflect.DeepEqual(r, []int64{7}) {
+		t.Fatalf("the links-out notice went to %v", r)
+	}
+	if r := recipients(before, "monthly traffic cap"); !reflect.DeepEqual(r, []int64{7, 42}) {
+		t.Fatalf("the cap notice went to %v", r)
+	}
+
+	b.setAccess(buildAccess(0, []int64{42, 43}, nil, nil, nil))
+	before = len(got())
+	b.announceNodeEvents(ctx, []service.NodeEvent{{Name: "fi-1", Kind: "shown", Reason: "down"}})
+	if r := recipients(before, "back in the subscriptions"); !reflect.DeepEqual(r, []int64{42, 43}) {
+		t.Fatalf("without an owner the notice went to %v", r)
 	}
 }

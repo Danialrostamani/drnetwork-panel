@@ -80,6 +80,8 @@ func (a *APIHandler) postHandler(c *gin.Context) {
 		a.ApiService.SaveTotp(c)
 	case "remoteBackup":
 		a.ApiService.SendRemoteBackup(c)
+	case "panelUpdate":
+		a.ApiService.StartPanelUpdate(c, loginUser)
 	default:
 		jsonMsg(c, "failed", common.NewError("unknown action: ", action))
 	}
@@ -91,6 +93,8 @@ func (a *APIHandler) getHandler(c *gin.Context) {
 	switch action {
 	case "logout":
 		a.ApiService.Logout(c)
+	case "panelUpdate":
+		a.ApiService.GetPanelUpdate(c)
 	case "load":
 		a.ApiService.LoadData(c)
 	case "inbounds", "outbounds", "endpoints", "services", "tls", "clients", "config", "nodes":

@@ -92,6 +92,8 @@ d en bad_version "Invalid version: %s"
 d en node_mode "Node mode: setting the panel up for a master, without questions."
 d en node_token_fail "Failed to add the node token."
 d en node_ready "This server is ready as a node. Go back to the master panel and press Test."
+d en unattended_keep "Unattended update: no questions, the panel settings and login are kept."
+d en base_present "The required packages are already installed."
 
 d fa root_err "لطفاً این اسکریپت را با دسترسی root اجرا کنید"
 d fa os_fail "تشخیص سیستم عامل ناموفق بود، لطفاً با سازنده تماس بگیرید!"
@@ -140,6 +142,8 @@ d fa bad_version "نسخهٔ نامعتبر: %s"
 d fa node_mode "حالت نود: پنل بدون پرسش برای مدیریت توسط مستر آماده می‌شود."
 d fa node_token_fail "افزودن توکن نود ناموفق بود."
 d fa node_ready "این سرور به‌عنوان نود آماده است. به پنل مستر برگردید و «تست» را بزنید."
+d fa unattended_keep "به‌روزرسانی خودکار: بدون پرسش؛ تنظیمات و اطلاعات ورود پنل حفظ می‌شود."
+d fa base_present "بسته‌های لازم از قبل نصب هستند."
 
 d ru root_err "Пожалуйста, запустите этот скрипт с правами root"
 d ru os_fail "Не удалось определить ОС, пожалуйста, свяжитесь с автором!"
@@ -188,6 +192,8 @@ d ru bad_version "Неверная версия: %s"
 d ru node_mode "Режим ноды: панель настраивается для мастера без вопросов."
 d ru node_token_fail "Не удалось добавить токен ноды."
 d ru node_ready "Сервер готов как нода. Вернитесь в панель мастера и нажмите «Тест»."
+d ru unattended_keep "Автоматическое обновление: без вопросов, настройки и логин панели сохраняются."
+d ru base_present "Необходимые пакеты уже установлены."
 
 d vi root_err "Vui lòng chạy tập lệnh này với quyền root"
 d vi os_fail "Không thể xác định hệ điều hành, vui lòng liên hệ tác giả!"
@@ -236,6 +242,8 @@ d vi bad_version "Phiên bản không hợp lệ: %s"
 d vi node_mode "Chế độ node: thiết lập bảng điều khiển cho master, không hỏi gì."
 d vi node_token_fail "Không thể thêm token của node."
 d vi node_ready "Máy chủ này đã sẵn sàng làm node. Quay lại bảng điều khiển master và nhấn Kiểm tra."
+d vi unattended_keep "Cập nhật tự động: không hỏi gì, cài đặt và thông tin đăng nhập của bảng điều khiển được giữ nguyên."
+d vi base_present "Các gói cần thiết đã được cài đặt."
 
 d zhcn root_err "请使用 root 权限运行此脚本"
 d zhcn os_fail "无法检测系统操作系统，请联系作者！"
@@ -284,6 +292,8 @@ d zhcn bad_version "无效的版本：%s"
 d zhcn node_mode "节点模式：无需提问，直接为主控面板配置此面板。"
 d zhcn node_token_fail "添加节点令牌失败。"
 d zhcn node_ready "此服务器已可作为节点使用。请回到主控面板并点击测试。"
+d zhcn unattended_keep "无人值守更新：不提问，保留面板设置和登录信息。"
+d zhcn base_present "所需软件包已安装。"
 
 d zhtw root_err "請使用 root 權限執行此腳本"
 d zhtw os_fail "無法偵測系統作業系統，請聯絡作者！"
@@ -332,6 +342,8 @@ d zhtw bad_version "無效的版本：%s"
 d zhtw node_mode "節點模式：無需提問，直接為主控面板設定此面板。"
 d zhtw node_token_fail "新增節點權杖失敗。"
 d zhtw node_ready "此伺服器已可作為節點使用。請回到主控面板並點擊測試。"
+d zhtw unattended_keep "無人值守更新：不提問，保留面板設定和登入資訊。"
+d zhtw base_present "所需套件已安裝。"
 
 # t <key> — return the localized message, falling back to English.
 t() {
@@ -387,6 +399,13 @@ arch() {
 echo "arch: $(arch)"
 
 install_base() {
+    # An unattended update (the panel's Update button) leaves the system's
+    # packages alone when the tools are there: a package manager update can
+    # take minutes, or wait on a lock another update holds.
+    if [[ "$opt_unattended" -eq 1 ]] && command -v wget >/dev/null 2>&1 && command -v curl >/dev/null 2>&1 && command -v tar >/dev/null 2>&1; then
+        echo -e "${green}$(t base_present)${plain}"
+        return 0
+    fi
     echo -e "${yellow}$(t installing_base)${plain}"
     case "${release}" in
     centos | almalinux | rocky | oracle)
@@ -484,6 +503,17 @@ config_after_install() {
         return
     fi
 
+    # --unattended answers no to every question below: an update keeps the
+    # panel's settings and login, and a new panel gets a random login.
+    if [[ "$opt_unattended" -eq 1 ]]; then
+        if [[ ! -f "/usr/local/s-ui/db/s-ui.db" ]]; then
+            set_fresh_credentials
+        else
+            echo -e "${green}$(t unattended_keep)${plain}"
+        fi
+        return
+    fi
+
     echo -e "${yellow}$(t finished_modify)${plain}"
     read -r -p "$(t ask_modify)" config_confirm
     if [[ "${config_confirm}" == "y" || "${config_confirm}" == "Y" ]]; then
@@ -564,11 +594,16 @@ prepare_services() {
 # fetch downloads $1 to $2. --show-progress is wget 1.16+, and older wget
 # (CentOS 7) rejects the whole command over it. -q also hides why a download
 # failed, so on failure curl retries and prints the reason (TLS, DNS, 404).
+# The progress bar is only for a terminal: written to a log (the panel's
+# Update button) it turns into hundreds of lines of dots.
 fetch() {
-    local opts=(-q)
-    wget --help 2>&1 | grep -q -- '--show-progress' && opts+=(--show-progress)
+    local opts=(-q) bar=(-sS)
+    if [[ -t 2 ]]; then
+        wget --help 2>&1 | grep -q -- '--show-progress' && opts+=(--show-progress)
+        bar=(--progress-bar)
+    fi
     wget "${opts[@]}" -O "$2" "$1" && return 0
-    curl -fL --progress-bar -o "$2" "$1"
+    curl -fL "${bar[@]}" -o "$2" "$1"
 }
 
 # verify_checksum checks the downloaded archive against the SHA256SUMS file the
@@ -622,7 +657,7 @@ install_s-ui() {
         printf "${green}$(t got_version)${plain}\n" "${last_version}"
     else
         last_version=$1
-        printf "$(t begin_install)\n" "$1"
+        printf "$(t begin_install)\n" "${1#v}" # the message has its own v
     fi
 
     # No --no-check-certificate. It was on every download here, which turns the
@@ -685,7 +720,7 @@ install_s-ui() {
         systemctl enable s-ui --now
     fi
 
-    printf "${green}s-ui v${last_version}${plain} $(t install_finished)\n"
+    printf "${green}s-ui v${last_version#v}${plain} $(t install_finished)\n"
     echo -e "$(t access_panel)${green}"
     /usr/local/s-ui/sui uri
     echo -e "${plain}"
@@ -694,7 +729,8 @@ install_s-ui() {
         echo -e "${green}$(t node_ready)${plain}"
         echo -e ""
     fi
-    s-ui help
+    # Nobody reads the menu in the log of an unattended update.
+    [[ "$opt_unattended" -eq 1 ]] || s-ui help
 }
 
 # Options. A bare first argument is the version to install, as it always was.
@@ -702,10 +738,14 @@ install_s-ui() {
 #   --node-token <token> set up a node for a master, without questions
 #   --port <port>        panel port (with --node-token)
 #   --path <path>        panel path (with --node-token)
+#   --unattended         ask nothing: keep the panel's settings and login (a
+#                        new panel gets a random login). The panel's Update
+#                        button runs the installer this way.
 opt_version=""
 opt_node_token=""
 opt_port=""
 opt_path=""
+opt_unattended=0
 need_value() {
     if [[ $1 -lt 2 || -z "$3" ]]; then
         printf "${red}$(t missing_value)${plain}\n" "$2"
@@ -724,6 +764,7 @@ while [[ $# -gt 0 ]]; do
         esac
         shift 2
         ;;
+    --unattended) opt_unattended=1; shift ;;
     --version=*) opt_version="${1#*=}"; shift ;;
     --node-token=*) opt_node_token="${1#*=}"; shift ;;
     --port=*) opt_port="${1#*=}"; shift ;;

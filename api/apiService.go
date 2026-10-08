@@ -30,6 +30,7 @@ type ApiService struct {
 	service.ServerService
 	service.NodeService
 	service.NodeSyncService
+	service.PanelUpdateService
 }
 
 func (a *ApiService) LoadData(c *gin.Context) {
@@ -451,6 +452,19 @@ func (a *ApiService) Save(c *gin.Context, loginUser string, fanout bool) {
 func (a *ApiService) RestartApp(c *gin.Context) {
 	err := a.PanelService.RestartPanel(3 * time.Second)
 	jsonMsg(c, "restartApp", err)
+}
+
+// GetPanelUpdate is the panel's version, the latest release and the state of
+// the last update; check=1 asks GitHub again.
+func (a *ApiService) GetPanelUpdate(c *gin.Context) {
+	jsonObj(c, a.PanelUpdateService.Info(c.Query("check") == "1"), nil)
+}
+
+// StartPanelUpdate updates the panel to the latest release. The panel restarts
+// on the new version when it is installed.
+func (a *ApiService) StartPanelUpdate(c *gin.Context, loginUser string) {
+	tag, err := a.PanelUpdateService.Start(c.Request.FormValue("lang"), loginUser)
+	jsonMsgObj(c, "panelUpdate", tag, err)
 }
 
 func (a *ApiService) RestartSb(c *gin.Context) {

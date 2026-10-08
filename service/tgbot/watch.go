@@ -175,7 +175,7 @@ func (b *bot) checkNodes(ctx context.Context, watched map[uint]*nodeWatch) {
 		// A node held in maintenance stops its core on purpose.
 		if st.State == "online" || (st.State == "core-stopped" && st.Maintenance) {
 			if w.alerted {
-				b.broadcast(ctx, b.t("nodeUp", esc(n.Name), b.humanDuration(time.Since(w.downAt))), "nodes")
+				b.toOwner(ctx, b.t("nodeUp", esc(n.Name), b.humanDuration(time.Since(w.downAt))), "nodes")
 			}
 			w.failures, w.alerted, w.downAt = 0, false, time.Time{}
 		} else {
@@ -189,7 +189,7 @@ func (b *bot) checkNodes(ctx context.Context, watched map[uint]*nodeWatch) {
 				if st.Error != "" {
 					reason = st.Error
 				}
-				b.broadcast(ctx, b.t("nodeDown", esc(n.Name), esc(reason)), "nodes")
+				b.toOwner(ctx, b.t("nodeDown", esc(n.Name), esc(reason)), "nodes")
 			}
 		}
 		if reachable {
@@ -303,11 +303,23 @@ func (b *bot) nodeClearedText(name, key string) string {
 // its links leaving or coming back to the subscriptions.
 func (b *bot) announceNodeEvents(ctx context.Context, events []service.NodeEvent) {
 	for _, e := range events {
-		if text := b.nodeEventText(e); text != "" {
+		text := b.nodeEventText(e)
+		switch {
+		case text == "":
+		case nodeEventForOwner[e.Kind]:
+			b.toOwner(ctx, text, "nodes")
+		default:
 			b.broadcast(ctx, text, "nodes")
 		}
 	}
 }
+
+// nodeEventForOwner are the node events that, like a node going down or
+// coming back, only the owner hears about: the node's links leaving the
+// subscriptions or coming back, and the node becoming unreachable from Iran or
+// reachable again. The monthly cap levels go to every administrator of the
+// nodes.
+var nodeEventForOwner = map[string]bool{"hidden": true, "shown": true, "filtered": true, "unfiltered": true}
 
 func (b *bot) nodeEventText(e service.NodeEvent) string {
 	name := esc(e.Name)

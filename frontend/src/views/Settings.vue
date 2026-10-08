@@ -24,6 +24,15 @@
       <v-tab value="t6">
         {{ $t('setting.tools') }}
       </v-tab>
+      <v-tab value="t7">
+        {{ $t('panelUpdate.tab') }}
+        <v-badge
+          v-if="updateAvailable"
+          dot
+          inline
+          color="info"
+        />
+      </v-tab>
     </v-tabs>
     <v-card-text>
       <v-row
@@ -694,6 +703,14 @@
             </v-col>
           </v-row>
         </v-window-item>
+        <!-- eager: it looks for a new release as soon as the page opens, so the tab
+           can show that one is out. -->
+        <v-window-item
+          value="t7"
+          eager
+        >
+          <PanelUpdateVue @available="updateAvailable = $event" />
+        </v-window-item>
       </v-window>
     </v-card-text>
   </v-card>
@@ -706,9 +723,15 @@ import HttpUtils from '@/plugins/httputil'
 import { FindDiff } from '@/plugins/utils'
 import SubJsonExtVue from '@/components/SubJsonExt.vue'
 import SubClashExtVue from '@/components/SubClashExt.vue'
+import PanelUpdateVue from '@/components/PanelUpdate.vue'
 import { push } from 'notivue'
 import Data from '@/store/modules/data'
-const tab = ref("t1")
+// The Update tab reloads the page into the new version once an update is
+// done, and marks that it wants to be open again.
+const tab = ref(sessionStorage.getItem('panelUpdate.reopen') ? 't7' : 't1')
+sessionStorage.removeItem('panelUpdate.reopen')
+// A release newer than this panel is out (the Update tab shows a dot).
+const updateAvailable = ref(false)
 const loading:Ref = inject('loading')?? ref(false)
 const oldSettings = ref<Record<string, string>>({})
 

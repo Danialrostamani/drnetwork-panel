@@ -677,6 +677,17 @@ func (b *bot) broadcast(ctx context.Context, text string, sections ...string) {
 	}
 }
 
+// toOwner sends a notice that is for the owner alone: a node going down or
+// coming back. A bot without an owner sends it to the administrators who may
+// use one of the sections, as broadcast does.
+func (b *bot) toOwner(ctx context.Context, text string, sections ...string) {
+	if owner := b.access().owner; owner != 0 {
+		b.send(ctx, owner, text)
+		return
+	}
+	b.broadcast(ctx, text, sections...)
+}
+
 // broadcastAll reaches every administrator, limited ones included.
 func (b *bot) broadcastAll(ctx context.Context, text string) {
 	for _, id := range b.access().order {
