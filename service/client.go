@@ -689,7 +689,24 @@ func (s *ClientService) UpdateLinksByInboundChange(tx *gorm.DB, inbounds *[]mode
 	return nil
 }
 
-func (s *ClientService) DepleteClients() ([]uint, error) {
+// depletedWhere matches the enabled clients that used their volume or whose
+// time is up.
+const depletedWhere = "enable = true AND ((volume > 0 AND up+down >= volume) OR (expiry > 0 AND expiry < ?))"
+
+// HasDepleted reports, with one cheap query, whether an enabled client has
+// used up its volume or time; checked every few seconds so the client is cut
+// off at once, not at the next minute.
+func (s *ClientService) HasDepleted() bool {
+	var n int64
+	if err := database.GetDB().Model(model.Client{}).Where(depletedWhere, time.Now().Unix()).Limit(1).Count(&n).Error; err != nil {
+		return false
+	}
+	return n > 0
+}
+
+// DepleteClients disables the clients past their volume or expiry, and returns
+// the inbounds to update and the names of the clients it disabled.
+func (s *ClientService) DepleteClients() ([]uint, []string, error) {
 	var err error
 	var clients []model.Client
 	var changes []model.Changes
@@ -703,6 +720,9 @@ func (s *ClientService) DepleteClients() ([]uint, error) {
 	defer func() {
 		if err == nil {
 			tx.Commit()
+			if len(changes) == 0 {
+				return
+			}
 			if err1 := db.Exec("PRAGMA wal_checkpoint(FULL)").Error; err1 != nil {
 				logger.Error("Error checkpointing WAL: ", err1.Error())
 			}
@@ -714,13 +734,13 @@ func (s *ClientService) DepleteClients() ([]uint, error) {
 	// Reset clients
 	inboundIds, err = s.ResetClients(tx, dt)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Deplete clients
-	err = tx.Model(model.Client{}).Where("enable = true AND ((volume >0 AND up+down > volume) OR (expiry > 0 AND expiry < ?))", dt).Scan(&clients).Error
+	err = tx.Model(model.Client{}).Where(depletedWhere, dt).Scan(&clients).Error
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	for _, client := range clients {
@@ -741,18 +761,18 @@ func (s *ClientService) DepleteClients() ([]uint, error) {
 
 	// Save changes
 	if len(changes) > 0 {
-		err = tx.Model(model.Client{}).Where("enable = true AND ((volume >0 AND up+down > volume) OR (expiry > 0 AND expiry < ?))", dt).Update("enable", false).Error
+		err = tx.Model(model.Client{}).Where(depletedWhere, dt).Update("enable", false).Error
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		err = tx.Model(model.Changes{}).Create(&changes).Error
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		LastUpdate = dt
 	}
 
-	return inboundIds, nil
+	return inboundIds, users, nil
 }
 
 func (s *ClientService) ResetClients(tx *gorm.DB, dt int64) ([]uint, error) {

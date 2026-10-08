@@ -265,5 +265,6 @@ func (h *inboundTransportHandler) NewConnectionEx(ctx context.Context, conn net.
 	metadata.InboundDetour = h.listener.ListenOptions().Detour
 	//nolint:staticcheck
 	h.logger.InfoContext(ctx, "inbound connection from ", metadata.Source)
+	conn, onClose = usersession.EndOnClose(conn, onClose)
 	(*Inbound)(h).NewConnection(ctx, conn, metadata, onClose)
 }

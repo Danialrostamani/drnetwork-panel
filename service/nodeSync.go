@@ -1031,6 +1031,29 @@ func (s *NodeSyncService) ReconcileDirtyOnline() {
 	}
 }
 
+// ReconcileDirtyOnlineWait syncs the online nodes marked dirty, all at once,
+// and returns when they are done.
+func (s *NodeSyncService) ReconcileDirtyOnlineWait() {
+	var nodes []model.Node
+	if database.GetDB().Select("id").Where("enable = ? AND dirty = ?", true, true).Find(&nodes).Error != nil {
+		return
+	}
+	statuses := s.GetStatuses()
+	var wg sync.WaitGroup
+	for _, node := range nodes {
+		if status, ok := statuses[node.Id]; ok && status.State == "online" {
+			wg.Add(1)
+			go func(id uint) {
+				defer wg.Done()
+				if err := s.Reconcile(id); err != nil {
+					logger.Warning("nodes: reconcile failed: ", err)
+				}
+			}(node.Id)
+		}
+	}
+	wg.Wait()
+}
+
 func (s *NodeSyncService) ReconcileAllOnline() {
 	var nodes []model.Node
 	if database.GetDB().Select("id").Where("enable = ?", true).Find(&nodes).Error != nil {

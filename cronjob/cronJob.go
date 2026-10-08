@@ -44,6 +44,8 @@ func (c *CronJob) Start(loc *time.Location, trafficAge int, statsBucketSeconds i
 	addJob("@every 10s", NewClusterIPLimitJob(), "cluster IP limit job")
 	// Start expiry job
 	addJob("@every 1m", NewDepleteJob(), "deplete job")
+	// A client is cut off within seconds of using up its volume or time.
+	addJob("@every 3s", NewQuickDepleteJob(), "quick deplete check")
 	// Periodic global traffic reset. Polled rather than scheduled on the spec
 	// itself: the spec was read once at start, so a saved change did nothing
 	// until the panel was restarted.
@@ -55,7 +57,7 @@ func (c *CronJob) Start(loc *time.Location, trafficAge int, statsBucketSeconds i
 	// Start core if it is not running
 	addJob("@every 5s", NewCheckCoreJob(), "core watchdog")
 	addJob("@every 5s", NewNodesJob(), "node probe")
-	addJob("@every 10s", NewNodeTrafficJob(), "node traffic")
+	addJob("@every 5s", NewNodeTrafficJob(), "node traffic")
 	addJob("@every 1h", NewNodeReconcileJob(), "node reconcile")
 	addJob("@every 1m", NewFilterCheckJob(), "filter check")
 	addJob("@every 1m", NewRemoteBackupJob(), "remote backup")
