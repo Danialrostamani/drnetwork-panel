@@ -74,14 +74,6 @@ Manage the service with OpenRC: `rc-service s-ui start|stop|restart` and `rc-upd
 3. Run `install-windows.bat` as Administrator
 4. Follow the installation wizard
 
-## Install legacy Version
-
-**Step 1:** To install your desired legacy version, add the version to the end of the installation command. e.g., ver `v1.5.0`:
-
-```sh
-VERSION=v1.5.0 && bash <(curl -Ls https://raw.githubusercontent.com/Danialrostamani/drnetwork-panel/$VERSION/install.sh) $VERSION
-```
-
 ## Manual installation
 
 ### Linux/macOS
