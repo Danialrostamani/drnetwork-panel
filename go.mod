@@ -18,7 +18,7 @@ require (
 	github.com/sagernet/sing-quic v0.7.1-0.20260924092235-6a3a24d65b99
 	github.com/sagernet/sing-shadowsocks v0.2.8
 	github.com/sagernet/sing-snell v0.0.0-20260829071736-20f2eaec77c3
-	github.com/sagernet/sing-tun v0.9.6-0.20260924001923-ddaa4ca25e3b
+	github.com/sagernet/sing-tun v0.9.6
 	github.com/sagernet/sing-vmess v0.2.8
 	github.com/shirou/gopsutil/v4 v4.26.8
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
