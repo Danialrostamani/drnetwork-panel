@@ -45,12 +45,31 @@ func (a *ApiService) NodeAction(c *gin.Context, actor string) {
 		}
 		ids = []uint{id}
 	}
-	results, err := a.NodeSyncService.NodeAction(ids, c.PostForm("action"), actor)
+	opts := service.NodeActionOpts{
+		Lang: c.PostForm("lang"),
+		User: c.PostForm("user"), Pass: c.PostForm("pass"), Code: c.PostForm("code"),
+	}
+	results, err := a.NodeSyncService.NodeActionWith(ids, c.PostForm("action"), actor, opts)
 	if err != nil {
 		jsonMsg(c, "nodeAction", err)
 		return
 	}
 	jsonObj(c, results, nil)
+}
+
+// GetNodePanelUpdate is what a node tells about updating its panel.
+func (a *ApiService) GetNodePanelUpdate(c *gin.Context) {
+	id, err := nodeIDParam(c)
+	if err != nil {
+		jsonMsg(c, "nodePanelUpdate", err)
+		return
+	}
+	obj, err := a.NodeSyncService.NodePanelUpdate(id, c.Query("check") == "1")
+	if err != nil {
+		jsonMsg(c, "nodePanelUpdate", err)
+		return
+	}
+	jsonObj(c, obj, nil)
 }
 
 func (a *ApiService) GetNodeOnlines(c *gin.Context) {

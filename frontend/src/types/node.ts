@@ -141,6 +141,8 @@ export interface NodeStatus {
   hidden?: '' | 'down' | 'cap' | 'filtered'
   filtered?: boolean
   warnings?: NodeWarning[]
+  // The node's panel is older than the master's.
+  outdated?: boolean
   // Percent online; -1 without history.
   uptime24?: number
   uptime7d?: number
@@ -663,9 +665,20 @@ export interface NodeActionResult {
   name: string
   ok: boolean
   error?: string
+  // For a panel update: the release the node updates to, or upToDate or
+  // running when it had nothing to start.
+  note?: string
 }
 
-export type NodeAction = 'probe' | 'restartSb' | 'restartApp' | 'maintenanceOn' | 'maintenanceOff' | 'enable' | 'disable' | 'sync' | 'fullSync'
+export type NodeAction = 'probe' | 'restartSb' | 'restartApp' | 'maintenanceOn' | 'maintenanceOff' | 'enable' | 'disable' | 'sync' | 'fullSync' | 'updatePanel'
 
 // Actions that stop something or rewrite a node ask first.
-export const confirmActions: NodeAction[] = ['restartSb', 'restartApp', 'maintenanceOn', 'disable', 'fullSync']
+export const confirmActions: NodeAction[] = ['restartSb', 'restartApp', 'maintenanceOn', 'disable', 'fullSync', 'updatePanel']
+
+// What the master answers about a panel update it could not start: the node
+// needs its login (service.ErrNodeUpdateTooOld), asks for a two-factor code,
+// refused the login, or has no Update button at all.
+export const nodeUpdateTooOld = "the node's panel is older than v34: it updates with its username and password"
+export const nodeLoginTotp = "the node's panel asks for a two-factor code"
+export const nodeLoginFailed = "login to the node's panel failed: "
+export const nodeNoUpdater = "the node's panel is older than v31 and cannot update itself: update it on the node"

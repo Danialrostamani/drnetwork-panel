@@ -145,6 +145,8 @@ func (a *APIHandler) getHandler(c *gin.Context) {
 		a.ApiService.GetNodeTraffic(c)
 	case "nodeLogs":
 		a.ApiService.GetNodeLogs(c)
+	case "nodePanelUpdate":
+		a.ApiService.GetNodePanelUpdate(c)
 	case "nodeChanges":
 		a.ApiService.GetNodeChanges(c)
 	case "nodeOutbounds":

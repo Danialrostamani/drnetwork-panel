@@ -6,6 +6,7 @@ Thanks for helping. This page covers the development setup, the conventions the 
 
 - [Setup](#setup)
 - [Conventions](#conventions)
+- [Node compatibility](#node-compatibility)
 - [Testing](#testing)
 - [Pull requests](#pull-requests)
 - [Releases](#releases)
@@ -75,9 +76,18 @@ docker build -t drnetwork-panel .
 
 - Standard Go style; run `gofmt -w .` before committing. Handle errors explicitly. Comment what is not obvious - and *why*, not what.
 - Layers: `api/` (HTTP handlers, routing) → `service/` (business logic) → `database/model/` (GORM models). Also: `core/` (sing-box), `sub/` (subscriptions), `util/`, `network/`, `service/tgbot/` (Telegram bot). Keep dependencies pointing downwards.
-- Panel and nodes talk through the token-authenticated API v2 (`api/apiV2Handler.go`). A new action must be read-only or authenticated like the others, and a master has to cope with a node that does not know it yet (see how `statsTotals` is handled in `service/statsSummary.go`).
+- Panel and nodes talk through the token-authenticated API v2 (`api/apiV2Handler.go`). A new action must be read-only or authenticated like the others, and a master has to cope with a node that does not know it yet (see [Node compatibility](#node-compatibility)).
 - Frontend: user-visible strings go through `$t(...)` and are added to all six locale files (`frontend/src/locales`); other locales fall back to English, but translate anyway.
 - Keep functional names intact when changing branding: the `s-ui` command, service and paths, the `s-ui-*` release archives and the `s-ui` session cookie are part of the installer, the updater and existing deployments.
+
+## Node compatibility
+
+Every release of the master must keep working with nodes that still run older panels: masters are usually updated first, and a node can stay on an older release for a long time.
+
+- The node API (API v2) only grows. Do not rename or remove an action or a field, and do not change what an existing one means; add a new one instead.
+- The master never assumes that a node knows something new. When a node answers `unknown action` or lacks a field, fall back to the older way or tell the user that this node needs a newer panel. One old node must not break a page or a bulk operation. `statsTotals` in `service/statsSummary.go` and `updatePanel` in `service/nodeActions.go` show both patterns.
+- Tests cover the old answers: serve what an older release replies with an `httptest` server (see `service/nodeUpdate_test.go`).
+- Before a release, check the new master against real nodes that run the previous releases: status, probe, sync and full sync, restart, logs, backup and the panel update.
 
 ## Testing
 
@@ -119,7 +129,7 @@ Writing tests:
 
 ## Releases
 
-Maintainers only. A release is a bump of the DrNetwork version in `config/release` plus a tag named `v<version>` (for example `v32`). `config/version` is not the panel's version: it is the version of the database layout (it started from S-UI 1.6.3), and the migrations count by it. Pushing the tag makes the *Release DrNetwork* workflow build the archives for every platform and publish them with the installer. The project is maintained on its own: nothing is merged from the S-UI repositories automatically.
+Maintainers only. A release is a bump of the DrNetwork version in `config/release` plus a tag named `v<version>` (for example `v32`). `config/version` is not the panel's version: it is the version of the database layout (it started from S-UI 1.6.3), and the migrations count by it. Check it against nodes on the previous releases first (see [Node compatibility](#node-compatibility)). Pushing the tag makes the *Release DrNetwork* workflow build the archives for every platform and publish them with the installer. The project is maintained on its own: nothing is merged from the S-UI repositories automatically.
 
 ## Reporting bugs and requesting features
 

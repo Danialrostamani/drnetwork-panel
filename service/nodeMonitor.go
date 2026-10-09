@@ -528,6 +528,10 @@ func (m *nodeMonitorState) observe(n *model.Node, st *NodeStatus, prev *NodeStat
 	}
 
 	st.Warnings = nodeWarnings(n, st, masterVersion, now)
+	if masterVersion != "" {
+		v := nodeVersion(st)
+		st.Outdated = v != "" && versionOlder(v, masterVersion)
+	}
 }
 
 // settle finishes a status once the round's history is written and summed: it

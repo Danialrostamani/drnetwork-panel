@@ -87,8 +87,28 @@
             :disabled="nodes.length === 0"
             @click="openBackup(0, '')"
           />
+          <v-list-item
+            prepend-icon="mdi-update"
+            :title="$t('node.update.allNodes')"
+            :disabled="enabledIds.length === 0"
+            @click="request('updatePanel', enabledIds)"
+          />
         </v-list>
       </v-menu>
+    </v-col>
+    <v-col
+      v-if="outdatedIds.length > 0"
+      cols="auto"
+    >
+      <v-btn
+        color="warning"
+        variant="tonal"
+        prepend-icon="mdi-update"
+        :title="$t('node.update.outdated', { n: outdatedIds.length })"
+        @click="request('updatePanel', outdatedIds)"
+      >
+        {{ $t('node.update.button') }} ({{ outdatedIds.length }})
+      </v-btn>
     </v-col>
     <v-col
       v-if="nodes.length > 0"
@@ -542,6 +562,27 @@
       </template>
       <template #item.version="{ item }">
         <span dir="ltr">{{ nodeVersion(statuses[item.id]) || '-' }}</span>
+        <span
+          v-if="updating[item.id]"
+          class="ms-1 text-medium-emphasis"
+          :title="$t('node.update.updating')"
+        >
+          <v-progress-circular
+            indeterminate
+            size="12"
+            width="2"
+          />
+          <span dir="ltr"> {{ updating[item.id].target }}</span>
+        </span>
+        <v-icon
+          v-else-if="statuses[item.id]?.outdated"
+          icon="mdi-arrow-up-bold-circle"
+          color="warning"
+          size="small"
+          class="ms-1"
+          :title="$t('node.update.available')"
+          @click="request('updatePanel', [item.id])"
+        />
       </template>
       <template #item.actions="{ item }">
         <div class="d-flex align-center justify-end">
@@ -599,6 +640,70 @@
       </v-card-actions>
     </v-card>
   </v-dialog>
+
+  <v-dialog
+    v-model="login.visible"
+    max-width="480"
+  >
+    <v-card
+      rounded="lg"
+      :title="$t('node.update.loginTitle')"
+    >
+      <v-card-text>
+        <p class="mb-2">
+          {{ $t('node.update.loginText') }}
+        </p>
+        <div
+          class="font-weight-bold mb-4"
+          dir="auto"
+        >
+          {{ login.names }}
+        </div>
+        <v-text-field
+          v-model="login.user"
+          :label="$t('node.update.user')"
+          autocomplete="username"
+          density="compact"
+          dir="ltr"
+        />
+        <v-text-field
+          v-model="login.pass"
+          :label="$t('node.update.pass')"
+          type="password"
+          autocomplete="current-password"
+          density="compact"
+          dir="ltr"
+        />
+        <v-text-field
+          v-if="login.ids.length === 1"
+          v-model="login.code"
+          :label="$t('node.update.code')"
+          autocomplete="one-time-code"
+          inputmode="numeric"
+          density="compact"
+          dir="ltr"
+        />
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer />
+        <v-btn
+          variant="outlined"
+          @click="login.visible = false"
+        >
+          {{ $t('actions.close') }}
+        </v-btn>
+        <v-btn
+          color="primary"
+          variant="tonal"
+          :disabled="!login.user || !login.pass"
+          :loading="login.running"
+          @click="loginUpdate"
+        >
+          {{ $t('node.update.submit') }}
+        </v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
 </template>
 
 <script setup lang="ts">
@@ -618,8 +723,9 @@ import { warningText } from '@/components/node/warnings'
 import { runNodeAction } from '@/components/node/actions'
 import {
   capPercent, cloneNode, confirmActions, flagEmoji, matchesFilter, nodeCountries, nodeSortKeys, nodeTags, nodeVersion,
+  nodeUpdateTooOld, versionLabel,
   nodeView, nodesSummary, sortNodes, usage, viewColor, viewIcon, viewLabelKey,
-  type Node, type NodeAction, type NodeSortKey, type NodeStateFilter, type NodeStatus, type NodeView,
+  type Node, type NodeAction, type NodeActionResult, type NodeSortKey, type NodeStateFilter, type NodeStatus, type NodeView,
 } from '@/types/node'
 import { i18n } from '@/locales'
 
@@ -740,6 +846,7 @@ const bulkMore: { key: NodeAction; icon: string }[] = [
   { key: 'fullSync', icon: 'mdi-sync-alert' },
   { key: 'restartSb', icon: 'mdi-restart' },
   { key: 'restartApp', icon: 'mdi-power' },
+  { key: 'updatePanel', icon: 'mdi-update' },
   { key: 'maintenanceOn', icon: 'mdi-wrench-clock' },
   { key: 'maintenanceOff', icon: 'mdi-wrench-check' },
   { key: 'enable', icon: 'mdi-toggle-switch' },
@@ -758,7 +865,7 @@ const openImport = (id: number, name: string) => { importer.id = id; importer.na
 const openDetails = (node: Node, tab: string) => { details.id = node.id; details.tab = tab; details.visible = true }
 const openBackup = (id: number, name: string) => { backup.id = id; backup.name = name; backup.visible = true }
 
-const actionKeys: NodeAction[] = ['probe', 'restartSb', 'restartApp', 'maintenanceOn', 'maintenanceOff', 'enable', 'disable', 'sync', 'fullSync']
+const actionKeys: NodeAction[] = ['probe', 'restartSb', 'restartApp', 'maintenanceOn', 'maintenanceOff', 'enable', 'disable', 'sync', 'fullSync', 'updatePanel']
 const onAction = (node: Node, key: string) => {
   switch (key) {
     case 'details': return openDetails(node, 'overview')
@@ -812,12 +919,59 @@ const request = (action: NodeAction, picked: number[]) => {
   run(action, ids)
 }
 
-const run = async (action: NodeAction, ids: number[]): Promise<void> => {
+const run = async (action: NodeAction, ids: number[], extra: Record<string, string> = {}): Promise<void> => {
   busy.value = { ...busy.value, ...Object.fromEntries(ids.map(id => [id, true])) }
   try {
-    await runNodeAction(action, ids)
+    const results = await runNodeAction(action, ids, extra)
+    if (action === 'updatePanel' && results) afterUpdate(results, !!extra.user)
   } finally {
     busy.value = { ...busy.value, ...Object.fromEntries(ids.map(id => [id, false])) }
+  }
+}
+
+// ---- panel updates ----
+// The nodes whose panel is older than the master's, and every enabled node.
+const enabledIds = computed(() => nodes.value.filter(n => n.enable).map(n => n.id))
+const outdatedIds = computed(() => nodes.value
+  .filter(n => n.enable && statuses.value[n.id]?.outdated && !updating.value[n.id])
+  .map(n => n.id))
+
+// A node that started updating shows the release it goes to until the probe
+// finds it running that release, or for ten minutes at most.
+const updateWait = 10 * 60
+const updating = ref<Record<number, { target: string, until: number }>>({})
+watch([statuses, now], () => {
+  const left = Object.entries(updating.value).filter(([id, u]) =>
+    u.until > now.value && nodeVersion(statuses.value[Number(id)]) !== u.target)
+  if (left.length !== Object.keys(updating.value).length) updating.value = Object.fromEntries(left)
+})
+
+// Panels older than v34 update by their own Update button, which the master
+// presses with a login: those nodes are asked for it.
+const login = reactive({ visible: false, running: false, ids: [] as number[], names: '', user: '', pass: '', code: '' })
+const afterUpdate = (results: NodeActionResult[], withLogin: boolean) => {
+  const started = results.filter(r => r.ok && r.note?.startsWith('v'))
+  if (started.length) {
+    const until = now.value + updateWait
+    updating.value = {
+      ...updating.value,
+      ...Object.fromEntries(started.map(r => [r.id, { target: versionLabel((r.note ?? '').replace(/^v/, '')), until }])),
+    }
+  }
+  const needLogin = results.filter(r => !r.ok && r.error === nodeUpdateTooOld).map(r => r.id)
+  if (needLogin.length && !withLogin) {
+    Object.assign(login, { visible: true, running: false, ids: needLogin, names: namesOf(needLogin), pass: '', code: '' })
+  }
+}
+const loginUpdate = async () => {
+  login.running = true
+  const extra: Record<string, string> = { user: login.user, pass: login.pass }
+  if (login.code && login.ids.length === 1) extra.code = login.code
+  try {
+    await run('updatePanel', [...login.ids], extra)
+  } finally {
+    // The password is not kept once it has been used.
+    Object.assign(login, { visible: false, running: false, pass: '', code: '' })
   }
 }
 

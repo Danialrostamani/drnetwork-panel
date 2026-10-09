@@ -29,6 +29,10 @@ type NodeActionResult struct {
 	Name  string `json:"name"`
 	Ok    bool   `json:"ok"`
 	Error string `json:"error,omitempty"`
+	// Note says more about an action that went well: for a panel update, the
+	// release the node updates to, or "upToDate" or "running" when it had
+	// nothing to start.
+	Note string `json:"note,omitempty"`
 }
 
 const (
@@ -43,7 +47,7 @@ const (
 
 var nodeActionNames = map[string]bool{
 	"probe": true, "restartSb": true, "restartApp": true, "maintenanceOn": true, "maintenanceOff": true,
-	"enable": true, "disable": true, "sync": true, "fullSync": true,
+	"enable": true, "disable": true, "sync": true, "fullSync": true, "updatePanel": true,
 }
 
 // nodeRemoteActions change something on the node, so the node is probed again
@@ -64,6 +68,21 @@ func uniqueNodeIDs(ids []uint) []uint {
 
 // NodeAction runs one action on each of the nodes and tells how each took it.
 func (s *NodeSyncService) NodeAction(ids []uint, action, actor string) ([]NodeActionResult, error) {
+	return s.NodeActionWith(ids, action, actor, NodeActionOpts{})
+}
+
+// NodeActionOpts are what a panel update takes besides the nodes.
+type NodeActionOpts struct {
+	// Lang is the language the node writes the log of the update in.
+	Lang string
+	// User, Pass and Code log in to the panels that predate updates through
+	// the API (DrNetwork 31 to 33), which update from their own Update button
+	// only. They serve this request and are never stored.
+	User, Pass, Code string
+}
+
+// NodeActionWith is NodeAction with the options of a panel update.
+func (s *NodeSyncService) NodeActionWith(ids []uint, action, actor string, opts NodeActionOpts) ([]NodeActionResult, error) {
 	if !nodeActionNames[action] {
 		return nil, common.NewErrorf("unknown node action: %s", action)
 	}
@@ -125,10 +144,10 @@ func (s *NodeSyncService) NodeAction(ids []uint, action, actor string) ([]NodeAc
 			r := NodeActionResult{Id: n.Id, Name: n.Name}
 			if !n.Enable {
 				r.Error = "node is disabled"
-			} else if err := s.nodeActionOne(n, action); err != nil {
+			} else if note, err := s.nodeActionOne(n, action, opts, actor); err != nil {
 				r.Error = err.Error()
 			} else {
-				r.Ok = true
+				r.Ok, r.Note = true, note
 			}
 			results[i] = r
 		}(i)
@@ -176,17 +195,19 @@ func (s *NodeSyncService) probeSoon(ids []uint, after time.Duration) {
 	}()
 }
 
-func (s *NodeSyncService) nodeActionOne(n *model.Node, action string) error {
+func (s *NodeSyncService) nodeActionOne(n *model.Node, action string, opts NodeActionOpts, actor string) (string, error) {
 	switch action {
 	case "sync":
-		return s.ReconcileNow(n.Id)
+		return "", s.ReconcileNow(n.Id)
 	case "fullSync":
-		return s.ReconcileFull(n.Id)
+		return "", s.ReconcileFull(n.Id)
 	}
 	client := nodePushClient(n)
 	defer closeNodeIdle(client)
 	var err error
 	switch action {
+	case "updatePanel":
+		return s.startNodeUpdate(n, client, opts, actor)
 	case "restartSb":
 		_, err = s.nodePost(n, client, "restartSb", url.Values{})
 	case "restartApp":
@@ -198,7 +219,194 @@ func (s *NodeSyncService) nodeActionOne(n *model.Node, action string) error {
 	default:
 		err = common.NewErrorf("unknown node action: %s", action)
 	}
-	return err
+	return "", err
+}
+
+// ---- panel updates ----
+
+// A node's panel updates itself the way its own Update button does: the
+// master only asks, and the node fetches the release and runs the install
+// script. The node answers once the script has started, then restarts on the
+// new version; the periodic probe shows the version it comes back with.
+
+// ErrNodeUpdateTooOld is the error for a node whose panel predates updates
+// through the API (DrNetwork 33 and older) when no login was given for it.
+// Panels from DrNetwork 31 on have the Update button, which the master
+// presses by logging in with the panel's user and password; older ones are
+// updated on the node.
+const ErrNodeUpdateTooOld = "the node's panel is older than v34: it updates with its username and password"
+
+// ErrNodeLoginTotp is the error for a login that asks for a two-factor code.
+const ErrNodeLoginTotp = "the node's panel asks for a two-factor code"
+
+// ErrNodeNoUpdater is the error for a panel older than its Update button
+// (DrNetwork 30 and older): it is updated on the node.
+const ErrNodeNoUpdater = "the node's panel is older than v31 and cannot update itself: update it on the node"
+
+// nodeUpdateMsg is what a node answered to a panel update, without the
+// action's name in front and with the spacing of common.NewError undone.
+func nodeUpdateMsg(err error) string {
+	msg := strings.TrimPrefix(strings.Join(strings.Fields(err.Error()), " "), "node refused: ")
+	if strings.Contains(msg, "unknown action: panelUpdate") {
+		return ErrNodeUpdateTooOld
+	}
+	return strings.TrimPrefix(msg, "panelUpdate: ")
+}
+
+// nodeUpdateError reads what a node answered to a panel update. An update
+// that is already running, or a panel that is up to date, is no failure: the
+// note says which.
+func nodeUpdateError(err error) (string, error) {
+	msg := nodeUpdateMsg(err)
+	switch {
+	case strings.HasPrefix(msg, "the panel is up to date"):
+		return "upToDate", nil
+	case strings.HasPrefix(msg, "an update to ") && strings.HasSuffix(msg, " is already running"):
+		return "running", nil
+	}
+	return "", common.NewErrorf("%s", msg)
+}
+
+// postNodeUpdate asks a node's panel to update itself to the latest release
+// and returns the release it updates to.
+func (s *NodeSyncService) postNodeUpdate(n *model.Node, client *http.Client, lang, actor string) (string, error) {
+	obj, err := s.nodePost(n, client, "panelUpdate", url.Values{"lang": {lang}})
+	if err != nil {
+		return "", err
+	}
+	var tag string
+	_ = json.Unmarshal(obj, &tag)
+	logger.Info("nodes: panel update of ", n.Name, " to ", tag, " started by ", actor)
+	return tag, nil
+}
+
+func (s *NodeSyncService) startNodeUpdate(n *model.Node, client *http.Client, opts NodeActionOpts, actor string) (string, error) {
+	tag, err := s.postNodeUpdate(n, client, opts.Lang, actor)
+	if err == nil {
+		return tag, nil
+	}
+	note, err := nodeUpdateError(err)
+	if err != nil && err.Error() == ErrNodeUpdateTooOld && opts.User != "" {
+		if tag, err = loginNodeUpdate(n, client, opts, actor); err != nil {
+			return nodeUpdateError(err)
+		}
+		return tag, nil
+	}
+	return note, err
+}
+
+// nodePanelURL is the address of an action of a node's panel API, the one its
+// pages use with a login, beside the token API of nodeAPIURL.
+func nodePanelURL(n *model.Node, action string) string {
+	return strings.TrimRight(n.BaseUrl, "/") + normalizeWebPath(n.WebPath) + "api/" + action
+}
+
+// nodePanelPost posts to a node's panel API as its pages do: the session
+// cookies, and the header that tells the panel the request is its own.
+func nodePanelPost(client *http.Client, n *model.Node, action string, form url.Values, cookies []*http.Cookie) (*http.Response, json.RawMessage, string, error) {
+	req, err := http.NewRequest(http.MethodPost, nodePanelURL(n, action), strings.NewReader(form.Encode()))
+	if err != nil {
+		return nil, nil, "", err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("X-Requested-With", "XMLHttpRequest")
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, nil, "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return resp, nil, "", nodeHTTPStatusError(resp.StatusCode)
+	}
+	var msg struct {
+		Success bool            `json:"success"`
+		Msg     string          `json:"msg"`
+		Obj     json.RawMessage `json:"obj"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, nodeMaxResponseSize)).Decode(&msg); err != nil {
+		return resp, nil, "", common.NewError("unexpected response from node")
+	}
+	if !msg.Success {
+		if msg.Msg == "" {
+			msg.Msg = "node rejected the request"
+		}
+		return resp, msg.Obj, "", common.NewErrorf("%s", msg.Msg)
+	}
+	return resp, msg.Obj, msg.Msg, nil
+}
+
+// loginNodeUpdate presses a node's Update button: it logs in to the node's
+// panel with the user and password given, starts the update, and logs out.
+// The cookies stay in this function; nothing of the login is kept.
+func loginNodeUpdate(n *model.Node, client *http.Client, opts NodeActionOpts, actor string) (string, error) {
+	login := url.Values{"user": {opts.User}, "pass": {opts.Pass}}
+	if opts.Code != "" {
+		login.Set("code", opts.Code)
+	}
+	resp, obj, _, err := nodePanelPost(client, n, "login", login, nil)
+	if err != nil {
+		var totp struct {
+			Totp bool `json:"totp"`
+		}
+		if len(obj) > 0 && json.Unmarshal(obj, &totp) == nil && totp.Totp {
+			return "", common.NewErrorf("%s", ErrNodeLoginTotp)
+		}
+		// Panels before v33 put ": " in front of a message without a context.
+		why := strings.TrimLeft(strings.Join(strings.Fields(err.Error()), " "), ": ")
+		return "", common.NewErrorf("login to the node's panel failed: %s", why)
+	}
+	cookies := resp.Cookies()
+	if len(cookies) == 0 {
+		return "", common.NewError("login to the node's panel failed: no session")
+	}
+	defer func() {
+		// Logout is a GET in the panel's API.
+		if req, err := http.NewRequest(http.MethodGet, nodePanelURL(n, "logout"), nil); err == nil {
+			req.Header.Set("X-Requested-With", "XMLHttpRequest")
+			for _, c := range cookies {
+				req.AddCookie(c)
+			}
+			if resp, err := client.Do(req); err == nil {
+				_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<16))
+				resp.Body.Close()
+			}
+		}
+	}()
+	_, obj, _, err = nodePanelPost(client, n, "panelUpdate", url.Values{"lang": {opts.Lang}}, cookies)
+	if err != nil {
+		if strings.Contains(err.Error(), "unknown action") {
+			return "", common.NewErrorf("%s", ErrNodeNoUpdater)
+		}
+		return "", err
+	}
+	var tag string
+	_ = json.Unmarshal(obj, &tag)
+	logger.Info("nodes: panel update of ", n.Name, " to ", tag, " started by ", actor, " (logged in)")
+	return tag, nil
+}
+
+// NodePanelUpdate is what a node tells about updating its panel, as its own
+// Settings page shows it (PanelUpdate); check has it ask GitHub again.
+func (s *NodeSyncService) NodePanelUpdate(id uint, check bool) (json.RawMessage, error) {
+	node, err := s.getNodeByID(id)
+	if err != nil {
+		return nil, err
+	}
+	client := nodePushClient(node)
+	defer closeNodeIdle(client)
+	q := url.Values{}
+	if check {
+		q.Set("check", "1")
+	}
+	obj, err := s.nodeGet(node, client, "panelUpdate", q)
+	if err != nil {
+		return nil, common.NewErrorf("%s", nodeUpdateMsg(err))
+	}
+	return obj, nil
 }
 
 // setNodesEnabled turns nodes on or off. A node turned back on has missed the

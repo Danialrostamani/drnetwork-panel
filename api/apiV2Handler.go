@@ -70,6 +70,9 @@ func (a *APIv2Handler) postHandler(c *gin.Context) {
 		a.ApiService.ApplyClusterBans(c)
 	case "quota":
 		a.ApiService.ApplyNodeQuotas(c)
+	case "panelUpdate":
+		// The master updates its nodes' panels through here.
+		a.ApiService.StartPanelUpdate(c, username)
 	default:
 		jsonMsg(c, "failed", common.NewError("unknown action: ", action))
 	}
@@ -115,6 +118,8 @@ func (a *APIv2Handler) getHandler(c *gin.Context) {
 		a.ApiService.GetDb(c)
 	case "checkOutbound":
 		a.ApiService.GetCheckOutbound(c)
+	case "panelUpdate":
+		a.ApiService.GetPanelUpdate(c)
 	default:
 		jsonMsg(c, "failed", common.NewError("unknown action: ", action))
 	}

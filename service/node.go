@@ -73,6 +73,9 @@ type NodeStatus struct {
 	// The filter check finds the node unreachable from Iran.
 	Filtered bool          `json:"filtered,omitempty"`
 	Warnings []NodeWarning `json:"warnings,omitempty"`
+	// Outdated tells that the node's panel is older than the master's, whether
+	// its version warning is on or not: the Nodes page offers to update it.
+	Outdated bool `json:"outdated,omitempty"`
 	// Percent of the probes of the last 24 hours and 7 days that found the
 	// node online; -1 while there is no history.
 	Uptime24 float64             `json:"uptime24"`
