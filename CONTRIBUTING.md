@@ -119,7 +119,7 @@ Writing tests:
 
 ## Releases
 
-Maintainers only. A release is a bump of the DrNetwork version in `config/release` plus a tag named `v<version>` (for example `v32`). `config/version` is not the panel's version: it follows the S-UI release whose database layout the code uses, and the migrations count by it. Pushing the tag makes the *Release DrNetwork* workflow build the archives for every platform and publish them with the installer. Changes from the S-UI project are imported through the validated synchronisation workflow described in [UPSTREAM_SYNC.md](UPSTREAM_SYNC.md).
+Maintainers only. A release is a bump of the DrNetwork version in `config/release` plus a tag named `v<version>` (for example `v32`). `config/version` is not the panel's version: it is the version of the database layout (it started from S-UI 1.6.3), and the migrations count by it. Pushing the tag makes the *Release DrNetwork* workflow build the archives for every platform and publish them with the installer. The project is maintained on its own: nothing is merged from the S-UI repositories automatically.
 
 ## Reporting bugs and requesting features
 

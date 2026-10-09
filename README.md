@@ -7,7 +7,7 @@
 [![Downloads](https://img.shields.io/github/downloads/Danialrostamani/drnetwork-panel/total.svg)](https://github.com/Danialrostamani/drnetwork-panel/releases)
 [![License](https://img.shields.io/badge/license-GPL%20V3-blue.svg?longCache=true)](https://www.gnu.org/licenses/gpl-3.0.en.html)
 
-> Independent, full-source DrNetwork distribution. Backend and frontend are stored in this repository; no GitHub fork or submodule is required. Official S-UI changes are imported through a validated synchronization workflow.
+> Independent, full-source DrNetwork distribution. Backend and frontend are stored in this repository; no GitHub fork or submodule is required. The panel is developed and released from this repository alone: nothing is imported from the official S-UI repositories, and installs, updates and the Docker image come only from this repository's releases.
 
 > **Disclaimer:** This project is only for personal learning and communication, please do not use it for illegal purposes, please do not use it in a production environment
 
