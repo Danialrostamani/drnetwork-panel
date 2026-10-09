@@ -17,6 +17,9 @@
     <v-tab value="codes">
       {{ $t('shop.codes') }}
     </v-tab>
+    <v-tab value="sms">
+      {{ $t('shop.sms') }}
+    </v-tab>
     <v-tab value="wallets">
       {{ $t('shop.wallets') }}
     </v-tab>
@@ -147,10 +150,22 @@
         items-per-page="25"
       >
         <template #item.kind="{ item }">
+          <v-icon
+            v-if="item.auto"
+            icon="mdi-autorenew"
+            size="small"
+            :title="$t('shop.autoOrder')"
+          />
           {{ orderTitle(item) }}
         </template>
         <template #item.paid="{ item }">
-          <span dir="ltr">{{ money(item.paid) }}</span>
+          <span dir="ltr">{{ money(item.paid + (item.extra || 0)) }}</span>
+          <div
+            v-if="item.extra > 0"
+            class="text-caption text-medium-emphasis"
+          >
+            <span dir="ltr">+{{ money(item.extra) }}</span> {{ $t('shop.toWallet') }}
+          </div>
         </template>
         <template #item.status="{ item }">
           <v-chip
@@ -165,7 +180,7 @@
           <span dir="ltr">{{ date(item.createdAt) }}</span>
         </template>
         <template #item.actions="{ item }">
-          <template v-if="item.status === 'pending' && item.receipt">
+          <template v-if="item.status === 'pending' && (item.receipt || item.method === 'card')">
             <v-btn
               size="small"
               variant="text"
@@ -240,6 +255,21 @@
         :items="data.discounts"
         density="compact"
       >
+        <template #item.kind="{ item }">
+          <v-chip
+            :color="item.kind === 'gift' ? 'success' : 'primary'"
+            size="small"
+            label
+          >
+            {{ item.kind === 'gift' ? $t('shop.gift') : $t('shop.discount') }}
+          </v-chip>
+        </template>
+        <template #item.value="{ item }">
+          <span dir="ltr">{{ item.kind === 'gift' ? money(item.amount) : item.percent + '%' }}</span>
+        </template>
+        <template #item.limits="{ item }">
+          {{ codeLimits(item) }}
+        </template>
         <template #item.used="{ item }">
           {{ item.used }}{{ item.maxUses > 0 ? ' / ' + item.maxUses : '' }}
         </template>
@@ -260,6 +290,110 @@
             icon="mdi-delete"
             @click="del('discountDel', item.id)"
           />
+        </template>
+      </v-data-table>
+    </v-window-item>
+
+    <v-window-item value="sms">
+      <v-alert
+        type="info"
+        variant="tonal"
+        density="compact"
+        class="mb-3"
+      >
+        {{ $t('shop.smsHint') }}
+      </v-alert>
+      <v-alert
+        v-if="!savedSmsKey"
+        type="warning"
+        variant="tonal"
+        density="compact"
+        class="mb-3"
+      >
+        {{ $t('shop.smsOff') }}
+      </v-alert>
+      <v-text-field
+        v-else
+        :model-value="hookUrl"
+        :label="$t('shop.smsUrl')"
+        :hint="$t('shop.smsUrlHint')"
+        persistent-hint
+        readonly
+        dir="ltr"
+        append-inner-icon="mdi-content-copy"
+        class="mb-3"
+        @click:append-inner="copyText(hookUrl)"
+      />
+      <v-card
+        variant="outlined"
+        class="mb-3"
+      >
+        <v-card-text>
+          <v-textarea
+            v-model="smsSample"
+            :label="$t('shop.smsTest')"
+            rows="3"
+            auto-grow
+            hide-details
+          />
+          <div class="d-flex align-center flex-wrap mt-2">
+            <v-btn
+              color="primary"
+              variant="tonal"
+              :disabled="!smsSample.trim()"
+              @click="testSms"
+            >
+              {{ $t('shop.smsTestBtn') }}
+            </v-btn>
+            <span
+              v-if="smsResult"
+              class="ms-3"
+              :class="smsResult.ok ? 'text-success' : 'text-error'"
+            >
+              <template v-if="smsResult.ok">
+                {{ $t('shop.smsRead') }} <span dir="ltr">{{ money(smsResult.amount) }}</span>
+              </template>
+              <template v-else>
+                {{ $t('shop.smsNotRead') }}<span v-if="smsResult.why"> — {{ smsResult.why }}</span>
+              </template>
+            </span>
+          </div>
+        </v-card-text>
+      </v-card>
+      <v-data-table
+        :headers="smsHeaders"
+        :items="data.sms ?? []"
+        density="compact"
+        items-per-page="25"
+      >
+        <template #item.status="{ item }">
+          <v-chip
+            :color="smsColor(item.status)"
+            size="small"
+            label
+          >
+            {{ $t('shop.smsStatus.' + item.status) }}
+          </v-chip>
+        </template>
+        <template #item.amount="{ item }">
+          <span dir="ltr">{{ item.amount ? money(item.amount) : '—' }}</span>
+        </template>
+        <template #item.orderId="{ item }">
+          {{ item.orderId ? '#' + item.orderId : '—' }}
+        </template>
+        <template #item.text="{ item }">
+          <div class="sms-text">
+            {{ item.text }}
+          </div>
+          <div
+            v-if="item.note"
+            class="text-caption text-medium-emphasis"
+          >
+            {{ item.note }}
+          </div>
+        </template>
+        <template #item.createdAt="{ item }">
+          <span dir="ltr">{{ date(item.createdAt) }}</span>
         </template>
       </v-data-table>
     </v-window-item>
@@ -380,8 +514,11 @@
           <v-textarea
             v-model="settings.shopCard"
             :label="$t('shop.card')"
+            :hint="$t('shop.cardHint')"
+            persistent-hint
             rows="3"
-            class="mt-3"
+            auto-grow
+            class="mt-3 mb-2"
           />
           <v-text-field
             v-model="settings.shopCurrency"
@@ -406,6 +543,44 @@
           <v-text-field
             v-model="settings.shopPrefix"
             :label="$t('shop.prefix')"
+          />
+          <v-text-field
+            v-model="settings.shopUniqueAmount"
+            :label="$t('shop.uniqueAmount')"
+            :hint="$t('shop.uniqueAmountHint')"
+            persistent-hint
+            type="number"
+            min="0"
+            max="9999"
+            class="mb-2"
+          />
+          <v-text-field
+            v-model="settings.shopSmsSecret"
+            :label="$t('shop.smsKey')"
+            :hint="$t('shop.smsKeyHint')"
+            persistent-hint
+            dir="ltr"
+            append-inner-icon="mdi-refresh"
+            class="mb-2"
+            @click:append-inner="newSmsKey"
+          />
+          <v-switch
+            v-model="smsRial"
+            :label="$t('shop.smsRial')"
+            :hint="$t('shop.smsRialHint')"
+            persistent-hint
+            color="primary"
+            density="compact"
+            class="mb-2"
+          />
+          <v-switch
+            v-model="autoRenew"
+            :label="$t('shop.autoRenew')"
+            :hint="$t('shop.autoRenewHint')"
+            persistent-hint
+            color="primary"
+            density="compact"
+            class="mb-4"
           />
           <v-btn
             color="primary"
@@ -502,15 +677,67 @@
   >
     <v-card :title="code.id ? $t('actions.edit') : $t('shop.newCode')">
       <v-card-text>
+        <v-btn-toggle
+          v-model="code.kind"
+          mandatory
+          divided
+          density="compact"
+          color="primary"
+          variant="outlined"
+          class="mb-4"
+        >
+          <v-btn value="discount">
+            {{ $t('shop.discount') }}
+          </v-btn>
+          <v-btn value="gift">
+            {{ $t('shop.gift') }}
+          </v-btn>
+        </v-btn-toggle>
         <v-text-field
           v-model="code.code"
           :label="$t('shop.code')"
+          dir="ltr"
         />
-        <v-text-field
-          v-model.number="code.percent"
-          :label="$t('shop.percent')"
-          type="number"
-        />
+        <template v-if="code.kind === 'gift'">
+          <v-text-field
+            v-model.number="code.amount"
+            :label="$t('shop.giftAmount')"
+            :hint="$t('shop.giftHint')"
+            persistent-hint
+            type="number"
+            class="mb-2"
+          />
+        </template>
+        <template v-else>
+          <v-text-field
+            v-model.number="code.percent"
+            :label="$t('shop.percent')"
+            type="number"
+          />
+          <v-select
+            v-model="code.planIds"
+            :items="planItems"
+            :label="$t('shop.codePlans')"
+            :hint="$t('shop.codePlansHint')"
+            persistent-hint
+            multiple
+            chips
+            closable-chips
+            class="mb-2"
+          />
+          <v-select
+            v-model="code.kinds"
+            :items="kindItems"
+            :label="$t('shop.codeKinds')"
+          />
+          <v-switch
+            v-model="code.oncePerUser"
+            :label="$t('shop.oncePerUser')"
+            color="primary"
+            density="compact"
+            hide-details
+          />
+        </template>
         <v-text-field
           v-model.number="code.maxUses"
           :label="$t('shop.maxUses')"
@@ -551,9 +778,11 @@ import { Bar } from 'vue-chartjs'
 import type { ChartData } from 'chart.js'
 import HttpUtils from '@/plugins/httputil'
 import { HumanReadable } from '@/plugins/utils'
+import Clipboard from 'clipboard'
+import { push } from 'notivue'
 import { i18n, locale } from '@/locales'
 import { barOptions, chartColors } from '@/components/node/charts'
-import type { ShopData, ShopOrder, ShopPlan, ShopDiscount } from '@/types/shop'
+import type { ShopData, ShopOrder, ShopPlan, ShopDiscount, ShopSms } from '@/types/shop'
 
 const GIB = 1024 * 1024 * 1024
 const theme = useTheme()
@@ -652,7 +881,9 @@ const planHeaders = computed(() => [
 ])
 const codeHeaders = computed(() => [
   { title: t('shop.code'), key: 'code' },
-  { title: t('shop.percent'), key: 'percent' },
+  { title: t('shop.codeKind'), key: 'kind' },
+  { title: t('shop.value'), key: 'value', sortable: false },
+  { title: t('shop.limits'), key: 'limits', sortable: false },
   { title: t('shop.used'), key: 'used' },
   { title: t('shop.expiry'), key: 'expiry' },
   { title: '', key: 'actions', sortable: false },
@@ -682,21 +913,101 @@ const savePlan = async () => {
   if (await post('plan', { data: JSON.stringify(body) })) planDialog.value = false
 }
 
+const parseIds = (s: string) => (s || '').split(',').map(x => Number(x.trim())).filter(n => n > 0)
+const planName = (id: number) => data.value?.plans.find(p => p.id === id)?.name ?? '#' + id
+const planItems = computed(() => (data.value?.plans ?? []).map(p => ({ title: p.name, value: p.id })))
+const kindItems = computed(() => [
+  { title: t('shop.buyAndRenew'), value: '' },
+  { title: t('shop.buyOnly'), value: 'buy' },
+  { title: t('shop.renewOnly'), value: 'renew' },
+])
+const codeLimits = (d: ShopDiscount) => {
+  if (d.kind === 'gift') return t('shop.oncePerUser')
+  const out: string[] = []
+  if (d.planIds) out.push(parseIds(d.planIds).map(planName).join(', '))
+  if (d.kinds === 'buy') out.push(t('shop.buyOnly'))
+  if (d.kinds === 'renew') out.push(t('shop.renewOnly'))
+  if (d.oncePerUser) out.push(t('shop.oncePerUser'))
+  return out.join(' · ') || '—'
+}
+
+type CodeForm = { id: number, code: string, kind: string, percent: number, amount: number, planIds: number[], kinds: '' | 'buy' | 'renew', oncePerUser: boolean, maxUses: number, days: number, used: number, expiry: number, enable: boolean }
+const emptyCode = (): CodeForm => ({ id: 0, code: '', kind: 'discount', percent: 10, amount: 0, planIds: [], kinds: '', oncePerUser: false, maxUses: 0, days: 0, used: 0, expiry: 0, enable: true })
 const codeDialog = ref(false)
-const code = ref({ id: 0, code: '', percent: 10, maxUses: 0, days: 0, used: 0, expiry: 0, enable: true })
+const code = ref<CodeForm>(emptyCode())
 const editCode = (d: ShopDiscount | null) => {
   code.value = d
-    ? { id: d.id, code: d.code, percent: d.percent, maxUses: d.maxUses, days: 0, used: d.used, expiry: d.expiry, enable: d.enable }
-    : { id: 0, code: '', percent: 10, maxUses: 0, days: 0, used: 0, expiry: 0, enable: true }
+    ? { id: d.id, code: d.code, kind: d.kind === 'gift' ? 'gift' : 'discount', percent: d.percent || 10, amount: d.amount, planIds: parseIds(d.planIds), kinds: d.kinds || '', oncePerUser: d.oncePerUser, maxUses: d.maxUses, days: 0, used: d.used, expiry: d.expiry, enable: d.enable }
+    : emptyCode()
   codeDialog.value = true
 }
 const saveCode = async () => {
   const c = code.value
+  const gift = c.kind === 'gift'
   let expiry = c.expiry
   if (Number(c.days) > 0) expiry = Math.floor(Date.now() / 1000) + Number(c.days) * 86400
-  const body: ShopDiscount = { id: c.id, code: c.code, percent: Number(c.percent) || 0, maxUses: Number(c.maxUses) || 0, used: c.used, expiry, enable: c.enable }
+  const body: ShopDiscount = {
+    id: c.id, code: c.code, kind: c.kind,
+    percent: gift ? 0 : Number(c.percent) || 0,
+    amount: gift ? Number(c.amount) || 0 : 0,
+    planIds: gift ? '' : c.planIds.join(','),
+    kinds: gift ? '' : c.kinds,
+    oncePerUser: gift || c.oncePerUser,
+    maxUses: Number(c.maxUses) || 0, used: c.used, expiry, enable: c.enable,
+  }
   if (await post('discount', { data: JSON.stringify(body) })) codeDialog.value = false
 }
+
+// ---- bank messages ----
+
+const smsHeaders = computed(() => [
+  { title: t('shop.date'), key: 'createdAt' },
+  { title: t('shop.smsSender'), key: 'sender' },
+  { title: t('shop.smsText'), key: 'text', sortable: false },
+  { title: t('shop.amount'), key: 'amount' },
+  { title: t('shop.order'), key: 'orderId' },
+  { title: t('shop.state'), key: 'status' },
+])
+const smsColor = (s: ShopSms['status']) => ({ approved: 'success', unmatched: 'warning', error: 'error' } as Record<string, string>)[s] ?? 'grey'
+const savedSmsKey = computed(() => data.value?.settings.shopSmsSecret ?? '')
+const hookUrl = computed(() => {
+  const base = (window as Window & { BASE_URL?: string }).BASE_URL ?? '/'
+  return location.origin + (base.endsWith('/') ? base : base + '/') + 'hook/sms/' + savedSmsKey.value
+})
+const copyText = (txt: string) => {
+  const btn = document.createElement('button')
+  btn.className = 'shop-copy-btn'
+  document.body.appendChild(btn)
+  const clipboard = new Clipboard('.shop-copy-btn', { text: () => txt })
+  const done = (ok: boolean) => {
+    clipboard.destroy()
+    const message = t(ok ? 'success' : 'failed') + ': ' + t('copyToClipboard')
+    if (ok) push.success({ message, duration: 3000 })
+    else push.error({ message, duration: 5000 })
+  }
+  clipboard.on('success', () => done(true))
+  clipboard.on('error', () => done(false))
+  btn.click()
+  document.body.removeChild(btn)
+}
+const smsSample = ref('')
+const smsResult = ref<{ amount: number, ok: boolean, why: string } | null>(null)
+const testSms = async () => {
+  const msg = await HttpUtils.post<{ amount: number, ok: boolean, why: string }>('api/shop', { obj: 'smsTest', text: smsSample.value })
+  smsResult.value = msg.success && msg.obj ? msg.obj : null
+}
+const newSmsKey = () => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
+  const buf = new Uint8Array(32)
+  crypto.getRandomValues(buf)
+  settings.value.shopSmsSecret = Array.from(buf, b => chars[b % chars.length]).join('')
+}
+const boolSetting = (key: string) => computed({
+  get: () => settings.value[key] === 'true',
+  set: (v: boolean) => { settings.value[key] = String(v) },
+})
+const smsRial = boolSetting('shopSmsRial')
+const autoRenew = boolSetting('shopAutoRenew')
 
 const wallet = ref({ tgId: '', amount: '', note: '' })
 const reseller = ref({ tgId: '', percent: '0' })
@@ -712,5 +1023,10 @@ const saveSettings = async () => {
 .shop-chart {
   position: relative;
   height: 260px;
+}
+.sms-text {
+  white-space: pre-wrap;
+  max-width: 420px;
+  font-size: 0.85em;
 }
 </style>

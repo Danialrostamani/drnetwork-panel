@@ -53,7 +53,7 @@ func (b *bot) watch(ctx context.Context) {
 	nodes := map[uint]*nodeWatch{}
 	reported := map[string]bool{}
 	core := &coreWatch{}
-	var lastClientCheck time.Time
+	var lastClientCheck, lastAutoRenew time.Time
 	var report *reportSchedule
 	if b.cfg.Report != "" {
 		sched, err := service.CronParser.Parse(b.cfg.Report)
@@ -86,6 +86,10 @@ func (b *bot) watch(ctx context.Context) {
 		if report != nil && !time.Now().Before(report.next) {
 			report.next = report.sched.Next(time.Now().In(b.loc))
 			b.sendReport(ctx)
+		}
+		if time.Since(lastAutoRenew) >= autoRenewEvery {
+			lastAutoRenew = time.Now()
+			b.root().autoRenew(ctx, lastAutoRenew)
 		}
 	}
 }

@@ -42,6 +42,15 @@
     v-if="optionTLS"
     :outbound="addr"
   />
+  <v-alert
+    v-if="optionCdn"
+    type="info"
+    variant="tonal"
+    density="compact"
+    class="mt-2"
+  >
+    {{ $t('in.behindCdnHint') }}
+  </v-alert>
   <v-row>
     <v-spacer />
     <v-col
@@ -81,6 +90,14 @@
                 hide-details
               />
             </v-list-item>
+            <v-list-item>
+              <v-switch
+                v-model="optionCdn"
+                color="primary"
+                :label="$t('in.behindCdn')"
+                hide-details
+              />
+            </v-list-item>
           </v-list>
         </v-card>
       </v-menu>
@@ -101,6 +118,7 @@ interface AddrData {
   server_port: number
   remark?: string
   tls?: oTls
+  cdn?: boolean
 }
 
 // The parent owns the object and this component edits it in place, so it is a
@@ -121,6 +139,15 @@ const menu = ref(false)
 const optionTLS = computed({
   get: (): boolean => addr.value.tls != undefined,
   set: (v: boolean) => { addr.value.tls = v ? { enabled: true } : undefined },
+})
+
+// Only a marked address carries the key, so unmarked ones stay as they were.
+const optionCdn = computed({
+  get: (): boolean => addr.value.cdn === true,
+  set: (v: boolean) => {
+    if (v) addr.value.cdn = true
+    else delete addr.value.cdn
+  },
 })
 
 const optionRemark = computed({

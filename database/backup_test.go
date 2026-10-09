@@ -45,6 +45,9 @@ func seedEveryTable(t *testing.T) {
 		&model.ShopWalletTx{TgId: 42, Amount: 1000, Balance: 1000, Reason: "topup"},
 		&model.ShopDiscount{Code: "OFF10", Percent: 10},
 		&model.ShopUser{TgId: 42, Name: "someone"},
+		&model.ShopCodeUse{CodeId: 1, Code: "OFF10", TgId: 42},
+		&model.ShopSms{Hash: "h1", Text: "deposit 1,000", Status: model.SmsUnmatched},
+		&model.ShopAutoRenew{ClientId: 1, TgId: 42, PlanId: 1, Enable: true},
 	}
 	for _, row := range rows {
 		if err := db.Create(row).Error; err != nil {

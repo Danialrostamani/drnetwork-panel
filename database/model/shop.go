@@ -63,6 +63,17 @@ type ShopOrder struct {
 	// Group is the client group a purchase goes to.
 	Reseller bool   `json:"reseller"`
 	Group    string `json:"group"`
+	// Extra is what a card payment adds to Paid to make the amount unique
+	// among the open orders; it goes to the wallet when the order is
+	// approved. The customer transfers Paid + Extra.
+	Extra int64 `json:"extra" gorm:"default:0;not null"`
+	// Card is the payment card the order was given, of the shop's cards.
+	Card string `json:"card"`
+	// ReceiptKey identifies the receipt (the photo's or file's unique id, or
+	// the digits of a tracking number), so one receipt pays for one order.
+	ReceiptKey string `json:"receiptKey" gorm:"index"`
+	// Auto marks a renewal the wallet paid for on its own.
+	Auto bool `json:"auto"`
 }
 
 func (ShopOrder) TableName() string { return "shop_orders" }
@@ -89,7 +100,13 @@ type ShopWalletTx struct {
 
 func (ShopWalletTx) TableName() string { return "shop_wallet_txs" }
 
-// ShopDiscount is a discount code.
+// Code kinds: a discount on a purchase, or a gift that tops up the wallet.
+const (
+	CodeDiscount = "discount"
+	CodeGift     = "gift"
+)
+
+// ShopDiscount is a discount code or a gift code.
 type ShopDiscount struct {
 	Id      uint   `json:"id" gorm:"primaryKey;autoIncrement"`
 	Code    string `json:"code" gorm:"uniqueIndex"`
@@ -99,9 +116,74 @@ type ShopDiscount struct {
 	Used    int   `json:"used"`
 	Expiry  int64 `json:"expiry"`
 	Enable  bool  `json:"enable" gorm:"default:true;not null"`
+	// Kind is CodeDiscount ("" in older rows) or CodeGift; a gift code adds
+	// Amount to the wallet of whoever redeems it, once per customer.
+	Kind   string `json:"kind"`
+	Amount int64  `json:"amount" gorm:"default:0;not null"`
+	// PlanIds limits a discount to some plans (comma separated ids, "" is
+	// every plan); Kinds to purchases or renewals ("buy", "renew", "" both).
+	PlanIds string `json:"planIds"`
+	Kinds   string `json:"kinds"`
+	// OncePerUser lets each customer use the discount once.
+	OncePerUser bool `json:"oncePerUser"`
 }
 
 func (ShopDiscount) TableName() string { return "shop_discounts" }
+
+// IsGift tells a gift code.
+func (d *ShopDiscount) IsGift() bool { return d.Kind == CodeGift }
+
+// ShopCodeUse is one use of a code by a customer.
+type ShopCodeUse struct {
+	Id        uint   `json:"id" gorm:"primaryKey;autoIncrement"`
+	CodeId    uint   `json:"codeId" gorm:"index"`
+	Code      string `json:"code" gorm:"index"`
+	TgId      int64  `json:"tgId" gorm:"index"`
+	OrderId   uint   `json:"orderId"`
+	CreatedAt int64  `json:"createdAt"`
+}
+
+func (ShopCodeUse) TableName() string { return "shop_code_uses" }
+
+// SMS states.
+const (
+	SmsApproved  = "approved"
+	SmsUnmatched = "unmatched"
+	SmsIgnored   = "ignored"
+	SmsDuplicate = "duplicate"
+	SmsError     = "error"
+)
+
+// ShopSms is a bank message the panel received, and what came of it.
+type ShopSms struct {
+	Id     uint   `json:"id" gorm:"primaryKey;autoIncrement"`
+	Hash   string `json:"-" gorm:"uniqueIndex"`
+	Sender string `json:"sender"`
+	Text   string `json:"text"`
+	// Amount is the deposit read from the text, in the shop's currency.
+	Amount    int64  `json:"amount"`
+	OrderId   uint   `json:"orderId"`
+	Status    string `json:"status"`
+	Note      string `json:"note"`
+	CreatedAt int64  `json:"createdAt" gorm:"index"`
+}
+
+func (ShopSms) TableName() string { return "shop_sms" }
+
+// ShopAutoRenew is a client its owner wants renewed from the wallet.
+type ShopAutoRenew struct {
+	ClientId uint  `json:"clientId" gorm:"primaryKey;autoIncrement:false"`
+	TgId     int64 `json:"tgId" gorm:"index"`
+	PlanId   uint  `json:"planId"`
+	Enable   bool  `json:"enable"`
+	// LastAt is the last renewal, LastFailAt the last failure told and Fails
+	// how many were told since the last renewal.
+	LastAt     int64 `json:"lastAt"`
+	LastFailAt int64 `json:"lastFailAt"`
+	Fails      int   `json:"fails" gorm:"default:0;not null"`
+}
+
+func (ShopAutoRenew) TableName() string { return "shop_auto_renews" }
 
 // ShopUser is somebody who started the bot.
 type ShopUser struct {

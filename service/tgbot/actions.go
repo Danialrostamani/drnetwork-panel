@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net"
-	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -14,6 +13,7 @@ import (
 	"github.com/Danialrostamani/drnetwork-panel/database/model"
 	"github.com/Danialrostamani/drnetwork-panel/service"
 	"github.com/Danialrostamani/drnetwork-panel/util"
+	"github.com/Danialrostamani/drnetwork-panel/util/hosts"
 
 	qrcode "github.com/skip2/go-qrcode"
 )
@@ -31,12 +31,16 @@ var (
 )
 
 // host is the address written into generated client links and the
-// subscription URL: the sub or web domain if one is set, else the machine's
-// first public-looking IPv4 address.
+// subscription URL: the first plain name of the sub domain list or the web
+// domain if one is set, else the machine's first public-looking IPv4 address.
+// A wildcard entry is no host by itself; the subscription link gets its
+// client's label in ClientSubURL.
 func (b *bot) host() string {
 	ss := &service.SettingService{}
-	if d, _ := ss.GetSubDomain(); strings.TrimSpace(d) != "" {
-		return strings.TrimSpace(d)
+	for _, d := range ss.GetSubDomains() {
+		if !hosts.IsWildcard(d) {
+			return d
+		}
 	}
 	if d, _ := ss.GetWebDomain(); strings.TrimSpace(d) != "" {
 		return strings.TrimSpace(d)
@@ -67,14 +71,7 @@ func (b *bot) host() string {
 }
 
 func (b *bot) subLink(name string) (string, error) {
-	base, err := (&service.SettingService{}).GetFinalSubURI(b.host())
-	if err != nil {
-		return "", err
-	}
-	if !strings.HasSuffix(base, "/") {
-		base += "/"
-	}
-	return base + url.PathEscape(name), nil
+	return (&service.SettingService{}).ClientSubURL(name, b.host())
 }
 
 func qrPNG(text string) ([]byte, error) {

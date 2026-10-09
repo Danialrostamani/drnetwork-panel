@@ -113,6 +113,9 @@ func (s *InboundService) Save(tx *gorm.DB, act string, data json.RawMessage, ini
 				return err
 			}
 		}
+		if err = checkInboundAddrs(&inbound); err != nil {
+			return err
+		}
 		var oldTag string
 		if act == "edit" {
 			var old model.Inbound

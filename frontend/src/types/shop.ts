@@ -20,6 +20,24 @@ export interface ShopDiscount {
   used: number
   expiry: number
   enable: boolean
+  // 'gift' adds amount to the wallet; 'discount' (or '' in older rows)
+  // takes percent off.
+  kind: string
+  amount: number
+  planIds: string
+  kinds: '' | 'buy' | 'renew'
+  oncePerUser: boolean
+}
+
+export interface ShopSms {
+  id: number
+  sender: string
+  text: string
+  amount: number
+  orderId: number
+  status: 'approved' | 'unmatched' | 'ignored' | 'duplicate' | 'error'
+  note: string
+  createdAt: number
 }
 
 export interface ShopOrder {
@@ -43,6 +61,11 @@ export interface ShopOrder {
   createdAt: number
   decidedAt: number
   reseller: boolean
+  // extra makes a card payment's amount unique: the customer transfers
+  // paid + extra, and extra goes to the wallet.
+  extra: number
+  card: string
+  auto: boolean
 }
 
 export interface ShopStats {
@@ -74,5 +97,6 @@ export interface ShopData {
   plans: ShopPlan[]
   discounts: ShopDiscount[]
   orders: ShopOrder[]
+  sms: ShopSms[]
   settings: Record<string, string>
 }

@@ -25,11 +25,14 @@ func getRemoteIp(c *gin.Context) string {
 
 func getHostname(c *gin.Context) string {
 	host := c.Request.Host
+	// A bracketed IPv6 host without a port used to fail SplitHostPort and
+	// come back empty.
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	host = strings.Trim(host, "[]")
 	if strings.Contains(host, ":") {
-		host, _, _ = net.SplitHostPort(c.Request.Host)
-		if strings.Contains(host, ":") {
-			host = "[" + host + "]"
-		}
+		host = "[" + host + "]"
 	}
 	return host
 }
@@ -53,7 +56,10 @@ func jsonMsgObj(c *gin.Context, msg string, obj interface{}, err error) {
 		}
 	} else {
 		m.Success = false
-		m.Msg = msg + ": " + err.Error()
+		m.Msg = err.Error()
+		if msg != "" {
+			m.Msg = msg + ": " + m.Msg
+		}
 		logger.Warning("failed :", err)
 	}
 	c.JSON(http.StatusOK, m)

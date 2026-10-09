@@ -228,6 +228,10 @@ To run backend (from root folder of repository):
 - Top-bar badge with the number of nodes that are online, on every page
 - Displays online clients, inbounds and outbounds with traffic statistics, and system status monitoring
 - Subscription service with ability to add external links and subscription
+- Several subscription domains at once (new links use the first, the others keep answering) and wildcard domains (`*.sub.example.com`, with a wildcard DNS record and certificate) that give every client a host of its own, so a blocked host costs one client only. Inbound addresses take wildcards too (`*.cdn.example.com`), and an address marked *Behind CDN* refuses what a CDN cannot carry (REALITY, QUIC, raw TCP)
+- Link name template with variables (`{USER}`, `{PROTOCOL}`, `{NODE}`, `{REMAINING}`, `{DAYS_LEFT}`, `{EXPIRE_JALALI}` and more) and a live preview, plus the announcement, support link and account page button that Happ and v2RayTun show with the subscription
+- Decoy site: a folder of your own is served outside the panel path, so the server looks like an ordinary website
+- Telegram shop with plans and a wallet: discount codes limited to plans, kinds of order or once per customer, gift codes, auto-renewal from the wallet, and card-to-card payments approved on their own from the bank's deposit SMS (**Shop → SMS**: an SMS forwarder app posts each message to the panel; a unique amount per order tells the orders apart, and a receipt already used is refused)
 - HTTPS for secure access to the web panel and subscription service (self-provided domain + SSL certificate)
 - Dark/Light theme
 

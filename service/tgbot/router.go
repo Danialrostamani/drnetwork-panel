@@ -133,20 +133,20 @@ func (b *bot) handle(ctx context.Context, u update) {
 	// prompt comes first.
 	if !b.isAdmin(from) || b.pend.get(chatID) == nil {
 		if cmd, _ := parseCommand(text); cmd == "" {
-			photo, doc := "", ""
+			in := shopInput{text: text}
 			if len(m.Photo) > 0 {
-				photo = m.Photo[len(m.Photo)-1].FileID
+				last := m.Photo[len(m.Photo)-1]
+				in.photo, in.photoUID = last.FileID, last.FileUniqueID
 			}
 			if m.Document != nil {
-				doc = m.Document.FileID
+				in.doc, in.docUID = m.Document.FileID, m.Document.FileUniqueID
 			}
-			if text == "" {
-				text = m.Caption
+			if in.text == "" {
+				in.text = m.Caption
 			}
-			if b.shopMessage(ctx, chatID, from, text, photo, doc) {
+			if b.shopMessage(ctx, chatID, from, in) {
 				return
 			}
-			text = m.Text
 		}
 	}
 	if text == "" && m.Document != nil && b.isAdmin(from) {
@@ -228,6 +228,7 @@ func boundClients(tgID int64) []model.Client {
 // ---- self-service for bound clients ----
 
 func (b *bot) userView(c model.Client) (string, [][]button) {
+	autoRow := b.autoRenewRow(c)
 	c.Desc, c.Group = "", ""
 	c.TgId = 0
 	online := false
@@ -237,7 +238,11 @@ func (b *bot) userView(c model.Client) (string, [][]button) {
 		}
 	}
 	id := strconv.FormatUint(uint64(c.Id), 10)
-	return b.clientDetail(c, online, time.Now()), [][]button{{b.btn("btnSub", "u:sub:"+id), b.btn("btnRefresh", "u:view:"+id)}}
+	kb := [][]button{{b.btn("btnSub", "u:sub:"+id), b.btn("btnRefresh", "u:view:"+id)}}
+	if autoRow != nil {
+		kb = append(kb, autoRow)
+	}
+	return b.clientDetail(c, online, time.Now()), kb
 }
 
 func (b *bot) userCommand(ctx context.Context, chatID int64, bound []model.Client, cmd string) {

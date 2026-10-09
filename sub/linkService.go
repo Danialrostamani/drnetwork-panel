@@ -18,7 +18,11 @@ type Link struct {
 type LinkService struct {
 }
 
-func (s *LinkService) GetLinks(linkJson *json.RawMessage, types string, clientInfo string) []string {
+// GetLinks lists the links of a subscription. With a link name template (n
+// active) the links the panel made take their names from it and clientInfo,
+// the usage suffix of the old names, is left off: the template has its own
+// variables for that.
+func (s *LinkService) GetLinks(linkJson *json.RawMessage, types string, clientInfo string, n *namer, clientRemark string) []string {
 	links := []Link{}
 	var result []string
 	err := json.Unmarshal(*linkJson, &links)
@@ -28,28 +32,55 @@ func (s *LinkService) GetLinks(linkJson *json.RawMessage, types string, clientIn
 	for _, link := range links {
 		switch link.Type {
 		case "external":
-			result = append(result, link.Uri)
+			result = append(result, s.named(link, n, clientRemark))
 		case "sub":
 			subLinks := util.GetExternalLink(link.Uri)
 			result = append(result, strings.Split(subLinks, "\n")...)
 		case "local":
 			if types == "all" {
-				result = append(result, s.addClientInfo(link.Uri, clientInfo))
+				if n.active() {
+					result = append(result, s.named(link, n, clientRemark))
+				} else {
+					result = append(result, s.addClientInfo(link.Uri, clientInfo))
+				}
 			}
 		}
 	}
 	return result
 }
 
+// named gives a link the panel made its template name; other links pass.
+func (s *LinkService) named(link Link, n *namer, clientRemark string) string {
+	if !n.active() {
+		return link.Uri
+	}
+	info, def := n.infoForLink(link, clientRemark)
+	if info == nil {
+		return link.Uri
+	}
+	return setLinkName(link.Uri, n.name(info, def, true))
+}
+
 func (s *LinkService) GetExternalOutbounds(linkJson *json.RawMessage) ([]map[string]interface{}, []string) {
+	outbounds, tags, _ := s.externalOutbounds(linkJson, nil, "")
+	return outbounds, tags
+}
+
+// externalOutbounds turns the external links of a client into outbounds,
+// with what the name template knows of each (nil for links it leaves alone).
+func (s *LinkService) externalOutbounds(linkJson *json.RawMessage, n *namer, clientRemark string) ([]map[string]interface{}, []string, []*linkInfo) {
 	links := []Link{}
+	if linkJson == nil || len(*linkJson) == 0 {
+		return nil, nil, nil
+	}
 	err := json.Unmarshal(*linkJson, &links)
 	if err != nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	var outbounds []map[string]interface{}
 	var tags []string
+	var infos []*linkInfo
 
 	for _, link := range links {
 		switch link.Type {
@@ -58,6 +89,11 @@ func (s *LinkService) GetExternalOutbounds(linkJson *json.RawMessage) ([]map[str
 			if err == nil && outbound != nil && len(tag) > 0 {
 				outbounds = append(outbounds, *outbound)
 				tags = append(tags, tag)
+				var info *linkInfo
+				if n.active() {
+					info, _ = n.infoForLink(link, clientRemark)
+				}
+				infos = append(infos, info)
 			}
 		case "sub":
 			subOutbounds, err := util.GetExternalSub(link.Uri)
@@ -69,6 +105,7 @@ func (s *LinkService) GetExternalOutbounds(linkJson *json.RawMessage) ([]map[str
 				if tag, _ := outbound["tag"].(string); len(tag) > 0 {
 					outbounds = append(outbounds, outbound)
 					tags = append(tags, tag)
+					infos = append(infos, nil)
 				}
 			}
 		}
@@ -87,7 +124,7 @@ func (s *LinkService) GetExternalOutbounds(linkJson *json.RawMessage) ([]map[str
 		}
 	}
 
-	return outbounds, tags
+	return outbounds, tags, infos
 }
 
 func (s *LinkService) addClientInfo(uri string, clientInfo string) string {

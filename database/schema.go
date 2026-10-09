@@ -43,6 +43,9 @@ func schema() []table {
 		{"shop_wallet_txs", &model.ShopWalletTx{}, copyRows[model.ShopWalletTx]},
 		{"shop_discounts", &model.ShopDiscount{}, copyRows[model.ShopDiscount]},
 		{"shop_users", &model.ShopUser{}, copyRows[model.ShopUser]},
+		{"shop_code_uses", &model.ShopCodeUse{}, copyRows[model.ShopCodeUse]},
+		{"shop_sms", &model.ShopSms{}, copyRows[model.ShopSms]},
+		{"shop_auto_renews", &model.ShopAutoRenew{}, copyRows[model.ShopAutoRenew]},
 	}
 }
 

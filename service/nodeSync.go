@@ -750,7 +750,7 @@ func genNodeReplicaLinks(replica *model.Inbound, client *model.Client) (links []
 	synthetic.TlsId = 0
 	synthetic.Tls = nil
 	synthetic.Addrs, _ = json.Marshal(addresses)
-	return util.LinkGenerator(client.Config, &synthetic, server, client.Remark)
+	return util.LinkGenerator(client.Config, &synthetic, server, client.Remark, client.Name)
 }
 
 func (s *NodeSyncService) refreshReplicas(node *model.Node, client *http.Client, tagToID map[string]uint) bool {

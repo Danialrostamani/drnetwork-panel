@@ -26,7 +26,9 @@ func (a *ApiService) GetShop(c *gin.Context) {
 	plans, _ := s.Plans(false)
 	codes, _ := s.Discounts()
 	orders, _ := s.Orders(strings.TrimSpace(c.Query("status")), 0, 200)
+	sms, _ := s.SmsLog(100)
 	jsonObj(c, map[string]any{
+		"sms":       sms,
 		"stats":     stats,
 		"plans":     plans,
 		"discounts": codes,
@@ -102,6 +104,14 @@ func (a *ApiService) SaveShop(c *gin.Context) {
 		if id, err = formID(c, "tgId"); err == nil {
 			err = s.SetBlocked(id, c.PostForm("blocked") == "true")
 		}
+	case "smsTest":
+		text := c.PostForm("text")
+		if len(text) > 8000 {
+			text = text[:8000]
+		}
+		amount, ok, why := service.ParseDepositSms(text, s.Settings().SmsRial)
+		jsonObj(c, map[string]any{"amount": amount, "ok": ok, "why": why}, nil)
+		return
 	case "decide":
 		var id int64
 		if id, err = formID(c, "id"); err == nil {

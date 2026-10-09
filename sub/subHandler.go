@@ -1,6 +1,7 @@
 package sub
 
 import (
+	"encoding/base64"
 	"fmt"
 	"strings"
 
@@ -32,6 +33,9 @@ func (s *SubHandler) subs(c *gin.Context) {
 	var result *string
 	var err error
 	subId := c.Param("subid")
+	if !s.hostServes(c, subId) {
+		return
+	}
 	if wantsPage(c) && s.SettingService.GetSubPage() && s.page(c, subId) {
 		return
 	}
@@ -62,8 +66,22 @@ func (s *SubHandler) subs(c *gin.Context) {
 	c.String(200, *result)
 }
 
+// hostServes refuses a link opened on the host of another client: under a
+// wildcard domain every client has its own label, and the link answers on
+// that one only. The refusal looks like a client that does not exist.
+func (s *SubHandler) hostServes(c *gin.Context, subId string) bool {
+	if s.SettingService.SubLabelOK(c.Request.Host, subId) {
+		return true
+	}
+	c.String(400, "Error!")
+	return false
+}
+
 func (s *SubHandler) subHeaders(c *gin.Context) {
 	subId := c.Param("subid")
+	if !s.hostServes(c, subId) {
+		return
+	}
 	client, err := s.SubService.getClientBySubId(subId)
 	if err != nil {
 		logger.Error(err)
@@ -80,8 +98,53 @@ func (s *SubHandler) subHeaders(c *gin.Context) {
 func (s *SubHandler) addHeaders(c *gin.Context, headers []string) {
 	c.Writer.Header().Set("Subscription-Userinfo", headers[0])
 	c.Writer.Header().Set("Profile-Update-Interval", headers[1])
-	c.Writer.Header().Set("Profile-Title", headers[2])
+	c.Writer.Header().Set("Profile-Title", headerText(headers[2]))
 	c.Writer.Header().Set("Content-Disposition", contentDispositionHeader(headers[2]))
+	// What Happ and v2RayTun show with the subscription; nothing is sent for
+	// what is not set.
+	if announce := strings.TrimSpace(s.SettingService.GetSubAnnounce()); announce != "" {
+		c.Writer.Header().Set("Announce", headerText(announce))
+	}
+	if support := strings.TrimSpace(s.SettingService.GetSubSupportUrl()); support != "" {
+		c.Writer.Header().Set("Support-Url", headerURL(support))
+	}
+	if s.SettingService.GetSubWebPage() && s.SettingService.GetSubPage() {
+		c.Writer.Header().Set("Profile-Web-Page-Url", requestURL(c))
+	}
+}
+
+// headerText puts text into a header the way the apps read it: as it is when
+// it is plain printable ASCII, otherwise base64 behind a "base64:" prefix --
+// a header cannot carry Persian or a line break.
+func headerText(text string) string {
+	plain := true
+	for i := 0; i < len(text); i++ {
+		if b := text[i]; b < 0x20 || b > 0x7e {
+			plain = false
+			break
+		}
+	}
+	if plain && !strings.HasPrefix(text, "base64:") {
+		return text
+	}
+	return "base64:" + base64.StdEncoding.EncodeToString([]byte(text))
+}
+
+// headerURL escapes what a link may hold but a header may not.
+func headerURL(link string) string {
+	var b strings.Builder
+	const hex = "0123456789ABCDEF"
+	for i := 0; i < len(link); i++ {
+		c := link[i]
+		if c <= 0x20 || c >= 0x7f {
+			b.WriteByte('%')
+			b.WriteByte(hex[c>>4])
+			b.WriteByte(hex[c&0x0f])
+			continue
+		}
+		b.WriteByte(c)
+	}
+	return b.String()
 }
 
 func contentDispositionHeader(name string) string {

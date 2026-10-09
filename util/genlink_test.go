@@ -101,7 +101,7 @@ func TestLinkGeneratorSurvivesAwkwardPasswords(t *testing.T) {
 				}()
 
 				inbound := inboundFor(t, p.typ, p.options)
-				links := LinkGenerator(clientConfigFor(t, p.proto, p.fields(pass)), inbound, "example.test", "someone")
+				links := LinkGenerator(clientConfigFor(t, p.proto, p.fields(pass)), inbound, "example.test", "someone", "someone")
 				if len(links) == 0 {
 					t.Fatalf("no link generated for %s", p.typ)
 				}
@@ -122,7 +122,7 @@ func TestUserinfoRoundTrips(t *testing.T) {
 		t.Run(pass, func(t *testing.T) {
 			inbound := inboundFor(t, "trojan", nil)
 			links := LinkGenerator(clientConfigFor(t, "trojan",
-				map[string]interface{}{"password": pass}), inbound, "example.test", "someone")
+				map[string]interface{}{"password": pass}), inbound, "example.test", "someone", "someone")
 			if len(links) == 0 {
 				t.Fatal("no link generated")
 			}
@@ -148,7 +148,7 @@ func TestRemarksWithAwkwardCharacters(t *testing.T) {
 			}()
 			inbound := inboundFor(t, "trojan", nil)
 			links := LinkGenerator(clientConfigFor(t, "trojan",
-				map[string]interface{}{"password": "p"}), inbound, "example.test", remark)
+				map[string]interface{}{"password": "p"}), inbound, "example.test", remark, "someone")
 			if len(links) == 0 {
 				t.Fatal("no link generated")
 			}
@@ -170,7 +170,7 @@ func TestNaiveLinkRoundTripsAwkwardCredentials(t *testing.T) {
 		t.Run(pass, func(t *testing.T) {
 			inbound := inboundFor(t, "naive", nil)
 			links := LinkGenerator(clientConfigFor(t, "naive",
-				map[string]interface{}{"username": "user", "password": pass}), inbound, "example.test", "someone")
+				map[string]interface{}{"username": "user", "password": pass}), inbound, "example.test", "someone", "someone")
 			if len(links) == 0 {
 				t.Fatal("no link generated")
 			}
@@ -216,7 +216,7 @@ func TestVmessGrpcCarriesTheServiceName(t *testing.T) {
 		"transport": map[string]interface{}{"type": "grpc", "service_name": "MyService"},
 	})
 	links := LinkGenerator(clientConfigFor(t, "vmess",
-		map[string]interface{}{"uuid": "11111111-1111-1111-1111-111111111111"}), inbound, "example.test", "someone")
+		map[string]interface{}{"uuid": "11111111-1111-1111-1111-111111111111"}), inbound, "example.test", "someone", "someone")
 	if len(links) == 0 {
 		t.Fatal("no link generated")
 	}

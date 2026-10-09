@@ -123,6 +123,7 @@
 <script lang="ts">
 import QrcodeVue from 'qrcode.vue'
 import Data from '@/store/modules/data'
+import HttpUtils from '@/plugins/httputil'
 import Clipboard from 'clipboard'
 import { i18n } from '@/locales'
 import { push } from 'notivue'
@@ -139,15 +140,18 @@ export default {
     return {
       tab: "sub",
       client: <Client>{},
+      // The server's link for this client: its own subdomain when the
+      // subscription domain is a wildcard.
+      subUrl: '',
       loading: false,
     }
   },
   computed: {
-    clientSub() {
-      return Data().subURI + this.client.name
+    clientSub(): string {
+      return this.subUrl || Data().subURI + this.client.name
     },
     singbox() {
-      const url = Data().subURI + this.client.name + "?format=json"
+      const url = this.clientSub + "?format=json"
       return "sing-box://import-remote-profile?url=" +  encodeURIComponent(url) + "#" + this.client.name
     },
     clientLinks() {
@@ -170,8 +174,11 @@ export default {
   methods: {
     async load() {
       this.loading = true
+      this.subUrl = ''
       const newData = await Data().loadClients(this.$props.id)
       this.client = newData
+      const msg = await HttpUtils.get<{ url: string }>('api/subUrl', { id: this.$props.id })
+      if (msg.success && msg.obj?.url) this.subUrl = msg.obj.url
       this.loading = false
     },
     copyToClipboard(txt:string) {

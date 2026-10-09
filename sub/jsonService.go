@@ -3,6 +3,7 @@ package sub
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/Danialrostamani/drnetwork-panel/database"
@@ -56,15 +57,10 @@ func (j *JsonService) GetJson(subId string, format string) (*string, []string, e
 		return nil, nil, err
 	}
 
-	outbounds, outTags, err := j.getOutbounds(client.Config, inDatas, client.Remark)
+	outbounds, outTags, err := j.namedOutbounds(client, inDatas, defaultOutboundTags...)
 	if err != nil {
 		return nil, nil, err
 	}
-
-	links := service.FilterNodeLinks(client)
-	extOutbounds, extTags := j.LinkService.GetExternalOutbounds(&links)
-	*outbounds = append(*outbounds, extOutbounds...)
-	*outTags = append(*outTags, extTags...)
 
 	j.addDefaultOutbounds(outbounds, outTags)
 
@@ -85,6 +81,29 @@ func (j *JsonService) GetJson(subId string, format string) (*string, []string, e
 	headers := util.GetHeaders(client, updateInterval)
 
 	return &resultStr, headers, nil
+}
+
+// defaultOutboundTags are the outbounds every JSON config starts with; a link
+// of the same name is numbered rather than clash with them.
+var defaultOutboundTags = []string{"proxy", "auto", "direct"}
+
+// namedOutbounds is every outbound of a client's subscription with its final
+// tag: its own inbounds, then the links of nodes and other external links,
+// named by the link name template when there is one. Tags are unique across
+// the whole list, reserved ones included.
+func (j *JsonService) namedOutbounds(client *model.Client, inbounds []*model.Inbound, reserved ...string) (*[]map[string]interface{}, *[]string, error) {
+	outbounds, _, infos, err := j.getOutbounds(client, inbounds)
+	if err != nil {
+		return nil, nil, err
+	}
+	n := newNamer(client)
+	n.reserve(reserved...)
+	links := service.FilterNodeLinks(client)
+	extOutbounds, _, extInfos := j.LinkService.externalOutbounds(&links, n, client.Remark)
+	*outbounds = append(*outbounds, extOutbounds...)
+	infos = append(infos, extInfos...)
+	tags := n.renameOutbounds(*outbounds, infos)
+	return outbounds, &tags, nil
 }
 
 // uniqueOutboundTag keeps a name as the operator wrote it, falling back to a
@@ -122,15 +141,19 @@ func (j *JsonService) getData(subId string) (*model.Client, []*model.Inbound, er
 	return client, inbounds, nil
 }
 
-func (j *JsonService) getOutbounds(clientConfig json.RawMessage, inbounds []*model.Inbound, clientRemark string) (*[]map[string]interface{}, *[]string, error) {
+// getOutbounds makes the outbounds of a client's own inbounds, with what the
+// link name template knows of each, in the same order.
+func (j *JsonService) getOutbounds(client *model.Client, inbounds []*model.Inbound) (*[]map[string]interface{}, *[]string, []*linkInfo, error) {
 	var outbounds []map[string]interface{}
 	var configs map[string]interface{}
 	var outTags []string
+	var infos []*linkInfo
 	takenTags := make(map[string]bool)
+	clientRemark := client.Remark
 
-	err := json.Unmarshal(clientConfig, &configs)
+	err := json.Unmarshal(client.Config, &configs)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	for _, inData := range inbounds {
 		if len(inData.OutJson) < 5 {
@@ -139,7 +162,7 @@ func (j *JsonService) getOutbounds(clientConfig json.RawMessage, inbounds []*mod
 		var outbound map[string]interface{}
 		err = json.Unmarshal(inData.OutJson, &outbound)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		protocol, _ := outbound["type"].(string)
 
@@ -149,7 +172,7 @@ func (j *JsonService) getOutbounds(clientConfig json.RawMessage, inbounds []*mod
 			var inbOptions map[string]interface{}
 			err = json.Unmarshal(inData.Options, &inbOptions)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 			method, _ := inbOptions["method"].(string)
 			if strings.HasPrefix(method, "2022") {
@@ -188,19 +211,28 @@ func (j *JsonService) getOutbounds(clientConfig json.RawMessage, inbounds []*mod
 		var addrs []map[string]interface{}
 		err = json.Unmarshal(inData.Addrs, &addrs)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		tag, _ := outbound["tag"].(string)
+		// What the name template knows of each outbound of this inbound.
+		infoFor := func(out map[string]interface{}, route string) *linkInfo {
+			server, _ := out["server"].(string)
+			return &linkInfo{inbound: inData.Tag, route: strings.TrimSpace(route), protocol: protocol,
+				network: outboundNetwork(out, protocol), server: server, port: portOf(out["server_port"])}
+		}
 		if len(addrs) == 0 {
+			info := infoFor(outbound, "")
 			tag = util.JoinRemark(clientRemark, tag)
 			takenTags[tag] = true
 			outbound["tag"] = tag
 			// For mixed protocol, use separated socks and http
 			if protocol == "mixed" {
 				j.pushMixed(&outbounds, &outTags, outbound)
+				infos = append(infos, info.as("socks"), info.as("http"))
 			} else {
 				outTags = append(outTags, tag)
 				outbounds = append(outbounds, outbound)
+				infos = append(infos, info)
 			}
 		} else {
 			for _, addr := range addrs {
@@ -215,19 +247,26 @@ func (j *JsonService) getOutbounds(clientConfig json.RawMessage, inbounds []*mod
 				port, _ := addr["server_port"].(float64)
 				newOut["server_port"] = int(port)
 
-				// Override TLS
+				// Override TLS, on a copy: the map is shared by every address
+				// of the inbound, and one address's override used to leak into
+				// the addresses after it.
 				if addrTls, ok := addr["tls"].(map[string]interface{}); ok {
-					outTls, _ := newOut["tls"].(map[string]interface{})
-					if outTls == nil {
-						outTls = make(map[string]interface{})
+					outTls := make(map[string]interface{})
+					if base, ok := newOut["tls"].(map[string]interface{}); ok {
+						for key, value := range base {
+							outTls[key] = value
+						}
 					}
 					for key, value := range addrTls {
 						outTls[key] = value
 					}
 					newOut["tls"] = outTls
 				}
+				// A wildcard address gives the client a host of its own.
+				util.ExpandWildcardOutbound(newOut, client.Name)
 
 				remark, _ := addr["remark"].(string)
+				info := infoFor(newOut, remark)
 				// Multiple addresses share one inbound tag, so the name only
 				// needs disambiguating when the addresses don't already carry
 				// distinct remarks. Numbering every one of them renamed nodes
@@ -238,14 +277,43 @@ func (j *JsonService) getOutbounds(clientConfig json.RawMessage, inbounds []*mod
 				// For mixed protocol, use separated socks and http
 				if protocol == "mixed" {
 					j.pushMixed(&outbounds, &outTags, newOut)
+					infos = append(infos, info.as("socks"), info.as("http"))
 				} else {
 					outTags = append(outTags, newTag)
 					outbounds = append(outbounds, newOut)
+					infos = append(infos, info)
 				}
 			}
 		}
 	}
-	return &outbounds, &outTags, nil
+	return &outbounds, &outTags, infos, nil
+}
+
+// outboundNetwork is the transport of an outbound the way links name it.
+func outboundNetwork(out map[string]interface{}, protocol string) string {
+	if tr, ok := out["transport"].(map[string]interface{}); ok {
+		if t, _ := tr["type"].(string); t != "" {
+			return t
+		}
+	}
+	if quicProtocol(protocol) || (protocol == "naive" && asBool(out["quic"])) {
+		return "quic"
+	}
+	return "tcp"
+}
+
+// portOf reads a port that JSON may have made a float.
+func portOf(v interface{}) int {
+	switch p := v.(type) {
+	case float64:
+		return int(p)
+	case int:
+		return p
+	case string:
+		n, _ := strconv.Atoi(p)
+		return n
+	}
+	return 0
 }
 
 func (j *JsonService) addDefaultOutbounds(outbounds *[]map[string]interface{}, outTags *[]string) {

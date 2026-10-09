@@ -39,10 +39,20 @@ func (b *bot) orderText(o *model.ShopOrder) string {
 	if o.Reseller {
 		lines = append(lines, t("👔 خرید نماینده", "👔 Reseller purchase"))
 	}
+	if o.Auto {
+		lines = append(lines, t("🔁 تمدید خودکار از کیف پول", "🔁 Automatic renewal from the wallet"))
+	}
 	if o.Discount > 0 {
 		lines = append(lines, t("تخفیف: ", "Discount: ")+b.money(o.Discount)+map[bool]string{true: " (" + esc(o.Code) + ")", false: ""}[o.Code != ""])
 	}
-	lines = append(lines, "💰 "+t("مبلغ: ", "Amount: ")+"<b>"+b.money(o.Paid)+"</b>")
+	lines = append(lines, "💰 "+t("مبلغ: ", "Amount: ")+"<b>"+b.money(service.ToPay(o))+"</b>")
+	if o.Extra > 0 {
+		lines = append(lines, fmt.Sprintf(t("(%s آن برای یکتا شدن مبلغ است و به کیف پول مشتری می‌رود)", "(%s of it makes the amount unique and goes to the customer's wallet)"), b.money(o.Extra)))
+	}
+	if o.Card != "" && len(b.shopSvc().Settings().Cards) > 1 {
+		first, _, _ := strings.Cut(o.Card, "\n")
+		lines = append(lines, "💳 "+esc(strings.TrimSpace(first)))
+	}
 	if r, ok := strings.CutPrefix(o.Receipt, "text:"); ok {
 		lines = append(lines, t("رسید: ", "Receipt: ")+"<code>"+esc(r)+"</code>")
 	}
@@ -147,6 +157,24 @@ var running atomic.Pointer[runningBot]
 type runningBot struct {
 	b   *bot
 	ctx context.Context
+}
+
+// smsApproved is service.ShopSmsApproved: it tells the approvers about an
+// order a bank message approved.
+func smsApproved(id uint, amount int64) {
+	rb := running.Load()
+	if rb == nil {
+		return
+	}
+	b := rb.b.root()
+	o, err := b.shopSvc().Order(id)
+	if err != nil {
+		return
+	}
+	text := fmt.Sprintf(b.tr("🤖 سفارش #%d با پیامک واریز %s خودکار تایید شد.", "🤖 Order #%d was approved by a bank message of %s."), id, b.money(amount)) + "\n\n" + b.orderText(o)
+	for _, chat := range b.approvers() {
+		b.send(rb.ctx, chat, text)
+	}
 }
 
 // decideFromPanel is service.ShopDecider.
@@ -313,7 +341,30 @@ func (b *bot) discountsScreen() (string, [][]button) {
 		if d.Expiry > 0 {
 			exp = " · " + t("تا ", "until ") + time.Unix(d.Expiry, 0).In(b.loc).Format("2006-01-02")
 		}
-		lines = append(lines, fmt.Sprintf("• <code>%s</code> · %d%% · %s%s", esc(d.Code), d.Percent, uses, exp))
+		value := fmt.Sprintf("%d%%", d.Percent)
+		if d.IsGift() {
+			value = "🎁 " + b.money(d.Amount)
+		}
+		var limits []string
+		if d.PlanIds != "" {
+			limits = append(limits, t("پلن‌های ", "plans ")+esc(d.PlanIds))
+		}
+		switch d.Kinds {
+		case model.OrderBuy:
+			limits = append(limits, t("فقط خرید", "purchases only"))
+		case model.OrderRenew:
+			limits = append(limits, t("فقط تمدید", "renewals only"))
+		}
+		if d.OncePerUser && !d.IsGift() {
+			limits = append(limits, t("یک بار برای هر مشتری", "once per customer"))
+		}
+		if !d.Enable {
+			limits = append(limits, t("خاموش", "off"))
+		}
+		if len(limits) > 0 {
+			exp += " · " + strings.Join(limits, "، ")
+		}
+		lines = append(lines, fmt.Sprintf("• <code>%s</code> · %s · %s%s", esc(d.Code), value, uses, exp))
 		btns = append(btns, button{Text: "🗑 " + d.Code, Data: fmt.Sprintf("q:dd:%d", d.Id)})
 	}
 	if len(list) == 0 {
@@ -332,6 +383,8 @@ var shopSettingInfo = []struct{ key, fa, en, hintFa, hintEn string }{
 	{"shopRefPercent", "👥 پاداش دعوت (٪)", "👥 Referral reward (%)", "درصد پاداش دعوت از اولین خرید را بفرستید (0 = خاموش).", "Send the percent of the first purchase a referrer gets (0 = off)."},
 	{"shopSupport", "💬 پشتیبانی", "💬 Support", "آیدی یا متن پشتیبانی را بفرستید، مثلا @support", "Send the support contact, e.g. @support"},
 	{"shopPrefix", "🔤 پیشوند نام کلاینت", "🔤 Client name prefix", "پیشوند نام کلاینت‌های فروشگاه را بفرستید، مثلا u", "Send the prefix of shop client names, e.g. u"},
+	{"shopUniqueAmount", "🔢 مبلغ یکتا", "🔢 Unique amount", "بیشترین مبلغی را بفرستید که به هر سفارش کارت به کارت اضافه می‌شود تا مبلغش با سفارش‌های باز دیگر یکی نباشد (0 = خاموش، تا 9999). این مبلغ پس از تایید به کیف پول مشتری برمی‌گردد و تایید خودکار با پیامک بانک به آن نیاز دارد.",
+		"Send the most a card order's amount may grow by so no other open order has the same amount (0 = off, up to 9999). It goes to the customer's wallet once approved; confirming by bank message needs it."},
 }
 
 func (b *bot) shopSettingsScreen() (string, [][]button) {
@@ -355,7 +408,16 @@ func (b *bot) shopSettingsScreen() (string, [][]button) {
 		lines = append(lines, "", "<b>"+t(s.fa, s.en)+"</b>", esc(v))
 		btns = append(btns, button{Text: t(s.fa, s.en), Data: "q:sk:" + s.key})
 	}
-	kb := [][]button{{{Text: toggle, Data: "q:sen"}}}
+	auto, _ := strconv.ParseBool(raw["shopAutoRenew"])
+	autoText := t("🔁 تمدید خودکار از کیف پول: خاموش", "🔁 Auto-renew from the wallet: off")
+	if auto {
+		autoText = t("🔁 تمدید خودکار از کیف پول: روشن", "🔁 Auto-renew from the wallet: on")
+	}
+	lines = append(lines, "", "<b>"+autoText+"</b>")
+	if strings.TrimSpace(raw["shopSmsSecret"]) != "" {
+		lines = append(lines, "", t("🤖 تایید خودکار با پیامک بانک: روشن (از صفحه فروش پنل)", "🤖 Confirming by bank message: on (from the panel's Sales page)"))
+	}
+	kb := [][]button{{{Text: toggle, Data: "q:sen"}}, {{Text: autoText, Data: "q:sar"}}}
 	kb = append(kb, rows2(btns)...)
 	return strings.Join(lines, "\n"), append(kb, b.navRow("q:menu"))
 }
@@ -454,7 +516,8 @@ func (b *bot) shopAdminCallback(ctx context.Context, cbID string, chatID, msgID 
 	case "dc":
 		show(b.discountsScreen())
 	case "dn":
-		ask("sh.code", "", 0, "q:dc", t("کد را بفرستید:\n<code>کد درصد [حداکثر استفاده] [روز اعتبار]</code>\nمثال: <code>NOROOZ 20 100 7</code>", "Send the code:\n<code>CODE percent [max uses] [days valid]</code>\nExample: <code>SPRING 20 100 7</code>"))
+		ask("sh.code", "", 0, "q:dc", t("کد را بفرستید.\nکد تخفیف: <code>کد درصد [حداکثر استفاده] [روز اعتبار] [یکبار]</code>\nمثال: <code>NOROOZ 20 100 7 یکبار</code> («یکبار»: هر مشتری یک بار)\n\nکد هدیه (شارژ کیف پول، هر مشتری یک بار): <code>هدیه کد مبلغ [حداکثر استفاده] [روز اعتبار]</code>\nمثال: <code>هدیه GIFT50 50000 100 30</code>\n\nمحدود کردن کد به پلن‌ها یا فقط خرید/تمدید از صفحه فروش پنل.",
+			"Send the code.\nDiscount: <code>CODE percent [max uses] [days valid] [once]</code>\nExample: <code>SPRING 20 100 7 once</code> (once: one use per customer)\n\nGift (wallet credit, once per customer): <code>gift CODE amount [max uses] [days valid]</code>\nExample: <code>gift GIFT50 50000 100 30</code>\n\nLimit a code to plans, or to purchases or renewals, on the panel's Sales page."))
 	case "dd":
 		_ = b.shopSvc().DeleteDiscount(arg(2))
 		show(b.discountsScreen())
@@ -463,6 +526,13 @@ func (b *bot) shopAdminCallback(ctx context.Context, cbID string, chatID, msgID 
 	case "sen":
 		on := b.shopSvc().Settings().Enable
 		if err := b.shopSvc().SetSetting("shopEnable", strconv.FormatBool(!on)); err != nil {
+			b.answer(ctx, cbID, b.errText(err))
+			return
+		}
+		show(b.shopSettingsScreen())
+	case "sar":
+		on := b.shopSvc().Settings().AutoRenew
+		if err := b.shopSvc().SetSetting("shopAutoRenew", strconv.FormatBool(!on)); err != nil {
 			b.answer(ctx, cbID, b.errText(err))
 			return
 		}
@@ -580,7 +650,7 @@ func (b *bot) shopPending(ctx context.Context, chatID int64, p *pending, text st
 		finish(b.t("done")+"\n\n"+text, kb)
 	case "sh.set":
 		v := text
-		if p.key == "shopTrial" || p.key == "shopRefPercent" {
+		if p.key == "shopTrial" || p.key == "shopRefPercent" || p.key == "shopUniqueAmount" {
 			v = normalizeDigitsKeepSpaces(v)
 		}
 		if err := svc.SetSetting(p.key, v); err != nil {

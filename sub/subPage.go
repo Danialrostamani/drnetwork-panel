@@ -56,6 +56,9 @@ type subPageData struct {
 	Bot               string
 	Online            bool
 	Unlimited         bool
+	// The announcement and support link the apps get in headers.
+	Announce string
+	Support  template.URL
 }
 
 var subPageText = map[string]map[string]string{
@@ -63,14 +66,14 @@ var subPageText = map[string]map[string]string{
 		"title": "وضعیت اشتراک", "used": "مصرف شده", "total": "حجم کل", "left": "باقی‌مانده", "expiry": "تاریخ انقضا", "days": "روز مانده",
 		"link": "لینک اشتراک", "copy": "کپی لینک", "copied": "کپی شد", "apps": "افزودن به برنامه", "download": "دانلود",
 		"renew": "تمدید یا خرید از ربات تلگرام", "active": "فعال", "off": "غیرفعال", "expired": "منقضی شده", "depleted": "حجم تمام شده",
-		"unlimited": "نامحدود", "never": "بدون انقضا", "online": "آنلاین", "import": "افزودن",
+		"unlimited": "نامحدود", "never": "بدون انقضا", "online": "آنلاین", "import": "افزودن", "support": "پشتیبانی",
 		"hint": "لینک را کپی کنید و در برنامه با گزینه «افزودن از کلیپ‌بورد» وارد کنید، یا QR را اسکن کنید.",
 	},
 	"en": {
 		"title": "Subscription status", "used": "Used", "total": "Total", "left": "Left", "expiry": "Expires", "days": "days left",
 		"link": "Subscription link", "copy": "Copy link", "copied": "Copied", "apps": "Add to an app", "download": "Download",
 		"renew": "Renew or buy in the Telegram bot", "active": "Active", "off": "Disabled", "expired": "Expired", "depleted": "Out of volume",
-		"unlimited": "Unlimited", "never": "Never", "online": "Online", "import": "Import",
+		"unlimited": "Unlimited", "never": "Never", "online": "Online", "import": "Import", "support": "Support",
 		"hint": "Copy the link and add it in your app with “import from clipboard”, or scan the QR code.",
 	},
 }
@@ -95,6 +98,20 @@ func requestURL(c *gin.Context) string {
 		scheme = "https"
 	}
 	return scheme + "://" + c.Request.Host + c.Request.URL.EscapedPath()
+}
+
+// supportLinkOK takes the support link only with a scheme the settings allow;
+// html/template would let a tg:// link through only as template.URL.
+func supportLinkOK(link string) bool {
+	if link == "" || strings.ContainsAny(link, "\r\n\"'<> ") {
+		return false
+	}
+	for _, p := range []string{"https://", "http://", "tg://"} {
+		if strings.HasPrefix(strings.ToLower(link), p) {
+			return true
+		}
+	}
+	return false
 }
 
 // page renders the account page of a client; false if there is none.
@@ -156,6 +173,10 @@ func (s *SubHandler) page(c *gin.Context, subID string) bool {
 		{"Streisand", "iOS · macOS", "https://apps.apple.com/app/streisand/id6450534064", template.URL("streisand://import/" + d.Link + "#" + name)},
 		{"v2rayN", "Windows · Linux · macOS", "https://github.com/2dust/v2rayN/releases/latest", ""},
 		{"NekoBox", "Android", "https://github.com/MatsuriDayo/NekoBoxForAndroid/releases/latest", template.URL("sn://subscription?url=" + q + "&name=" + name)},
+	}
+	d.Announce = strings.TrimSpace(s.SettingService.GetSubAnnounce())
+	if support := strings.TrimSpace(s.SettingService.GetSubSupportUrl()); supportLinkOK(support) {
+		d.Support = template.URL(support)
 	}
 	if (&service.ShopService{}).Settings().Enable {
 		if bot, _ := service.BotUsername.Load().(string); bot != "" {

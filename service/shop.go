@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -32,9 +33,21 @@ type ShopSettings struct {
 	RefPercent int     `json:"refPercent"`
 	Support    string  `json:"support"`
 	Prefix     string  `json:"prefix"`
+	// Cards are the payment texts of Card, one per card: orders take turns.
+	Cards []string `json:"cards"`
+	// UniqueAmount is the most a card payment may add to its price to be
+	// told apart from the other open orders; 0 adds nothing.
+	UniqueAmount int `json:"uniqueAmount"`
+	// SmsSecret opens the bank message hook; "" keeps it closed. SmsRial
+	// reads the messages' amounts as rials against prices in tomans.
+	SmsSecret string `json:"-"`
+	SmsRial   bool   `json:"smsRial"`
+	// AutoRenew lets customers have a service renewed from their wallet.
+	AutoRenew bool `json:"autoRenew"`
 }
 
-var shopSettingKeys = []string{"shopEnable", "shopCard", "shopCurrency", "shopTrial", "shopRefPercent", "shopSupport", "shopPrefix"}
+var shopSettingKeys = []string{"shopEnable", "shopCard", "shopCurrency", "shopTrial", "shopRefPercent", "shopSupport", "shopPrefix",
+	"shopUniqueAmount", "shopSmsSecret", "shopSmsRial", "shopAutoRenew"}
 
 // IsShopSetting tells the settings that belong to the shop.
 func IsShopSetting(key string) bool {
@@ -63,7 +76,10 @@ func ParseTrial(v string) (float64, int, error) {
 	return gb, days, nil
 }
 
-var shopPrefixRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]{0,15}$`)
+var (
+	shopPrefixRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]{0,15}$`)
+	smsSecretRe  = regexp.MustCompile(`^[A-Za-z0-9_-]{16,64}$`)
+)
 
 // CheckShopSetting validates one shop setting.
 func CheckShopSetting(key, value string) error {
@@ -83,10 +99,26 @@ func CheckShopSetting(key, value string) error {
 		if !shopPrefixRe.MatchString(value) {
 			return errors.New("prefix: a letter, then letters, digits, _ or -")
 		}
-	case "shopCard", "shopSupport":
+	case "shopCard":
+		if len(value) > 3000 {
+			return errors.New("too long")
+		}
+	case "shopSupport":
 		if len(value) > 1000 {
 			return errors.New("too long")
 		}
+	case "shopUniqueAmount":
+		n, err := strconv.Atoi(strings.TrimSpace(value))
+		if err != nil || n < 0 || n > 9999 {
+			return errors.New("the unique amount is 0 (off) to 9999")
+		}
+	case "shopSmsSecret":
+		if value != "" && !smsSecretRe.MatchString(value) {
+			return errors.New("the SMS key is 16-64 letters, digits, _ or -")
+		}
+	case "shopSmsRial", "shopAutoRenew":
+		_, err := strconv.ParseBool(value)
+		return err
 	case "shopCurrency":
 		if len(value) > 30 {
 			return errors.New("too long")
@@ -109,6 +141,15 @@ func (s *ShopService) Settings() ShopSettings {
 	out.Enable, _ = strconv.ParseBool(get("shopEnable"))
 	out.TrialGB, out.TrialDays, _ = ParseTrial(get("shopTrial"))
 	out.RefPercent, _ = strconv.Atoi(strings.TrimSpace(get("shopRefPercent")))
+	out.Cards = ShopCards(out.Card)
+	out.UniqueAmount, _ = strconv.Atoi(strings.TrimSpace(get("shopUniqueAmount")))
+	out.UniqueAmount = max(min(out.UniqueAmount, 9999), 0)
+	out.SmsSecret = strings.TrimSpace(get("shopSmsSecret"))
+	if !smsSecretRe.MatchString(out.SmsSecret) {
+		out.SmsSecret = ""
+	}
+	out.SmsRial, _ = strconv.ParseBool(get("shopSmsRial"))
+	out.AutoRenew, _ = strconv.ParseBool(get("shopAutoRenew"))
 	if !shopPrefixRe.MatchString(out.Prefix) {
 		out.Prefix = "u"
 	}
@@ -208,88 +249,7 @@ func ParsePlanLine(line string) (*model.ShopPlan, error) {
 	return p, checkPlan(p)
 }
 
-// ---- discount codes ----
-
-var discountCodeRe = regexp.MustCompile(`^[A-Za-z0-9_-]{2,32}$`)
-
-func (s *ShopService) Discounts() ([]model.ShopDiscount, error) {
-	var out []model.ShopDiscount
-	err := database.GetDB().Order("id").Find(&out).Error
-	return out, err
-}
-
-// SaveDiscount creates or updates a discount code.
-func (s *ShopService) SaveDiscount(d *model.ShopDiscount) error {
-	d.Code = strings.ToUpper(strings.TrimSpace(d.Code))
-	if !discountCodeRe.MatchString(d.Code) {
-		return errors.New("code: 2-32 letters, digits, _ or -")
-	}
-	if d.Percent < 1 || d.Percent > 100 || d.MaxUses < 0 || d.Used < 0 {
-		return errors.New("percent must be 1-100")
-	}
-	db := database.GetDB()
-	var n int64
-	db.Model(&model.ShopDiscount{}).Where("code = ? AND id <> ?", d.Code, d.Id).Count(&n)
-	if n > 0 {
-		return errors.New("the code exists")
-	}
-	if d.Id == 0 {
-		return db.Create(d).Error
-	}
-	return db.Select("*").Save(d).Error
-}
-
-// ParseDiscountLine reads "CODE percent [max uses] [days valid]".
-func ParseDiscountLine(line string) (*model.ShopDiscount, error) {
-	f := strings.Fields(line)
-	bad := errors.New("format: CODE percent [max uses] [days]")
-	if len(f) < 2 || len(f) > 4 {
-		return nil, bad
-	}
-	d := &model.ShopDiscount{Code: f[0], Enable: true}
-	var err error
-	if d.Percent, err = strconv.Atoi(f[1]); err != nil {
-		return nil, bad
-	}
-	if len(f) > 2 {
-		if d.MaxUses, err = strconv.Atoi(f[2]); err != nil || d.MaxUses < 0 {
-			return nil, bad
-		}
-	}
-	if len(f) > 3 {
-		days, err := strconv.Atoi(f[3])
-		if err != nil || days < 0 || days > 3650 {
-			return nil, bad
-		}
-		if days > 0 {
-			d.Expiry = time.Now().Add(time.Duration(days) * 24 * time.Hour).Unix()
-		}
-	}
-	return d, nil
-}
-
-func (s *ShopService) DeleteDiscount(id uint) error {
-	return database.GetDB().Delete(&model.ShopDiscount{}, id).Error
-}
-
-// ErrBadCode is returned for an unknown, used up or expired discount code.
-var ErrBadCode = errors.New("invalid discount code")
-
-// Discount finds a usable discount code.
-func (s *ShopService) Discount(code string) (*model.ShopDiscount, error) {
-	code = strings.ToUpper(strings.TrimSpace(code))
-	if code == "" {
-		return nil, ErrBadCode
-	}
-	var d model.ShopDiscount
-	if err := database.GetDB().Where("code = ?", code).First(&d).Error; err != nil {
-		return nil, ErrBadCode
-	}
-	if !d.Enable || (d.MaxUses > 0 && d.Used >= d.MaxUses) || (d.Expiry > 0 && d.Expiry < time.Now().Unix()) {
-		return nil, ErrBadCode
-	}
-	return &d, nil
-}
+// ---- discount codes: see shopCodes.go ----
 
 // Price works out an order's price: the plan's, less the reseller's and the
 // code's percentages.
@@ -458,10 +418,27 @@ func (s *ShopService) WalletTxs(tgID int64, limit int) ([]model.ShopWalletTx, er
 
 // ---- orders ----
 
+// cardOrderMu makes choosing a card order's amount and saving the order one
+// step.
+var cardOrderMu sync.Mutex
+
 func (s *ShopService) CreateOrder(o *model.ShopOrder) error {
 	o.Id = 0
 	o.Status = model.OrderPending
 	o.CreatedAt = time.Now().Unix()
+	o.Extra, o.Card = 0, ""
+	if o.Method != model.PayCard {
+		return database.GetDB().Create(o).Error
+	}
+	// A card payment gets its card, and an amount no other open order has,
+	// in one step: two orders made at once must not take the same amount.
+	cardOrderMu.Lock()
+	defer cardOrderMu.Unlock()
+	st := s.Settings()
+	o.Card = s.pickCard(st.Cards)
+	if st.UniqueAmount > 0 && o.Paid > 0 {
+		o.Extra = s.uniqueExtra(o.Paid, st.UniqueAmount)
+	}
 	return database.GetDB().Create(o).Error
 }
 
@@ -501,7 +478,7 @@ func (s *ShopService) Finish(o *model.ShopOrder) error {
 		return err
 	}
 	if o.Code != "" {
-		db.Model(&model.ShopDiscount{}).Where("code = ?", o.Code).Update("used", gorm.Expr("used + 1"))
+		s.useCode(o)
 	}
 	return nil
 }

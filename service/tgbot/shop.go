@@ -249,25 +249,53 @@ func (b *bot) shopHome(id int64) (string, [][]button) {
 
 // ---- typed answers and receipts ----
 
+// shopInput is a message the shop may be waiting for: text (or a caption),
+// and a photo or file with the unique id Telegram gives it.
+type shopInput struct {
+	text            string
+	photo, photoUID string
+	doc, docUID     string
+}
+
 // shopMessage handles a message of somebody the shop waits on. It reports
 // whether it took the message.
-func (b *bot) shopMessage(ctx context.Context, chatID int64, from int64, text, photo, doc string) bool {
+func (b *bot) shopMessage(ctx context.Context, chatID int64, from int64, in shopInput) bool {
 	ss := sessions.peek(chatID)
 	if ss == nil || !b.shopOpen(from) {
 		return false
 	}
 	t := b.tr
+	text := in.text
 	switch ss.await {
 	case "code":
-		d, err := b.shopSvc().Discount(text)
-		if err != nil {
-			b.sendKeyboard(ctx, chatID, t("❌ کد تخفیف معتبر نیست.", "❌ That discount code is not valid."), [][]button{{{Text: t("⬅️ بازگشت", "⬅️ Back"), Data: fmt.Sprintf("p:plan:%d:%d", ss.planID, ss.client)}}})
-			sessions.update(chatID, func(s *shopSession) { s.await = "" })
+		back := []button{{Text: t("⬅️ بازگشت", "⬅️ Back"), Data: fmt.Sprintf("p:plan:%d:%d", ss.planID, ss.client)}}
+		sessions.update(chatID, func(s *shopSession) { s.await = "" })
+		if b.codeLocked(ctx, chatID, from, back) {
 			return true
 		}
-		sessions.update(chatID, func(s *shopSession) { s.await, s.code, s.codePct = "", d.Code, d.Percent })
+		kind := model.OrderBuy
+		if ss.client != 0 {
+			kind = model.OrderRenew
+		}
+		d, err := b.shopSvc().DiscountFor(text, from, ss.planID, kind)
+		if errors.Is(err, service.ErrGiftCode) {
+			b.redeemGift(ctx, chatID, from, text, back)
+			return true
+		}
+		if err != nil {
+			b.codeFailed(from, err)
+			b.sendKeyboard(ctx, chatID, b.codeError(err), [][]button{back})
+			return true
+		}
+		sessions.update(chatID, func(s *shopSession) { s.code, s.codePct = d.Code, d.Percent })
 		text, kb := b.planScreen(from, ss.planID, ss.client)
 		b.sendKeyboard(ctx, chatID, text, kb)
+	case "gift":
+		back := []button{{Text: t("👛 کیف پول", "👛 Wallet"), Data: "p:wallet"}}
+		sessions.update(chatID, func(s *shopSession) { s.await = "" })
+		if !b.codeLocked(ctx, chatID, from, back) {
+			b.redeemGift(ctx, chatID, from, text, back)
+		}
 	case "topup":
 		n, err := strconv.ParseInt(normalizeDigits(text), 10, 64)
 		if err != nil || n <= 0 || n > 1_000_000_000_000 {
@@ -281,24 +309,36 @@ func (b *bot) shopMessage(ctx context.Context, chatID int64, from int64, text, p
 		}
 		b.askReceipt(ctx, chatID, o)
 	case "receipt":
-		receipt := ""
+		receipt, key := "", ""
 		switch {
-		case photo != "":
-			receipt = "photo:" + photo
-		case doc != "":
-			receipt = "doc:" + doc
+		case in.photo != "":
+			receipt, key = "photo:"+in.photo, service.ReceiptKey("photo", in.photoUID, "")
+		case in.doc != "":
+			receipt, key = "doc:"+in.doc, service.ReceiptKey("doc", in.docUID, "")
 		case len([]rune(strings.TrimSpace(text))) >= 4:
-			receipt = "text:" + strings.TrimSpace(text)
+			receipt, key = "text:"+strings.TrimSpace(text), service.ReceiptKey("text", "", text)
 		default:
 			b.send(ctx, chatID, t("عکس رسید یا شماره پیگیری را بفرستید.", "Send a photo of the receipt or the tracking number."))
 			return true
 		}
 		o, err := b.shopSvc().Order(ss.orderID)
+		if err == nil && o.TgId == from && o.Status == model.OrderApproved {
+			// A bank message may have approved it meanwhile.
+			sessions.update(chatID, func(s *shopSession) { s.await = "" })
+			b.sendKeyboard(ctx, chatID, fmt.Sprintf(t("✅ سفارش #%d قبلا تایید شده است؛ رسید لازم نیست.", "✅ Order #%d is already approved; no receipt is needed."), o.Id), [][]button{b.homeRow()})
+			return true
+		}
 		if err != nil || o.TgId != from || o.Status != model.OrderPending {
 			sessions.update(chatID, func(s *shopSession) { s.await = "" })
 			return false
 		}
-		if err := b.shopSvc().SetReceipt(o.Id, receipt); err != nil {
+		if err := b.shopSvc().SetReceiptKeyed(o.Id, receipt, key); err != nil {
+			var used service.ErrReceiptUsed
+			if errors.As(err, &used) {
+				// Still waiting: the right receipt may come next.
+				b.send(ctx, chatID, t("❌ این رسید قبلا برای سفارش دیگری فرستاده شده است. رسید همین پرداخت را بفرستید.", "❌ This receipt was already sent for another order. Send the receipt of this payment."))
+				return true
+			}
 			b.fail(ctx, chatID, err)
 			return true
 		}
@@ -334,14 +374,79 @@ func (b *bot) shopName(id int64) string {
 
 func (b *bot) askReceipt(ctx context.Context, chatID int64, o *model.ShopOrder) {
 	st := b.shopSvc().Settings()
+	t := b.tr
 	sessions.update(chatID, func(s *shopSession) { s.await, s.orderID = "receipt", o.Id })
-	card := strings.TrimSpace(st.Card)
-	if card == "" {
-		card = b.tr("(شماره کارت هنوز تنظیم نشده؛ با پشتیبانی تماس بگیرید)", "(no card number set yet; contact support)")
+	card := strings.TrimSpace(o.Card)
+	if card == "" && len(st.Cards) > 0 {
+		card = st.Cards[0]
 	}
-	text := fmt.Sprintf(b.tr("🧾 سفارش #%d\n💰 مبلغ قابل پرداخت: <b>%s</b>\n\n💳 لطفا مبلغ را به این کارت واریز کنید:\n%s\n\n📸 سپس عکس رسید یا شماره پیگیری را همین‌جا بفرستید.",
-		"🧾 Order #%d\n💰 To pay: <b>%s</b>\n\n💳 Please transfer the amount to:\n%s\n\n📸 Then send a photo of the receipt or the tracking number here."), o.Id, b.money(o.Paid), esc(card))
-	b.sendKeyboard(ctx, chatID, text, [][]button{{{Text: b.tr("✖️ لغو سفارش", "✖️ Cancel order"), Data: fmt.Sprintf("p:cancel:%d", o.Id)}}})
+	if card == "" {
+		card = t("(شماره کارت هنوز تنظیم نشده؛ با پشتیبانی تماس بگیرید)", "(no card number set yet; contact support)")
+	}
+	lines := []string{
+		fmt.Sprintf(t("🧾 سفارش #%d", "🧾 Order #%d"), o.Id),
+		t("💰 مبلغ قابل پرداخت: ", "💰 To pay: ") + "<b>" + b.money(service.ToPay(o)) + "</b>",
+	}
+	if o.Extra > 0 {
+		lines = append(lines, fmt.Sprintf(t("⚠️ دقیقا همین مبلغ را واریز کنید: %s اضافه برای شناختن پرداخت شماست و پس از تایید به کیف پولتان برمی‌گردد.",
+			"⚠️ Transfer exactly this amount: the extra %s tells your payment apart and goes to your wallet once approved."), b.money(o.Extra)))
+	}
+	lines = append(lines, "", t("💳 لطفا مبلغ را به این کارت واریز کنید:", "💳 Please transfer the amount to:"), esc(card), "")
+	if st.SmsSecret != "" && o.Extra > 0 {
+		lines = append(lines, t("🤖 واریز شما خودکار تایید می‌شود. اگر تا چند دقیقه تایید نشد، عکس رسید یا شماره پیگیری را همین‌جا بفرستید.",
+			"🤖 Your transfer is confirmed automatically. If it is not within a few minutes, send a photo of the receipt or the tracking number here."))
+	} else {
+		lines = append(lines, t("📸 سپس عکس رسید یا شماره پیگیری را همین‌جا بفرستید.", "📸 Then send a photo of the receipt or the tracking number here."))
+	}
+	b.sendKeyboard(ctx, chatID, strings.Join(lines, "\n"), [][]button{{{Text: t("✖️ لغو سفارش", "✖️ Cancel order"), Data: fmt.Sprintf("p:cancel:%d", o.Id)}}})
+}
+
+// codeLocked tells a customer who mistyped codes too often to wait. Codes
+// can be worth money, so they must not be guessed.
+func (b *bot) codeLocked(ctx context.Context, chatID, from int64, back []button) bool {
+	if locked, _ := service.LoginLockedOut(codeKey(from)); !locked {
+		return false
+	}
+	b.sendKeyboard(ctx, chatID, b.tr("⏳ کدهای نادرست زیادی فرستاده‌اید؛ کمی بعد دوباره امتحان کنید.", "⏳ Too many wrong codes; try again a little later."), [][]button{back})
+	return true
+}
+
+func codeKey(from int64) string { return "code:" + strconv.FormatInt(from, 10) }
+
+// codeFailed counts a wrong code against the customer.
+func (b *bot) codeFailed(from int64, err error) {
+	if errors.Is(err, service.ErrBadCode) {
+		service.NoteLoginFailure(codeKey(from))
+	}
+}
+
+// codeError is what a customer is told about a code that cannot be used.
+func (b *bot) codeError(err error) string {
+	t := b.tr
+	switch {
+	case errors.Is(err, service.ErrCodeNotHere):
+		return t("❌ این کد برای این خرید نیست.", "❌ That code is not for this purchase.")
+	case errors.Is(err, service.ErrCodeUsed):
+		return t("❌ شما قبلا از این کد استفاده کرده‌اید.", "❌ You already used that code.")
+	case errors.Is(err, service.ErrNotGift):
+		return t("❌ این کد تخفیف است، نه کد هدیه؛ آن را هنگام خرید وارد کنید.", "❌ That is a discount code, not a gift code: use it when you buy.")
+	}
+	return t("❌ کد معتبر نیست.", "❌ That code is not valid.")
+}
+
+// redeemGift adds a gift code's amount to the customer's wallet.
+func (b *bot) redeemGift(ctx context.Context, chatID, from int64, code string, back []button) {
+	t := b.tr
+	amount, bal, err := b.shopSvc().RedeemGift(from, code)
+	switch {
+	case err == nil:
+		b.sendKeyboard(ctx, chatID, fmt.Sprintf(t("🎁 %s به کیف پول شما اضافه شد.\nموجودی: %s", "🎁 %s was added to your wallet.\nBalance: %s"), b.money(amount), b.money(bal)), [][]button{back})
+	case errors.Is(err, service.ErrBadCode), errors.Is(err, service.ErrCodeUsed), errors.Is(err, service.ErrNotGift):
+		b.codeFailed(from, err)
+		b.sendKeyboard(ctx, chatID, b.codeError(err), [][]button{back})
+	default:
+		b.fail(ctx, chatID, err)
+	}
 }
 
 // ---- callbacks ----
@@ -390,7 +495,12 @@ func (b *bot) shopCallback(ctx context.Context, cbID string, chatID, msgID, from
 		show(t("کدام سرویس تمدید شود؟", "Which service to renew?"), append(rows2(btns), b.homeRow()))
 	case "code":
 		sessions.update(chatID, func(s *shopSession) { s.await, s.planID, s.client = "code", arg(2), arg(3) })
-		show(t("🏷 کد تخفیف را بفرستید.", "🏷 Send the discount code."), [][]button{{{Text: t("⬅️ بازگشت", "⬅️ Back"), Data: fmt.Sprintf("p:plan:%d:%d", arg(2), arg(3))}}})
+		show(t("🏷 کد تخفیف یا کد هدیه را بفرستید.", "🏷 Send the discount or gift code."), [][]button{{{Text: t("⬅️ بازگشت", "⬅️ Back"), Data: fmt.Sprintf("p:plan:%d:%d", arg(2), arg(3))}}})
+	case "gift":
+		sessions.update(chatID, func(s *shopSession) { s.await = "gift" })
+		show(t("🎁 کد هدیه را بفرستید.", "🎁 Send the gift code."), [][]button{{{Text: t("⬅️ بازگشت", "⬅️ Back"), Data: "p:wallet"}}})
+	case "ar":
+		b.toggleAutoRenew(ctx, cbID, chatID, msgID, from, arg(2))
 	case "card":
 		o, err := b.newOrder(chatID, from, arg(2), arg(3), model.PayCard)
 		if err != nil {
@@ -506,9 +616,14 @@ func (b *bot) quote(chatID, from int64, planID, clientID uint) (*model.ShopOrder
 	sh := b.shopperOf(from)
 	ss := sessions.get(chatID)
 	code, pct := ss.code, ss.codePct
+	kind := model.OrderBuy
+	if clientID != 0 {
+		kind = model.OrderRenew
+	}
 	if code != "" {
-		// The code may have run out since it was typed.
-		if d, err := b.shopSvc().Discount(code); err == nil {
+		// The code may have run out since it was typed, or be for another
+		// plan.
+		if d, err := b.shopSvc().DiscountFor(code, from, p.Id, kind); err == nil {
 			pct = d.Percent
 		} else {
 			code, pct = "", 0
@@ -614,7 +729,7 @@ func (b *bot) walletScreen(from int64) (string, [][]button) {
 			lines = append(lines, fmt.Sprintf("%s %s · %s · %s", sign, b.money(abs64(tx.Amount)), b.txReason(tx.Reason), time.Unix(tx.CreatedAt, 0).In(b.loc).Format("01/02 15:04")))
 		}
 	}
-	return strings.Join(lines, "\n"), [][]button{{{Text: t("➕ شارژ کیف پول", "➕ Top up"), Data: "p:topup"}}, b.homeRow()}
+	return strings.Join(lines, "\n"), [][]button{{{Text: t("➕ شارژ کیف پول", "➕ Top up"), Data: "p:topup"}, {Text: t("🎁 کد هدیه", "🎁 Gift code"), Data: "p:gift"}}, b.homeRow()}
 }
 
 func abs64(n int64) int64 {
@@ -634,6 +749,10 @@ func (b *bot) txReason(r string) string {
 		return b.tr("بازگشت وجه", "refund")
 	case "referral":
 		return b.tr("پاداش دعوت", "referral reward")
+	case "gift":
+		return b.tr("کد هدیه", "gift code")
+	case "extra":
+		return b.tr("مازاد واریز", "transfer extra")
 	case "admin":
 		return b.tr("تغییر توسط مدیر", "changed by an admin")
 	}
@@ -673,7 +792,7 @@ func (b *bot) myOrdersScreen(from int64) (string, [][]button) {
 	lines := []string{"🧾 <b>" + t("سفارش‌های من", "My orders") + "</b>", ""}
 	var kb [][]button
 	for _, o := range orders {
-		lines = append(lines, fmt.Sprintf("#%d · %s · %s · %s", o.Id, b.orderTitle(o), b.money(o.Paid), b.orderStatus(o.Status)))
+		lines = append(lines, fmt.Sprintf("#%d · %s · %s · %s", o.Id, b.orderTitle(o), b.money(service.ToPay(&o)), b.orderStatus(o.Status)))
 		if o.Status == model.OrderPending && o.Method == model.PayCard {
 			label := t("📸 ارسال رسید #%d", "📸 Send receipt #%d")
 			if o.Receipt != "" {
@@ -827,11 +946,12 @@ func (b *bot) deliver(ctx context.Context, o *model.ShopOrder) error {
 	t := b.tr
 	switch o.Kind {
 	case model.OrderTopup:
-		bal, err := b.shopSvc().AddFunds(nil, o.TgId, o.Paid, "topup", o.Id, o.DecidedBy)
+		// The whole transfer, with what made its amount unique.
+		bal, err := b.shopSvc().AddFunds(nil, o.TgId, service.ToPay(o), "topup", o.Id, o.DecidedBy)
 		if err != nil {
 			return err
 		}
-		b.sendKeyboard(ctx, o.TgId, fmt.Sprintf(t("✅ کیف پول شما %s شارژ شد.\nموجودی: %s", "✅ %s was added to your wallet.\nBalance: %s"), b.money(o.Paid), b.money(bal)), [][]button{b.homeRow()})
+		b.sendKeyboard(ctx, o.TgId, fmt.Sprintf(t("✅ کیف پول شما %s شارژ شد.\nموجودی: %s", "✅ %s was added to your wallet.\nBalance: %s"), b.money(service.ToPay(o)), b.money(bal)), [][]button{b.homeRow()})
 		return nil
 	case model.OrderBuy:
 		bind := o.TgId
@@ -852,9 +972,21 @@ func (b *bot) deliver(ctx context.Context, o *model.ShopOrder) error {
 			return err
 		}
 		_ = b.shopSvc().Finish(o)
-		b.send(ctx, o.TgId, fmt.Sprintf(t("✅ سرویس %s تمدید شد (سفارش #%d).", "✅ %s is renewed (order #%d)."), esc(c.Name), o.Id))
+		if o.Auto {
+			b.send(ctx, o.TgId, fmt.Sprintf(t("🔁 سرویس %s خودکار از کیف پول تمدید شد (سفارش #%d، %s).", "🔁 %s was renewed from your wallet automatically (order #%d, %s)."), esc(c.Name), o.Id, b.money(o.Paid)))
+		} else {
+			b.send(ctx, o.TgId, fmt.Sprintf(t("✅ سرویس %s تمدید شد (سفارش #%d).", "✅ %s is renewed (order #%d)."), esc(c.Name), o.Id))
+		}
 		text, kb := b.userView(*c)
 		b.sendKeyboard(ctx, o.TgId, text, kb)
+	}
+	if o.Extra > 0 && o.Kind != model.OrderTopup {
+		// What made the transfer's amount unique belongs to the customer.
+		if bal, err := b.shopSvc().AddFunds(nil, o.TgId, o.Extra, "extra", o.Id, 0); err != nil {
+			logger.Warning("telegram bot: order ", o.Id, " extra: ", err)
+		} else {
+			b.send(ctx, o.TgId, fmt.Sprintf(t("👛 %s مازاد واریز به کیف پول شما رفت. موجودی: %s", "👛 The %s extra of your transfer went to your wallet. Balance: %s"), b.money(o.Extra), b.money(bal)))
+		}
 	}
 	if who, got := b.shopSvc().ReferralReward(o); got > 0 {
 		b.send(ctx, who, fmt.Sprintf(t("🎉 %s پاداش دعوت به کیف پول شما اضافه شد.", "🎉 %s referral reward was added to your wallet."), b.money(got)))

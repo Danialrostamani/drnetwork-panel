@@ -171,6 +171,19 @@
               md="4"
             >
               <v-text-field
+                v-model="settings.webDecoyDir"
+                :label="$t('setting.decoyDir')"
+                :hint="$t('setting.decoyDirHint')"
+                persistent-hint
+                dir="ltr"
+              />
+            </v-col>
+            <v-col
+              cols="12"
+              sm="6"
+              md="4"
+            >
+              <v-text-field
                 v-model.number="sessionMaxAge"
                 type="number"
                 min="0"
@@ -345,7 +358,9 @@
               <v-text-field
                 v-model="settings.subDomain"
                 :label="$t('setting.domain')"
-                hide-details
+                :hint="$t('setting.subDomainHint')"
+                persistent-hint
+                dir="ltr"
               />
             </v-col>
             <v-col
@@ -384,6 +399,94 @@
                 :label="$t('setting.subUri')"
                 hide-details
               />
+            </v-col>
+          </v-row>
+          <v-divider class="my-4" />
+          <div class="text-subtitle-1 mb-2">
+            {{ $t('setting.subApps') }}
+          </div>
+          <v-row>
+            <v-col
+              cols="12"
+              md="8"
+            >
+              <v-textarea
+                v-model="settings.subAnnounce"
+                :label="$t('setting.subAnnounce')"
+                :hint="$t('setting.subAnnounceHint')"
+                persistent-hint
+                rows="2"
+                auto-grow
+                counter="1000"
+              />
+            </v-col>
+            <v-col
+              cols="12"
+              md="4"
+            >
+              <v-switch
+                v-model="subWebPage"
+                color="primary"
+                :label="$t('setting.subWebPage')"
+                :hint="$t('setting.subWebPageHint')"
+                persistent-hint
+              />
+            </v-col>
+            <v-col
+              cols="12"
+              md="8"
+            >
+              <v-text-field
+                v-model="settings.subSupportUrl"
+                :label="$t('setting.subSupportUrl')"
+                :hint="$t('setting.subSupportUrlHint')"
+                persistent-hint
+                dir="ltr"
+              />
+            </v-col>
+          </v-row>
+          <v-row>
+            <v-col cols="12">
+              <v-text-field
+                v-model="settings.subNameTemplate"
+                :label="$t('setting.subNameTemplate')"
+                :hint="$t('setting.subNameTemplateHint')"
+                persistent-hint
+                dir="ltr"
+              />
+              <div class="d-flex flex-wrap ga-1 mt-3">
+                <v-chip
+                  v-for="v in nameVars"
+                  :key="v"
+                  size="small"
+                  label
+                  @click="addNameVar(v)"
+                >
+                  {{ varLabel(v) }}
+                </v-chip>
+              </div>
+              <v-btn
+                class="mt-3"
+                variant="tonal"
+                size="small"
+                :loading="previewing"
+                @click="previewNames"
+              >
+                {{ $t('setting.preview') }}
+              </v-btn>
+              <v-list
+                v-if="preview.names.length"
+                density="compact"
+              >
+                <v-list-subheader>
+                  {{ $t('setting.previewFor') }} {{ preview.client }}
+                </v-list-subheader>
+                <v-list-item
+                  v-for="(n, i) in preview.names"
+                  :key="i"
+                  :title="n"
+                />
+              </v-list>
             </v-col>
           </v-row>
         </v-window-item>
@@ -758,6 +861,11 @@ const settings = ref({
 	subShowInfo: "false",
 	subPage: "true",
 	subLoadOrder: "false",
+	subAnnounce: "",
+	subSupportUrl: "",
+	subWebPage: "true",
+	subNameTemplate: "",
+	webDecoyDir: "",
 	filterCheck: "0",
 	filterHide: "false",
 	backupKind: "",
@@ -926,6 +1034,27 @@ const subLoadOrder = computed({
   get: () => { return settings.value.subLoadOrder == "true" },
   set: (v:boolean) => { settings.value.subLoadOrder = v ? "true" : "false" }
 })
+
+const subWebPage = computed({
+  get: () => settings.value.subWebPage != "false",
+  set: (v: boolean) => { settings.value.subWebPage = v ? "true" : "false" },
+})
+
+// The link name template's variables, as the server spells them.
+const nameVars = ['USER', 'REMARK', 'GROUP', 'INBOUND', 'PROTOCOL', 'NETWORK', 'NODE', 'ROUTE', 'SERVER', 'PORT', 'USED', 'REMAINING', 'TOTAL', 'DAYS_LEFT', 'EXPIRE', 'EXPIRE_JALALI']
+const varLabel = (v: string) => '{' + v + '}'
+const addNameVar = (v: string) => {
+  const cur = settings.value.subNameTemplate ?? ''
+  settings.value.subNameTemplate = cur + (cur && !cur.endsWith(' ') ? ' ' : '') + varLabel(v)
+}
+const previewing = ref(false)
+const preview = ref<{ client: string, names: string[] }>({ client: '', names: [] })
+const previewNames = async () => {
+  previewing.value = true
+  const msg = await HttpUtils.get<{ client: string, names: string[] }>('api/subNamePreview', { tpl: settings.value.subNameTemplate ?? '' })
+  previewing.value = false
+  preview.value = msg.success && msg.obj ? { client: msg.obj.client, names: msg.obj.names ?? [] } : { client: '', names: [] }
+}
 
 const subPage = computed({
   get: () => { return settings.value.subPage != "false" },

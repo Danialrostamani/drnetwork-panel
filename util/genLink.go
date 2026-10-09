@@ -28,7 +28,9 @@ func JoinRemark(clientRemark, inboundRemark string) string {
 	return inboundRemark
 }
 
-func LinkGenerator(clientConfig json.RawMessage, i *model.Inbound, hostname string, clientRemark string) []string {
+// LinkGenerator makes the links of one client for one inbound. clientName
+// gives the client its own host under a wildcard address.
+func LinkGenerator(clientConfig json.RawMessage, i *model.Inbound, hostname string, clientRemark string, clientName string) []string {
 	inbound, err := i.MarshalFull()
 	if err != nil {
 		return []string{}
@@ -83,6 +85,7 @@ func LinkGenerator(clientConfig json.RawMessage, i *model.Inbound, hostname stri
 			Addrs[index]["server"] = NormalizeHost(server)
 		}
 	}
+	expandWildcardAddrs(Addrs, clientName)
 
 	switch i.Type {
 	case "socks":
@@ -488,6 +491,7 @@ func vlessLink(
 	for _, addr := range addrs {
 		params := make([]LinkParam, len(baseParams))
 		copy(params, baseParams)
+		addrHostParams(params, addr)
 		if tls, ok := addr["tls"].(map[string]interface{}); ok && boolOr(tls["enabled"]) {
 			getTlsParams(&params, tls, "vless")
 			if flow, ok := userConfig["flow"].(string); ok && isTcp {
@@ -513,6 +517,7 @@ func trojanLink(
 	for _, addr := range addrs {
 		params := make([]LinkParam, len(baseParams))
 		copy(params, baseParams)
+		addrHostParams(params, addr)
 		if tls, ok := addr["tls"].(map[string]interface{}); ok && boolOr(tls["enabled"]) {
 			getTlsParams(&params, tls, "trojan")
 		}
@@ -580,8 +585,8 @@ func vmessLink(
 		if typ != "" {
 			obj["type"] = typ
 		}
-		if host != "" {
-			obj["host"] = host
+		if h := addrHost(host, addr); h != "" {
+			obj["host"] = h
 		}
 		if path != "" {
 			obj["path"] = path
@@ -597,7 +602,7 @@ func vmessLink(
 }
 
 func populateVmessTlsParams(obj map[string]interface{}, tlsConfig interface{}) {
-	if tlsMap, ok := tlsConfig.(map[string]interface{}); ok && tlsMap["enabled"].(bool) {
+	if tlsMap, ok := tlsConfig.(map[string]interface{}); ok && boolOr(tlsMap["enabled"]) {
 		obj["tls"] = "tls"
 		var tlsParams []LinkParam
 		getTlsParams(&tlsParams, tlsMap, "vmess")
@@ -759,7 +764,7 @@ func getTransportParams(t interface{}) []LinkParam {
 }
 
 func getTlsParams(params *[]LinkParam, tls map[string]interface{}, protocol string) {
-	if reality, ok := tls["reality"].(map[string]interface{}); ok && reality["enabled"].(bool) {
+	if reality, ok := tls["reality"].(map[string]interface{}); ok && boolOr(reality["enabled"]) {
 		*params = append(*params, LinkParam{"security", "reality"})
 		if pbk, ok := reality["public_key"].(string); ok {
 			*params = append(*params, LinkParam{"pbk", pbk})

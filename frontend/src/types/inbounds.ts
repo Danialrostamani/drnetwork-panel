@@ -36,6 +36,8 @@ export interface Addr {
   insecure?: boolean
   server_name?: string
   remark?: string
+  // cdn marks an address that reaches the server through a CDN.
+  cdn?: boolean
 }
 
 export interface Listen {

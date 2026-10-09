@@ -64,6 +64,12 @@ func (s *Server) initRouter() (*gin.Engine, error) {
 	g := engine.Group(subPath)
 	NewSubHandler(g)
 
+	// Paths that are not a subscription get the decoy site, when one is set
+	// and the subscription has a path of its own.
+	if decoy := s.SettingService.GetWebDecoyDir(); decoy != "" && subPath != "/" {
+		engine.NoRoute(middleware.Decoy(decoy))
+	}
+
 	return engine, nil
 }
 

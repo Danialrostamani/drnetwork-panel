@@ -55,6 +55,7 @@ func Start(configService *service.ConfigService) {
 	done := make(chan struct{})
 	managerCancel, managerDone = cancel, done
 	service.ShopDecider = decideFromPanel
+	service.ShopSmsApproved = smsApproved
 	go func() {
 		defer close(done)
 		supervise(ctx, configService)
@@ -465,13 +466,15 @@ type update struct {
 		} `json:"from"`
 		Caption string `json:"caption"`
 		Photo   []struct {
-			FileID   string `json:"file_id"`
-			FileSize int64  `json:"file_size"`
+			FileID       string `json:"file_id"`
+			FileUniqueID string `json:"file_unique_id"`
+			FileSize     int64  `json:"file_size"`
 		} `json:"photo"`
 		Document *struct {
-			FileID   string `json:"file_id"`
-			FileName string `json:"file_name"`
-			FileSize int64  `json:"file_size"`
+			FileID       string `json:"file_id"`
+			FileUniqueID string `json:"file_unique_id"`
+			FileName     string `json:"file_name"`
+			FileSize     int64  `json:"file_size"`
 		} `json:"document"`
 	} `json:"message"`
 	Callback *struct {

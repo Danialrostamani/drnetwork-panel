@@ -12,7 +12,9 @@ import (
 	"github.com/Danialrostamani/drnetwork-panel/database"
 	"github.com/Danialrostamani/drnetwork-panel/database/model"
 	"github.com/Danialrostamani/drnetwork-panel/logger"
+	"github.com/Danialrostamani/drnetwork-panel/util"
 	"github.com/Danialrostamani/drnetwork-panel/util/common"
+	"github.com/Danialrostamani/drnetwork-panel/util/hosts"
 
 	"github.com/robfig/cron/v3"
 	"gorm.io/gorm"
@@ -64,6 +66,7 @@ var protectedSettings = map[string]bool{
 	"version":         true,
 	"globalResetLast": true,
 	"maintenance":     true,
+	"labelSecret":     true,
 }
 
 var defaultValueMap = map[string]string{
@@ -104,6 +107,12 @@ var defaultValueMap = map[string]string{
 	"subClashNoDefGrp":   "false",
 	"subClashSprtAll":    "false",
 	"subClashUdp":        "false",
+	"subAnnounce":        "",
+	"subSupportUrl":      "",
+	"subWebPage":         "true",
+	"subNameTemplate":    "",
+	"webDecoyDir":        "",
+	"labelSecret":        common.Random(32),
 	"maintenance":        "false",
 	"tgBotEnable":        "false",
 	"tgBotToken":         "",
@@ -125,6 +134,10 @@ var defaultValueMap = map[string]string{
 	"shopRefPercent":     "0",
 	"shopSupport":        "",
 	"shopPrefix":         "u",
+	"shopUniqueAmount":   "0",
+	"shopSmsSecret":      "",
+	"shopSmsRial":        "true",
+	"shopAutoRenew":      "false",
 	"globalReset":        "",
 	"globalResetLast":    "0",
 	"config":             defaultConfig,
@@ -419,6 +432,35 @@ func (s *SettingService) GetSubURI() (string, error) {
 	return s.getString("subURI")
 }
 
+// GetSubAnnounce is the message apps show above the subscription.
+func (s *SettingService) GetSubAnnounce() string {
+	v, _ := s.getString("subAnnounce")
+	return v
+}
+
+// GetSubSupportUrl is the support link apps offer with the subscription.
+func (s *SettingService) GetSubSupportUrl() string {
+	v, _ := s.getString("subSupportUrl")
+	return v
+}
+
+// GetSubWebPage tells whether apps are pointed at the account page.
+func (s *SettingService) GetSubWebPage() bool {
+	v, err := s.getBool("subWebPage")
+	return err != nil || v
+}
+
+// GetSubNameTemplate is the link name template; "" keeps the old names.
+func (s *SettingService) GetSubNameTemplate() (string, error) {
+	return s.getString("subNameTemplate")
+}
+
+// GetWebDecoyDir is the folder of the site shown outside the panel path.
+func (s *SettingService) GetWebDecoyDir() string {
+	v, _ := s.getString("webDecoyDir")
+	return v
+}
+
 // TgBotSettings is the Telegram bot configuration as stored in the settings table.
 type TgBotSettings struct {
 	Enable bool
@@ -536,14 +578,17 @@ func (s *SettingService) GetFinalSubURI(host string) (string, error) {
 	if (*allSetting)["subKeyFile"] != "" && (*allSetting)["subCertFile"] != "" {
 		protocol = "https"
 	}
-	if (*allSetting)["subDomain"] != "" {
-		host = (*allSetting)["subDomain"]
+	// The first domain of the list is the one new links use.
+	if domains := hosts.Parse((*allSetting)["subDomain"]); len(domains) > 0 {
+		host = domains[0]
 	}
+	// The port carries its colon, so the old comparison with a bare "80" or
+	// "443" never matched and every link spelled out the default port.
 	port := ":" + (*allSetting)["subPort"]
-	if (port == "80" && protocol == "http") || (port == "443" && protocol == "https") {
+	if (port == ":80" && protocol == "http") || (port == ":443" && protocol == "https") {
 		port = ""
 	}
-	return protocol + "://" + host + port + (*allSetting)["subPath"], nil
+	return protocol + "://" + util.HostForURI(host) + port + (*allSetting)["subPath"], nil
 }
 
 func (s *SettingService) GetConfig() (string, error) {
@@ -575,6 +620,12 @@ func (s *SettingService) Save(tx *gorm.DB, data json.RawMessage) error {
 	}
 	for key, obj := range settings {
 		if protectedSettings[key] {
+			continue
+		}
+		// The shop's settings belong to the Sales page, which checks them.
+		// The settings form posts back every key it loaded, and would put
+		// back an old value over one the Sales page or the bot saved since.
+		if IsShopSetting(key) {
 			continue
 		}
 		// An unknown key would UPDATE zero rows and report success. Rejecting
@@ -628,6 +679,9 @@ func (s *SettingService) Save(tx *gorm.DB, data json.RawMessage) error {
 			if n, perr := strconv.Atoi(obj); perr != nil || n < 0 {
 				return common.NewError("invalid number <", obj, "> for ", key)
 			}
+		}
+		if err = checkNewSetting(tx, key, obj, settings); err != nil {
+			return err
 		}
 		if key == "backupKind" && obj != "" && obj != "s3" && obj != "webdav" {
 			return common.NewError("unknown backup storage <", obj, ">")

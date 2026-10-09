@@ -140,6 +140,15 @@ func (s *Server) initRouter() (*gin.Engine, error) {
 	group_api := engine.Group(base_url+"api", middleware.SameOrigin())
 	api.NewAPIHandler(group_api, apiv2)
 
+	// The bank's deposit messages, from a forwarder app on the shop's phone.
+	engine.POST(base_url+"hook/sms/:secret", api.SmsHook)
+
+	// Outside the panel's path, the decoy site when one is set.
+	decoyDir := ""
+	if base_url != "/" {
+		decoyDir = s.settingService.GetWebDecoyDir()
+	}
+
 	// Serve index.html as the entry point
 	// Handle all other routes by serving index.html
 	engine.NoRoute(func(c *gin.Context) {
@@ -148,6 +157,10 @@ func (s *Server) initRouter() (*gin.Engine, error) {
 			return
 		}
 		if !strings.HasPrefix(c.Request.URL.Path, base_url) {
+			if decoyDir != "" {
+				middleware.Decoy(decoyDir)(c)
+				return
+			}
 			c.String(404, "")
 			return
 		}

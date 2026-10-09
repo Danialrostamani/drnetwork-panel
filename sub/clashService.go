@@ -78,15 +78,11 @@ func (s *ClashService) GetClash(subId string) (*string, []string, error) {
 		return nil, nil, err
 	}
 
-	outbounds, outTags, err := s.getOutbounds(client.Config, inDatas, client.Remark)
+	// Proxy and Auto are the groups the config starts with.
+	outbounds, _, err := s.namedOutbounds(client, inDatas, "Proxy", "Auto", "DIRECT", "REJECT")
 	if err != nil {
 		return nil, nil, err
 	}
-
-	links := service.FilterNodeLinks(client)
-	extOutbounds, extTags := s.LinkService.GetExternalOutbounds(&links)
-	*outbounds = append(*outbounds, extOutbounds...)
-	*outTags = append(*outTags, extTags...)
 
 	basicConfig, err := s.getClashConfig()
 	if err != nil || len(basicConfig) == 0 {

@@ -4,9 +4,10 @@ import (
 	"crypto/tls"
 	"fmt"
 	"os"
-	"strings"
 	"sync"
 	"time"
+
+	"github.com/Danialrostamani/drnetwork-panel/util/hosts"
 )
 
 type certReloader struct {
@@ -65,14 +66,17 @@ func (r *certReloader) getCertificate() *tls.Certificate {
 	return r.cert
 }
 
-func NewTLSConfig(certFile, keyFile, domain string) (*tls.Config, error) {
+// NewTLSConfig serves the certificate only to the names in domains (a list
+// as hosts.Parse reads it; empty is any name).
+func NewTLSConfig(certFile, keyFile, domains string) (*tls.Config, error) {
 	reloader, err := newCertReloader(certFile, keyFile)
 	if err != nil {
 		return nil, err
 	}
+	entries := hosts.Parse(domains)
 	return &tls.Config{
 		GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-			if domain != "" && !strings.EqualFold(hello.ServerName, domain) {
+			if len(entries) > 0 && !hosts.Allowed(entries, hello.ServerName) {
 				return nil, fmt.Errorf("tls: unrecognized server name %q", hello.ServerName)
 			}
 			return reloader.getCertificate(), nil
