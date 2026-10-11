@@ -48,6 +48,8 @@ func seedEveryTable(t *testing.T) {
 		&model.ShopCodeUse{CodeId: 1, Code: "OFF10", TgId: 42},
 		&model.ShopSms{Hash: "h1", Text: "deposit 1,000", Status: model.SmsUnmatched},
 		&model.ShopAutoRenew{ClientId: 1, TgId: 42, PlanId: 1, Enable: true},
+		&model.ShopTicket{TgId: 42, Status: model.TicketOpen, Subject: "Slow"},
+		&model.ShopTicketMsg{TicketId: 1, FromTg: 42, Kind: "text", Text: "Slow"},
 	}
 	for _, row := range rows {
 		if err := db.Create(row).Error; err != nil {

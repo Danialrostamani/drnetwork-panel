@@ -3,6 +3,7 @@ package tgbot
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,6 +22,7 @@ const (
 	clientCheckEvery    = 5 * time.Minute
 	volumeAlertPercent  = 90
 	expiryAlertDays     = 3
+	lowVolumeLeft       = 1 << 30 // a big plan is told when its last GB starts
 )
 
 // announce tells every administrator the bot is up.
@@ -53,7 +55,7 @@ func (b *bot) watch(ctx context.Context) {
 	nodes := map[uint]*nodeWatch{}
 	reported := map[string]bool{}
 	core := &coreWatch{}
-	var lastClientCheck, lastAutoRenew time.Time
+	var lastClientCheck, lastAutoRenew, lastAutoDelete time.Time
 	var report *reportSchedule
 	if b.cfg.Report != "" {
 		sched, err := service.CronParser.Parse(b.cfg.Report)
@@ -90,6 +92,10 @@ func (b *bot) watch(ctx context.Context) {
 		if time.Since(lastAutoRenew) >= autoRenewEvery {
 			lastAutoRenew = time.Now()
 			b.root().autoRenew(ctx, lastAutoRenew)
+		}
+		if time.Since(lastAutoDelete) >= autoDeleteEvery {
+			lastAutoDelete = time.Now()
+			b.root().autoDelete(ctx, lastAutoDelete)
 		}
 	}
 }
@@ -374,7 +380,11 @@ func (b *bot) checkClients(ctx context.Context, reported map[string]bool) {
 		fresh = append(fresh, clientAlert{owner.Group, fmt.Sprintf("• <b>%s</b> — %s", esc(owner.Name), reason)})
 		// A client bound to Telegram hears about its own limits directly.
 		if owner.TgId != 0 && !b.isAdmin(owner.TgId) {
-			b.send(ctx, owner.TgId, b.t("userAlertTitle", esc(owner.Name))+"\n"+reason)
+			var kb [][]button
+			if b.shopOpen(owner.TgId) {
+				kb = [][]button{{{Text: b.tr("🔄 تمدید سریع", "🔄 Quick renew"), Data: "p:plans:" + strconv.FormatUint(uint64(owner.Id), 10)}}}
+			}
+			b.sendKeyboard(ctx, owner.TgId, b.t("userAlertTitle", esc(owner.Name))+"\n"+reason, kb)
 		}
 	}
 	// The first check after the start only notes what is already over: those
@@ -398,6 +408,8 @@ func (b *bot) checkClients(ctx context.Context, reported map[string]bool) {
 			over(c.Name+"|vol100", b.t("alertDepleted"))
 		} else if p >= volumeAlertPercent && c.Enable {
 			add(c.Name+"|vol90", b.t("alertVolume", p))
+		} else if c.Volume > 0 && c.Volume-c.Up-c.Down <= lowVolumeLeft && c.Enable {
+			add(c.Name+"|vol1g", b.t("alertLeft"))
 		}
 		if c.Expiry > 0 {
 			left := time.Unix(c.Expiry, 0).Sub(now)
@@ -416,11 +428,16 @@ func (b *bot) checkClients(ctx context.Context, reported map[string]bool) {
 	for key := range current {
 		reported[key] = true
 	}
+	b.tellClientAdmins(ctx, b.t("alertTitle"), fresh)
+}
+
+// tellClientAdmins sends lines about clients to the administrators who see
+// them: those with the Clients section get every line, a group-limited one
+// only the lines of their own group, the others none.
+func (b *bot) tellClientAdmins(ctx context.Context, title string, fresh []clientAlert) {
 	if len(fresh) == 0 {
 		return
 	}
-	// Administrators with the Clients section get every line; a group-limited
-	// one only the lines of their own group; the others none.
 	const maxLines = 40
 	acc := b.access()
 	for _, id := range acc.order {
@@ -440,6 +457,6 @@ func (b *bot) checkClients(ctx context.Context, reported map[string]bool) {
 		if len(lines) > maxLines {
 			lines = append(lines[:maxLines], b.t("andMore", len(lines)-maxLines))
 		}
-		b.send(ctx, id, b.t("alertTitle")+"\n"+strings.Join(lines, "\n"))
+		b.send(ctx, id, title+"\n"+strings.Join(lines, "\n"))
 	}
 }

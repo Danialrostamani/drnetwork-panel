@@ -335,6 +335,7 @@ type bot struct {
 	loc           *time.Location
 	configService *service.ConfigService
 	pend          *pendingStore
+	members       *memberCache
 
 	// acc is who may do what. It is live: the supervisor and the owner's edits
 	// replace it while the bot runs, and every copy of the bot shares it.
@@ -367,11 +368,12 @@ func newBot(cfg botConfig) *bot {
 		loc = l
 	}
 	return &bot{
-		cfg:    cfg,
-		client: &http.Client{Timeout: (pollTimeoutSeconds + 20) * time.Second, Transport: transport},
-		loc:    loc,
-		pend:   &pendingStore{},
-		acc:    newAccessState(cfg.access()),
+		cfg:     cfg,
+		client:  &http.Client{Timeout: (pollTimeoutSeconds + 20) * time.Second, Transport: transport},
+		loc:     loc,
+		pend:    &pendingStore{},
+		members: &memberCache{},
+		acc:     newAccessState(cfg.access()),
 	}
 }
 
@@ -476,12 +478,18 @@ type update struct {
 			FileName     string `json:"file_name"`
 			FileSize     int64  `json:"file_size"`
 		} `json:"document"`
+		Voice *struct {
+			FileID string `json:"file_id"`
+		} `json:"voice"`
 	} `json:"message"`
 	Callback *struct {
 		ID   string `json:"id"`
 		Data string `json:"data"`
 		From struct {
-			ID int64 `json:"id"`
+			ID        int64  `json:"id"`
+			FirstName string `json:"first_name"`
+			LastName  string `json:"last_name"`
+			Username  string `json:"username"`
 		} `json:"from"`
 		Message *struct {
 			MessageID int64 `json:"message_id"`
@@ -565,6 +573,16 @@ func (b *bot) send(ctx context.Context, chatID int64, text string) {
 
 func (b *bot) sendKeyboard(ctx context.Context, chatID int64, text string, keyboard [][]button) {
 	keyboard = b.filterKeyboard(keyboard)
+	var markup any
+	if keyboard != nil {
+		markup = map[string]any{"inline_keyboard": keyboard}
+	}
+	b.sendMarkup(ctx, chatID, text, markup)
+}
+
+// sendMarkup sends text with a reply markup (inline buttons or the bottom
+// menu) on its last part.
+func (b *bot) sendMarkup(ctx context.Context, chatID int64, text string, markup any) {
 	parts := splitMessage(text, maxMessageRunes)
 	for i, chunk := range parts {
 		params := map[string]any{
@@ -573,8 +591,8 @@ func (b *bot) sendKeyboard(ctx context.Context, chatID int64, text string, keybo
 			"parse_mode":               "HTML",
 			"disable_web_page_preview": true,
 		}
-		if keyboard != nil && i == len(parts)-1 {
-			params["reply_markup"] = map[string]any{"inline_keyboard": keyboard}
+		if markup != nil && i == len(parts)-1 {
+			params["reply_markup"] = markup
 		}
 		err := b.call(ctx, "sendMessage", params, nil)
 		if err != nil && ctx.Err() == nil && isEntityError(err) {
@@ -606,6 +624,11 @@ func plainText(s string) string {
 // edit rewrites a message in place, which keeps button presses from piling up
 // new messages. An unchanged message is not an error worth logging.
 func (b *bot) edit(ctx context.Context, chatID, messageID int64, text string, keyboard [][]button) {
+	if messageID == 0 {
+		// A bottom-menu press: there is no message to edit.
+		b.sendKeyboard(ctx, chatID, text, keyboard)
+		return
+	}
 	keyboard = b.filterKeyboard(keyboard)
 	parts := splitMessage(text, maxMessageRunes)
 	if len(parts) == 0 {
@@ -627,6 +650,13 @@ func (b *bot) edit(ctx context.Context, chatID, messageID int64, text string, ke
 }
 
 func (b *bot) answer(ctx context.Context, callbackID, text string) {
+	if callbackID == "" {
+		// A bottom-menu press has no button to show the answer on.
+		if chatID, ok := ctx.Value(menuChat{}).(int64); ok && strings.TrimSpace(text) != "" {
+			b.send(ctx, chatID, esc(text))
+		}
+		return
+	}
 	_ = b.call(ctx, "answerCallbackQuery", map[string]any{"callback_query_id": callbackID, "text": text}, nil)
 }
 

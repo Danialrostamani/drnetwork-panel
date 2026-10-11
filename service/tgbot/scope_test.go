@@ -858,7 +858,8 @@ func TestScopedAdminHelpAndCommandList(t *testing.T) {
 	n = len(e.got())
 	e.say(salesAdmin, "/start")
 	msgs := e.since(n)
-	if len(msgs) != 1 || !hasData(msgs[0].Markup.Keyboard, "c:ls:a:0") || hasData(msgs[0].Markup.Keyboard, "o:in:ls:0") {
+	// The bottom menu, then the menu.
+	if len(msgs) != 2 || len(msgs[0].Markup.Reply) == 0 || !hasData(msgs[1].Markup.Keyboard, "c:ls:a:0") || hasData(msgs[1].Markup.Keyboard, "o:in:ls:0") {
 		t.Fatalf("/start for a limited admin: %+v", msgs)
 	}
 }

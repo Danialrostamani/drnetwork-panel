@@ -31,7 +31,7 @@ func (s *ShopService) RenewPlanOf(clientID uint) (*model.ShopPlan, error) {
 		return nil, ErrNoRenewPlan
 	}
 	p, err := s.Plan(o.PlanId)
-	if err != nil || !p.Enable {
+	if err != nil || !p.Enable || p.Addon {
 		return nil, ErrNoRenewPlan
 	}
 	return p, nil

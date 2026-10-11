@@ -10,6 +10,10 @@ export interface ShopPlan {
   group: string
   enable: boolean
   sort: number
+  // category groups the plans in the bot; addon makes an extra pack for a
+  // service the customer has.
+  category: string
+  addon: boolean
 }
 
 export interface ShopDiscount {
@@ -44,7 +48,7 @@ export interface ShopOrder {
   id: number
   tgId: number
   tgName: string
-  kind: 'buy' | 'renew' | 'topup'
+  kind: 'buy' | 'renew' | 'topup' | 'addon'
   planId: number
   planName: string
   clientId: number

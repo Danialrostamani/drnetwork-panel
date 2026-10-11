@@ -231,7 +231,7 @@ To run backend (from root folder of repository):
 - Several subscription domains at once (new links use the first, the others keep answering) and wildcard domains (`*.sub.example.com`, with a wildcard DNS record and certificate) that give every client a host of its own, so a blocked host costs one client only. Inbound addresses take wildcards too (`*.cdn.example.com`), and an address marked *Behind CDN* refuses what a CDN cannot carry (REALITY, QUIC, raw TCP)
 - Link name template with variables (`{USER}`, `{PROTOCOL}`, `{NODE}`, `{REMAINING}`, `{DAYS_LEFT}`, `{EXPIRE_JALALI}` and more) and a live preview, plus the announcement, support link and account page button that Happ and v2RayTun show with the subscription
 - Decoy site: a folder of your own is served outside the panel path, so the server looks like an ordinary website
-- Telegram shop with plans and a wallet: discount codes limited to plans, kinds of order or once per customer, gift codes, auto-renewal from the wallet, and card-to-card payments approved on their own from the bank's deposit SMS (**Shop → SMS**: an SMS forwarder app posts each message to the panel; a unique amount per order tells the orders apart, and a receipt already used is refused)
+- Telegram shop with plans and a wallet: plan categories and extra volume packs, percent or fixed-amount discount codes limited to plans, kinds of order or once per customer, gift codes, auto-renewal from the wallet, support tickets, a connection guide, a channel lock, a maintenance mode, and card-to-card payments approved on their own from the bank's deposit SMS (**Shop → SMS**: an SMS forwarder app posts each message to the panel; a unique amount per order tells the orders apart, and a receipt already used is refused) - see [Telegram shop](#telegram-shop)
 - HTTPS for secure access to the web panel and subscription service (self-provided domain + SSL certificate)
 - Dark/Light theme
 
@@ -295,6 +295,23 @@ The roles are stored in three settings, so the web panel edits the same data as 
 **Bound clients** (`/bind <name> <telegramId>`) can use `/usage` (volume, expiry, status and their subscription link, with 🔗 *Subscription / QR* and 🔄 *Refresh* buttons under it), `/sub` (link + QR) and `/id`, and receive their own volume/expiry alerts. Everybody else only gets `/id`.
 
 With **Alerts** enabled the bot reports node down/recovery, the master core stopping, and clients near their volume or expiry limit. **Scheduled report** accepts a cron spec (e.g. `@daily` or `0 9 * * *`) and posts the status and traffic summary, optionally with a database backup file. Changes in settings apply within seconds, without a restart.
+
+## Telegram shop
+
+Open the shop from the panel's **Shop** page (or the bot's 🛒 *Shop admin* → ⚙️ *Shop settings*), add plans and the card details, and anybody who starts the bot can buy. Customers get a **bottom menu** (buy, my services, renew, wallet, guide, support, referral), and administrators get theirs with a button to switch between the shop and the admin view.
+
+- **Plans:** group plans into **categories** (the customer picks a category first), and mark a plan as an **extra pack**: it adds its volume and days to a service the customer already has instead of making a new one. A service card and the customer's volume/expiry alerts carry 🔄 *Quick renew* and ➕ *Extra volume*.
+- **Discount codes:** a percent or a fixed amount (in the bot, a value above 100 is an amount), limited to plans, kinds of order or once per customer.
+- **Support:** 💬 *Support* opens a ticket; text, photos, voice and files reach the administrators with the Shop section, who answer from the bot (🎫 *Tickets*), and the customer can follow and close their tickets.
+- **Connection guide:** 📚 *How to connect* walks the customer through Android, iPhone, Windows, macOS and Linux apps.
+- **Users:** 🔎 *Find a user* by Telegram ID, username or name opens their profile (wallet, orders, services, tickets) with buttons to change the wallet, block, message them or give them a plan. The admin screen shows the users active today and the services active, off and about to expire.
+- **Broadcast** to everybody or to one audience: buyers, those who never bought, those idle for 30 days, customers with an active or an expired service, the clients of one node or of one group.
+- **Channel lock** (`shopChannel`): a public channel's `@name`, or a private channel's ID and invite link (`-100123456789 https://t.me/+abc`). Customers must join before they use the bot (✅ *I joined* checks again). **The bot must be an administrator of the channel**; when it cannot read the channel it locks nobody out.
+- **Maintenance** (`shopMaintenance`): while the message is set the bot answers only administrators and shows customers that message.
+- **Auto-delete** (`shopAutoDelete`, off by default): services bought, renewed or tried in the shop are deleted that many days after they expire, and the administrators are told; other clients are never touched.
+- Customers also hear when less than 1 GB of a big plan is left, besides the 90% and 3-day warnings.
+
+Payments are card-to-card (approved by an administrator, or on their own from the bank's SMS) and the wallet; there is no online payment gateway.
 
 ## Environment Variables
 

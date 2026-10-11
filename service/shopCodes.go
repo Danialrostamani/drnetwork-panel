@@ -49,10 +49,13 @@ func (s *ShopService) SaveDiscount(d *model.ShopDiscount) error {
 		d.Percent, d.PlanIds, d.Kinds, d.OncePerUser = 0, "", "", true
 	case "", model.CodeDiscount:
 		d.Kind = model.CodeDiscount
-		if d.Percent < 1 || d.Percent > 100 {
-			return errors.New("percent must be 1-100")
+		// A percent off, or a fixed amount off.
+		switch {
+		case d.Percent == 0 && d.Amount > 0 && d.Amount <= maxGift:
+		case d.Amount == 0 && d.Percent >= 1 && d.Percent <= 100:
+		default:
+			return errors.New("a discount takes a percent (1-100) or an amount above 0 off, not both")
 		}
-		d.Amount = 0
 		ids, err := normalizePlanIds(d.PlanIds)
 		if err != nil {
 			return err
@@ -149,8 +152,17 @@ func ParseDiscountLine(line string) (*model.ShopDiscount, error) {
 		if d.Amount, err = strconv.ParseInt(f[1], 10, 64); err != nil || d.Amount <= 0 {
 			return nil, bad
 		}
-	} else if d.Percent, err = strconv.Atoi(f[1]); err != nil {
-		return nil, bad
+	} else {
+		// A percent, or - above 100 - a fixed amount off.
+		v, err := strconv.ParseInt(strings.TrimSuffix(f[1], "%"), 10, 64)
+		switch {
+		case err != nil || v <= 0:
+			return nil, bad
+		case v > 100 && !strings.HasSuffix(f[1], "%"):
+			d.Amount = v
+		default:
+			d.Percent = int(v)
+		}
 	}
 	if len(f) > 2 {
 		if d.MaxUses, err = strconv.Atoi(f[2]); err != nil || d.MaxUses < 0 {

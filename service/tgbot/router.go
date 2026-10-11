@@ -15,6 +15,7 @@ import (
 type button struct {
 	Text string `json:"text"`
 	Data string `json:"callback_data,omitempty"`
+	URL  string `json:"url,omitempty"`
 }
 
 func (b *bot) btn(key, data string, args ...interface{}) button {
@@ -128,7 +129,21 @@ func (b *bot) handle(ctx context.Context, u update) {
 	}
 	chatID, from := m.Chat.ID, m.From.ID
 	b = b.as(from)
+	if !b.isAdmin(from) {
+		b.shopSvc().Seen(from)
+		fu := &fromUser{ID: from, FirstName: m.From.FirstName, LastName: m.From.LastName, Username: m.From.Username}
+		if b.gate(ctx, chatID, fu, "", 0, m.Text) {
+			return
+		}
+	}
 	text := m.Text
+	// A bottom-menu button comes first, and abandons a half-typed answer.
+	if data := menuData(text); data != "" {
+		fu := &fromUser{ID: from, FirstName: m.From.FirstName, LastName: m.From.LastName, Username: m.From.Username}
+		if b.menuPress(ctx, chatID, fu, data) {
+			return
+		}
+	}
 	// A receipt or an answer the shop waits for. An administrator's own
 	// prompt comes first.
 	if !b.isAdmin(from) || b.pend.get(chatID) == nil {
@@ -140,6 +155,9 @@ func (b *bot) handle(ctx context.Context, u update) {
 			}
 			if m.Document != nil {
 				in.doc, in.docUID = m.Document.FileID, m.Document.FileUniqueID
+			}
+			if m.Voice != nil {
+				in.voice = m.Voice.FileID
 			}
 			if in.text == "" {
 				in.text = m.Caption
@@ -182,6 +200,16 @@ func (b *bot) handle(ctx context.Context, u update) {
 		}
 		if cmd == "shop" && b.can("shop") {
 			text, kb := b.shopAdminScreen()
+			b.sendKeyboard(ctx, chatID, text, kb)
+			return
+		}
+		if cmd == "start" || cmd == "admin" {
+			// The bottom menu first; an administrator with no section yet
+			// only hears why.
+			text, kb := b.menuScreen()
+			if kb != nil {
+				b.sendMenu(ctx, chatID, "🔐 <b>"+b.tr("پنل مدیریت", "Admin panel")+"</b>", b.adminMenu())
+			}
 			b.sendKeyboard(ctx, chatID, text, kb)
 			return
 		}
@@ -229,6 +257,7 @@ func boundClients(tgID int64) []model.Client {
 
 func (b *bot) userView(c model.Client) (string, [][]button) {
 	autoRow := b.autoRenewRow(c)
+	owner := c.TgId
 	c.Desc, c.Group = "", ""
 	c.TgId = 0
 	online := false
@@ -239,6 +268,14 @@ func (b *bot) userView(c model.Client) (string, [][]button) {
 	}
 	id := strconv.FormatUint(uint64(c.Id), 10)
 	kb := [][]button{{b.btn("btnSub", "u:sub:"+id), b.btn("btnRefresh", "u:view:"+id)}}
+	if b.shopOpen(owner) {
+		// Renewing straight from the service, with this service picked.
+		row := []button{{Text: b.tr("🔄 تمدید سریع", "🔄 Quick renew"), Data: "p:plans:" + id}}
+		if c.Volume > 0 && len(b.addonPlans()) > 0 {
+			row = append(row, button{Text: b.tr("➕ حجم اضافه", "➕ Extra volume"), Data: "p:addon:" + id})
+		}
+		kb = append(kb, row)
+	}
 	if autoRow != nil {
 		kb = append(kb, autoRow)
 	}
@@ -249,7 +286,7 @@ func (b *bot) userCommand(ctx context.Context, chatID int64, bound []model.Clien
 	switch cmd {
 	case "usage", "start", "help":
 		if cmd != "usage" {
-			b.send(ctx, chatID, b.t("userHelp"))
+			b.sendMenu(ctx, chatID, b.t("userHelp"), b.customerMenu(chatID, false))
 		}
 		for _, c := range bound {
 			text, kb := b.userView(c)
@@ -649,6 +686,13 @@ func (b *bot) handleCallback(ctx context.Context, u update) {
 	if len(parts) < 2 {
 		b.answer(ctx, cb.ID, "")
 		return
+	}
+	if !b.isAdmin(cb.From.ID) {
+		b.shopSvc().Seen(cb.From.ID)
+		fu := &fromUser{ID: cb.From.ID, FirstName: cb.From.FirstName, LastName: cb.From.LastName, Username: cb.From.Username}
+		if b.gate(ctx, chatID, fu, cb.ID, msgID, cb.Data) {
+			return
+		}
 	}
 	if parts[0] == "u" {
 		b.userCallback(ctx, cb.ID, chatID, msgID, cb.From.ID, parts)

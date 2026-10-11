@@ -214,7 +214,7 @@
         density="compact"
       >
         <template #item.volume="{ item }">
-          <span dir="ltr">{{ item.volume > 0 ? HumanReadable.sizeFormat(item.volume) : '∞' }}</span>
+          <span dir="ltr">{{ (item.addon ? '+' : '') + (item.volume > 0 ? HumanReadable.sizeFormat(item.volume) : '∞') }}</span>
         </template>
         <template #item.price="{ item }">
           <span dir="ltr">{{ money(item.price) }}</span>
@@ -265,7 +265,7 @@
           </v-chip>
         </template>
         <template #item.value="{ item }">
-          <span dir="ltr">{{ item.kind === 'gift' ? money(item.amount) : item.percent + '%' }}</span>
+          <span dir="ltr">{{ item.kind === 'gift' || item.amount > 0 ? money(item.amount) : item.percent + '%' }}</span>
         </template>
         <template #item.limits="{ item }">
           {{ codeLimits(item) }}
@@ -580,6 +580,33 @@
             persistent-hint
             color="primary"
             density="compact"
+            class="mb-2"
+          />
+          <v-text-field
+            v-model="settings.shopChannel"
+            :label="$t('shop.channel')"
+            :hint="$t('shop.channelHint')"
+            persistent-hint
+            dir="ltr"
+            class="mb-2"
+          />
+          <v-textarea
+            v-model="settings.shopMaintenance"
+            :label="$t('shop.maintenance')"
+            :hint="$t('shop.maintenanceHint')"
+            persistent-hint
+            rows="2"
+            auto-grow
+            class="mb-2"
+          />
+          <v-text-field
+            v-model="settings.shopAutoDelete"
+            :label="$t('shop.autoDelete')"
+            :hint="$t('shop.autoDeleteHint')"
+            persistent-hint
+            type="number"
+            min="0"
+            max="3650"
             class="mb-4"
           />
           <v-btn
@@ -645,12 +672,30 @@
               type="number"
             />
           </v-col>
+          <v-col cols="12">
+            <v-combobox
+              v-model="plan.category"
+              :items="planCategories"
+              :label="$t('shop.category')"
+              :hint="$t('shop.categoryHint')"
+              :disabled="plan.addon"
+              persistent-hint
+            />
+          </v-col>
         </v-row>
         <v-switch
           v-model="plan.enable"
           :label="$t('shop.onSale')"
           color="primary"
           density="compact"
+        />
+        <v-switch
+          v-model="plan.addon"
+          :label="$t('shop.addon')"
+          :hint="$t('shop.addonHint')"
+          color="primary"
+          density="compact"
+          persistent-hint
         />
         <p class="text-caption">
           {{ $t('shop.planHint') }}
@@ -709,7 +754,28 @@
           />
         </template>
         <template v-else>
+          <v-btn-toggle
+            v-model="code.off"
+            mandatory
+            density="compact"
+            color="primary"
+            class="mb-3"
+          >
+            <v-btn value="percent">
+              {{ $t('shop.offPercent') }}
+            </v-btn>
+            <v-btn value="amount">
+              {{ $t('shop.offAmount') }}
+            </v-btn>
+          </v-btn-toggle>
           <v-text-field
+            v-if="code.off === 'amount'"
+            v-model.number="code.amount"
+            :label="$t('shop.offAmount')"
+            type="number"
+          />
+          <v-text-field
+            v-else
             v-model.number="code.percent"
             :label="$t('shop.percent')"
             type="number"
@@ -856,6 +922,7 @@ const statusColor = (s: string) => ({ pending: 'warning', approved: 'success', r
 const orderTitle = (o: ShopOrder) => {
   if (o.kind === 'topup') return t('shop.topup')
   if (o.kind === 'renew') return t('shop.renew') + ' ' + o.clientName + ' · ' + o.planName
+  if (o.kind === 'addon') return t('shop.addonOrder') + ' ' + o.clientName + ' · ' + o.planName
   return o.planName + (o.clientName ? ' → ' + o.clientName : '')
 }
 const orderHeaders = computed(() => [
@@ -876,6 +943,7 @@ const planHeaders = computed(() => [
   { title: t('shop.devices'), key: 'limitIp' },
   { title: t('shop.price'), key: 'price' },
   { title: t('shop.group'), key: 'group' },
+  { title: t('shop.category'), key: 'category' },
   { title: t('shop.onSale'), key: 'enable' },
   { title: '', key: 'actions', sortable: false },
 ])
@@ -900,16 +968,17 @@ const decide = async (id: number, approve: boolean) => {
 }
 
 const planDialog = ref(false)
-const plan = ref({ id: 0, name: '', gb: 0, days: 30, price: 0, limitIp: 0, group: '', sort: 0, enable: true })
+const plan = ref({ id: 0, name: '', gb: 0, days: 30, price: 0, limitIp: 0, group: '', sort: 0, enable: true, category: '', addon: false })
+const planCategories = computed(() => [...new Set((data.value?.plans ?? []).map(p => (p.category ?? '').trim()).filter(c => c !== ''))])
 const editPlan = (p: ShopPlan | null) => {
   plan.value = p
-    ? { id: p.id, name: p.name, gb: Math.round(p.volume / GIB * 100) / 100, days: p.days, price: p.price, limitIp: p.limitIp, group: p.group, sort: p.sort, enable: p.enable }
-    : { id: 0, name: '', gb: 0, days: 30, price: 0, limitIp: 0, group: '', sort: 0, enable: true }
+    ? { id: p.id, name: p.name, gb: Math.round(p.volume / GIB * 100) / 100, days: p.days, price: p.price, limitIp: p.limitIp, group: p.group, sort: p.sort, enable: p.enable, category: p.category ?? '', addon: !!p.addon }
+    : { id: 0, name: '', gb: 0, days: 30, price: 0, limitIp: 0, group: '', sort: 0, enable: true, category: '', addon: false }
   planDialog.value = true
 }
 const savePlan = async () => {
   const p = plan.value
-  const body: ShopPlan = { id: p.id, name: p.name, volume: Math.round((Number(p.gb) || 0) * GIB), days: Number(p.days) || 0, price: Number(p.price) || 0, limitIp: Number(p.limitIp) || 0, group: p.group, sort: Number(p.sort) || 0, enable: p.enable }
+  const body: ShopPlan = { id: p.id, name: p.name, volume: Math.round((Number(p.gb) || 0) * GIB), days: Number(p.days) || 0, price: Number(p.price) || 0, limitIp: Number(p.limitIp) || 0, group: p.group, sort: Number(p.sort) || 0, enable: p.enable, category: p.addon ? '' : (p.category ?? '').trim(), addon: p.addon }
   if (await post('plan', { data: JSON.stringify(body) })) planDialog.value = false
 }
 
@@ -931,13 +1000,13 @@ const codeLimits = (d: ShopDiscount) => {
   return out.join(' · ') || '—'
 }
 
-type CodeForm = { id: number, code: string, kind: string, percent: number, amount: number, planIds: number[], kinds: '' | 'buy' | 'renew', oncePerUser: boolean, maxUses: number, days: number, used: number, expiry: number, enable: boolean }
-const emptyCode = (): CodeForm => ({ id: 0, code: '', kind: 'discount', percent: 10, amount: 0, planIds: [], kinds: '', oncePerUser: false, maxUses: 0, days: 0, used: 0, expiry: 0, enable: true })
+type CodeForm = { id: number, code: string, kind: string, off: 'percent' | 'amount', percent: number, amount: number, planIds: number[], kinds: '' | 'buy' | 'renew', oncePerUser: boolean, maxUses: number, days: number, used: number, expiry: number, enable: boolean }
+const emptyCode = (): CodeForm => ({ id: 0, code: '', kind: 'discount', off: 'percent', percent: 10, amount: 0, planIds: [], kinds: '', oncePerUser: false, maxUses: 0, days: 0, used: 0, expiry: 0, enable: true })
 const codeDialog = ref(false)
 const code = ref<CodeForm>(emptyCode())
 const editCode = (d: ShopDiscount | null) => {
   code.value = d
-    ? { id: d.id, code: d.code, kind: d.kind === 'gift' ? 'gift' : 'discount', percent: d.percent || 10, amount: d.amount, planIds: parseIds(d.planIds), kinds: d.kinds || '', oncePerUser: d.oncePerUser, maxUses: d.maxUses, days: 0, used: d.used, expiry: d.expiry, enable: d.enable }
+    ? { id: d.id, code: d.code, kind: d.kind === 'gift' ? 'gift' : 'discount', off: d.kind !== 'gift' && d.amount > 0 ? 'amount' : 'percent', percent: d.percent || 10, amount: d.amount, planIds: parseIds(d.planIds), kinds: d.kinds || '', oncePerUser: d.oncePerUser, maxUses: d.maxUses, days: 0, used: d.used, expiry: d.expiry, enable: d.enable }
     : emptyCode()
   codeDialog.value = true
 }
@@ -948,8 +1017,8 @@ const saveCode = async () => {
   if (Number(c.days) > 0) expiry = Math.floor(Date.now() / 1000) + Number(c.days) * 86400
   const body: ShopDiscount = {
     id: c.id, code: c.code, kind: c.kind,
-    percent: gift ? 0 : Number(c.percent) || 0,
-    amount: gift ? Number(c.amount) || 0 : 0,
+    percent: gift || c.off === 'amount' ? 0 : Number(c.percent) || 0,
+    amount: gift || c.off === 'amount' ? Number(c.amount) || 0 : 0,
     planIds: gift ? '' : c.planIds.join(','),
     kinds: gift ? '' : c.kinds,
     oncePerUser: gift || c.oncePerUser,

@@ -44,10 +44,20 @@ type ShopSettings struct {
 	SmsRial   bool   `json:"smsRial"`
 	// AutoRenew lets customers have a service renewed from their wallet.
 	AutoRenew bool `json:"autoRenew"`
+	// Channel is the chat customers must join before they use the bot, and
+	// ChannelLink the link of its join button; "" locks nothing.
+	Channel     string `json:"channel"`
+	ChannelLink string `json:"channelLink"`
+	// Maintenance is what customers are told while the shop is closed for
+	// work; "" is off.
+	Maintenance string `json:"maintenance"`
+	// AutoDelete removes a shop service this many days after it expired; 0
+	// keeps them.
+	AutoDelete int `json:"autoDelete"`
 }
 
 var shopSettingKeys = []string{"shopEnable", "shopCard", "shopCurrency", "shopTrial", "shopRefPercent", "shopSupport", "shopPrefix",
-	"shopUniqueAmount", "shopSmsSecret", "shopSmsRial", "shopAutoRenew"}
+	"shopUniqueAmount", "shopSmsSecret", "shopSmsRial", "shopAutoRenew", "shopChannel", "shopMaintenance", "shopAutoDelete"}
 
 // IsShopSetting tells the settings that belong to the shop.
 func IsShopSetting(key string) bool {
@@ -57,6 +67,39 @@ func IsShopSetting(key string) bool {
 		}
 	}
 	return false
+}
+
+var (
+	channelNameRe = regexp.MustCompile(`^@[A-Za-z][A-Za-z0-9_]{3,31}$`)
+	channelIDRe   = regexp.MustCompile(`^-100[0-9]{5,16}$`)
+	channelLinkRe = regexp.MustCompile(`^https://t\.me/[A-Za-z0-9_+=/-]{2,100}$`)
+)
+
+// ParseChannel reads the channel lock setting: "@name", or the ID of a
+// private channel and its invite link, as "-100123 https://t.me/+abc".
+func ParseChannel(v string) (chat, link string, err error) {
+	f := strings.Fields(v)
+	if len(f) == 0 {
+		return "", "", nil
+	}
+	bad := errors.New("channel: @name, or a private channel's ID and invite link")
+	if len(f) > 2 || len(f) == 2 && !channelLinkRe.MatchString(f[1]) {
+		return "", "", bad
+	}
+	chat = f[0]
+	if len(f) == 2 {
+		link = f[1]
+	}
+	switch {
+	case channelNameRe.MatchString(chat):
+		if link == "" {
+			link = "https://t.me/" + chat[1:]
+		}
+	case channelIDRe.MatchString(chat) && link != "":
+	default:
+		return "", "", bad
+	}
+	return chat, link, nil
 }
 
 // ParseTrial reads the "GB days" trial setting.
@@ -119,6 +162,18 @@ func CheckShopSetting(key, value string) error {
 	case "shopSmsRial", "shopAutoRenew":
 		_, err := strconv.ParseBool(value)
 		return err
+	case "shopChannel":
+		_, _, err := ParseChannel(value)
+		return err
+	case "shopMaintenance":
+		if len(value) > 1000 {
+			return errors.New("too long")
+		}
+	case "shopAutoDelete":
+		n, err := strconv.Atoi(strings.TrimSpace(value))
+		if err != nil || n < 0 || n > 3650 {
+			return errors.New("days must be 0 (off) to 3650")
+		}
 	case "shopCurrency":
 		if len(value) > 30 {
 			return errors.New("too long")
@@ -150,6 +205,10 @@ func (s *ShopService) Settings() ShopSettings {
 	}
 	out.SmsRial, _ = strconv.ParseBool(get("shopSmsRial"))
 	out.AutoRenew, _ = strconv.ParseBool(get("shopAutoRenew"))
+	out.Channel, out.ChannelLink, _ = ParseChannel(get("shopChannel"))
+	out.Maintenance = strings.TrimSpace(get("shopMaintenance"))
+	out.AutoDelete, _ = strconv.Atoi(strings.TrimSpace(get("shopAutoDelete")))
+	out.AutoDelete = max(min(out.AutoDelete, 3650), 0)
 	if !shopPrefixRe.MatchString(out.Prefix) {
 		out.Prefix = "u"
 	}
@@ -254,12 +313,21 @@ func ParsePlanLine(line string) (*model.ShopPlan, error) {
 // Price works out an order's price: the plan's, less the reseller's and the
 // code's percentages.
 func Price(base int64, resellerPercent, codePercent int) (discount, paid int64) {
+	return PriceWith(base, resellerPercent, codePercent, 0)
+}
+
+// PriceWith is Price with a code that takes a fixed amount off instead of
+// a percent; the price does not go below 0.
+func PriceWith(base int64, resellerPercent, codePercent int, codeAmount int64) (discount, paid int64) {
 	p := base
 	if resellerPercent > 0 {
 		p -= p * int64(min(resellerPercent, 100)) / 100
 	}
 	if codePercent > 0 {
 		p -= p * int64(min(codePercent, 100)) / 100
+	}
+	if codeAmount > 0 {
+		p -= min(codeAmount, p)
 	}
 	return base - p, p
 }

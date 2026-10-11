@@ -34,6 +34,7 @@ func (b *bot) shopSvc() *service.ShopService { return &service.ShopService{} }
 type shopSession struct {
 	code    string
 	codePct int
+	codeAmt int64
 	// await is what the next typed message (or photo) is: "code", "topup",
 	// "receipt" or "rname".
 	await   string
@@ -135,6 +136,15 @@ func normalizeDigits(s string) string {
 }
 
 func (b *bot) planLine(p model.ShopPlan) string {
+	if p.Addon {
+		line := "➕ " + humanBytes(p.Volume)
+		if p.Days > 0 {
+			line += " · " + fmt.Sprintf(b.tr("+%d روز", "+%d days"), p.Days)
+		} else {
+			line += " · " + b.tr("بدون تغییر انقضا", "expiry unchanged")
+		}
+		return line
+	}
 	vol := b.tr("نامحدود", "unlimited")
 	if p.Volume > 0 {
 		vol = humanBytes(p.Volume)
@@ -198,8 +208,8 @@ func (b *bot) shopStart(ctx context.Context, chatID int64, from *fromUser, arg s
 	if _, err := b.shopSvc().Touch(from.ID, strings.TrimSpace(from.FirstName+" "+from.LastName), from.Username, ref); err != nil {
 		logger.Warning("telegram bot: shop user: ", err)
 	}
-	text, kb := b.shopHome(from.ID)
-	b.sendKeyboard(ctx, chatID, text, kb)
+	text, _ := b.shopHome(from.ID)
+	b.sendMenu(ctx, chatID, text, b.customerMenu(from.ID, false))
 }
 
 type fromUser struct {
@@ -255,6 +265,7 @@ type shopInput struct {
 	text            string
 	photo, photoUID string
 	doc, docUID     string
+	voice           string
 }
 
 // shopMessage handles a message of somebody the shop waits on. It reports
@@ -287,7 +298,7 @@ func (b *bot) shopMessage(ctx context.Context, chatID int64, from int64, in shop
 			b.sendKeyboard(ctx, chatID, b.codeError(err), [][]button{back})
 			return true
 		}
-		sessions.update(chatID, func(s *shopSession) { s.code, s.codePct = d.Code, d.Percent })
+		sessions.update(chatID, func(s *shopSession) { s.code, s.codePct, s.codeAmt = d.Code, d.Percent, d.Amount })
 		text, kb := b.planScreen(from, ss.planID, ss.client)
 		b.sendKeyboard(ctx, chatID, text, kb)
 	case "gift":
@@ -346,6 +357,9 @@ func (b *bot) shopMessage(ctx context.Context, chatID int64, from int64, in shop
 		sessions.update(chatID, func(s *shopSession) { s.await = "" })
 		b.sendKeyboard(ctx, chatID, fmt.Sprintf(t("✅ رسید سفارش #%d دریافت شد. پس از تایید، نتیجه همین‌جا اعلام می‌شود.", "✅ The receipt of order #%d is in. You will hear here once it is checked."), o.Id), [][]button{b.homeRow()})
 		b.notifyApprovers(ctx, o)
+	case "ticket":
+		// The support screen keeps listening until another button.
+		b.ticketMessage(ctx, chatID, from, in)
 	case "rname":
 		sh := b.shopperOf(from)
 		c := b.as(from).findClientByName(strings.TrimSpace(text))
@@ -473,10 +487,14 @@ func (b *bot) shopCallback(ctx context.Context, cbID string, chatID, msgID, from
 	case "home":
 		show(b.shopHome(from))
 	case "plans":
-		sessions.update(chatID, func(s *shopSession) { s.code, s.codePct = "", 0 })
+		sessions.update(chatID, func(s *shopSession) { s.code, s.codePct, s.codeAmt = "", 0, 0 })
 		show(b.plansScreen(from, arg(2)))
 	case "plan":
 		show(b.planScreen(from, arg(2), arg(3)))
+	case "cat":
+		show(b.plansIn(from, arg(3), int(arg(2))))
+	case "addon":
+		show(b.addonScreen(from, arg(2)))
 	case "renew":
 		if b.isAdmin(from) {
 			sessions.update(chatID, func(s *shopSession) { s.await = "rname" })
@@ -557,8 +575,24 @@ func (b *bot) shopCallback(ctx context.Context, cbID string, chatID, msgID, from
 		b.giveTrial(ctx, chatID, from)
 	case "ref":
 		show(b.referralScreen(from))
+	case "guide":
+		platform := ""
+		if len(parts) > 2 {
+			platform = parts[2]
+		}
+		show(b.guideScreen(platform))
+	case "support":
+		sessions.update(chatID, func(s *shopSession) { s.await = "ticket" })
+		show(b.supportScreen(from))
+	case "tk":
+		b.ticketCallback(ctx, chatID, from, parts, show)
 	case "my":
 		b.answer(ctx, cbID, "")
+		if len(boundClients(from)) == 0 {
+			b.sendKeyboard(ctx, chatID, t("هنوز سرویسی ندارید.", "You have no services yet."),
+				[][]button{{{Text: t("🛒 خرید سرویس", "🛒 Buy a service"), Data: "p:plans:0"}}})
+			return
+		}
 		for _, c := range boundClients(from) {
 			text, kb := b.userView(c)
 			b.sendKeyboard(ctx, chatID, text, kb)
@@ -569,8 +603,50 @@ func (b *bot) shopCallback(ctx context.Context, cbID string, chatID, msgID, from
 }
 
 func (b *bot) plansScreen(from int64, clientID uint) (string, [][]button) {
+	return b.plansIn(from, clientID, -1)
+}
+
+// salePlans is the plans on sale for a purchase or a renewal: the extra
+// packs have their own screen.
+func (b *bot) salePlans() []model.ShopPlan {
+	all, _ := b.shopSvc().Plans(true)
+	var out []model.ShopPlan
+	for _, p := range all {
+		if !p.Addon {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// planCategories is the categories of plans, in the plans' order; the
+// plans with none come last, under "other", if some have one.
+func planCategories(plans []model.ShopPlan) []string {
+	var cats []string
+	seen := map[string]bool{}
+	other := false
+	for _, p := range plans {
+		c := strings.TrimSpace(p.Category)
+		if c == "" {
+			other = true
+			continue
+		}
+		if !seen[c] {
+			seen[c] = true
+			cats = append(cats, c)
+		}
+	}
+	if len(cats) > 0 && other {
+		cats = append(cats, "")
+	}
+	return cats
+}
+
+// plansIn lists the plans of one category (an index of planCategories), or
+// the categories first when cat is -1 and there are two or more.
+func (b *bot) plansIn(from int64, clientID uint, cat int) (string, [][]button) {
 	t := b.tr
-	plans, _ := b.shopSvc().Plans(true)
+	plans := b.salePlans()
 	sh := b.shopperOf(from)
 	title := t("🛒 <b>پلن‌ها</b>", "🛒 <b>Plans</b>")
 	if clientID != 0 {
@@ -583,9 +659,70 @@ func (b *bot) plansScreen(from int64, clientID uint) (string, [][]button) {
 	if len(plans) == 0 {
 		return title + "\n\n" + t("فعلا پلنی برای فروش نیست.", "No plans for sale right now."), [][]button{b.homeRow()}
 	}
+	cats := planCategories(plans)
+	catName := func(c string) string {
+		if c == "" {
+			return t("سایر", "Other")
+		}
+		return c
+	}
+	if cat < 0 && len(cats) >= 2 {
+		var kb [][]button
+		for i, c := range cats {
+			kb = append(kb, []button{{Text: "📂 " + catName(c), Data: fmt.Sprintf("p:cat:%d:%d", i, clientID)}})
+		}
+		return title + "\n" + t("یک دسته را انتخاب کنید:", "Pick a category:"), append(kb, b.homeRow())
+	}
+	back := b.homeRow()
+	if cat >= 0 && cat < len(cats) && len(cats) >= 2 {
+		title += " · " + esc(catName(cats[cat]))
+		var in []model.ShopPlan
+		for _, p := range plans {
+			if strings.TrimSpace(p.Category) == cats[cat] {
+				in = append(in, p)
+			}
+		}
+		plans = in
+		back = []button{{Text: t("⬅️ دسته‌ها", "⬅️ Categories"), Data: fmt.Sprintf("p:plans:%d", clientID)}, {Text: t("🏠 منو", "🏠 Menu"), Data: "p:home"}}
+	}
 	lines := []string{title, ""}
 	var kb [][]button
 	for _, p := range plans {
+		_, paid := service.Price(p.Price, sh.percent, 0)
+		lines = append(lines, "• <b>"+esc(p.Name)+"</b> — "+b.planLine(p)+" — "+b.money(paid))
+		kb = append(kb, []button{{Text: p.Name + " · " + b.money(paid), Data: fmt.Sprintf("p:plan:%d:%d", p.Id, clientID)}})
+	}
+	return strings.Join(lines, "\n"), append(kb, back)
+}
+
+// addonPlans is the extra packs on sale.
+func (b *bot) addonPlans() []model.ShopPlan {
+	all, _ := b.shopSvc().Plans(true)
+	var out []model.ShopPlan
+	for _, p := range all {
+		if p.Addon {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// addonScreen offers the extra packs for one of the customer's services.
+func (b *bot) addonScreen(from int64, clientID uint) (string, [][]button) {
+	t := b.tr
+	c := b.renewTarget(from, clientID)
+	if c == nil {
+		return t("این سرویس پیدا نشد.", "That service was not found."), [][]button{b.homeRow()}
+	}
+	packs := b.addonPlans()
+	title := fmt.Sprintf(t("➕ <b>حجم اضافه برای %s</b>", "➕ <b>Extra volume for %s</b>"), esc(c.Name))
+	if len(packs) == 0 {
+		return title + "\n\n" + t("فعلا بستهٔ حجم اضافه‌ای نیست.", "No extra packs for sale right now."), [][]button{b.homeRow()}
+	}
+	sh := b.shopperOf(from)
+	lines := []string{title, t("حجم بسته به سرویس اضافه می‌شود و مصرف قبلی صفر نمی‌شود.", "The pack's volume is added to the service; its usage is kept."), ""}
+	var kb [][]button
+	for _, p := range packs {
 		_, paid := service.Price(p.Price, sh.percent, 0)
 		lines = append(lines, "• <b>"+esc(p.Name)+"</b> — "+b.planLine(p)+" — "+b.money(paid))
 		kb = append(kb, []button{{Text: p.Name + " · " + b.money(paid), Data: fmt.Sprintf("p:plan:%d:%d", p.Id, clientID)}})
@@ -615,18 +752,23 @@ func (b *bot) quote(chatID, from int64, planID, clientID uint) (*model.ShopOrder
 	}
 	sh := b.shopperOf(from)
 	ss := sessions.get(chatID)
-	code, pct := ss.code, ss.codePct
+	code, pct, amt := ss.code, ss.codePct, ss.codeAmt
 	kind := model.OrderBuy
-	if clientID != 0 {
+	switch {
+	case p.Addon && clientID == 0:
+		return nil, errors.New(b.tr("بستهٔ حجم اضافه برای یکی از سرویس‌های شماست؛ از «سرویس‌های من» بخرید", "an extra pack is for one of your services: buy it from «My services»"))
+	case p.Addon:
+		kind = model.OrderAddon
+	case clientID != 0:
 		kind = model.OrderRenew
 	}
 	if code != "" {
 		// The code may have run out since it was typed, or be for another
 		// plan.
 		if d, err := b.shopSvc().DiscountFor(code, from, p.Id, kind); err == nil {
-			pct = d.Percent
+			pct, amt = d.Percent, d.Amount
 		} else {
-			code, pct = "", 0
+			code, pct, amt = "", 0, 0
 		}
 	}
 	o := &model.ShopOrder{TgId: from, TgName: b.shopName(from), Kind: model.OrderBuy, PlanId: p.Id, PlanName: p.Name, Volume: p.Volume, Days: p.Days,
@@ -634,13 +776,13 @@ func (b *bot) quote(chatID, from int64, planID, clientID uint) (*model.ShopOrder
 	if sh.group != "" {
 		o.Group = sh.group
 	}
-	o.Discount, o.Paid = service.Price(p.Price, sh.percent, pct)
+	o.Discount, o.Paid = service.PriceWith(p.Price, sh.percent, pct, amt)
 	if clientID != 0 {
 		c := b.renewTarget(from, clientID)
 		if c == nil {
 			return nil, errors.New(b.tr("این سرویس پیدا نشد", "that service was not found"))
 		}
-		o.Kind, o.ClientId, o.ClientName, o.Group = model.OrderRenew, c.Id, c.Name, c.Group
+		o.Kind, o.ClientId, o.ClientName, o.Group = kind, c.Id, c.Name, c.Group
 	}
 	return o, nil
 }
@@ -662,8 +804,13 @@ func (b *bot) planScreen(from int64, planID, clientID uint) (string, [][]button)
 	}
 	p, _ := b.shopSvc().Plan(planID)
 	lines := []string{"📦 <b>" + esc(p.Name) + "</b>", b.planLine(*p)}
-	if o.Kind == model.OrderRenew {
+	back := fmt.Sprintf("p:plans:%d", clientID)
+	switch o.Kind {
+	case model.OrderRenew:
 		lines = append(lines, fmt.Sprintf(t("🔄 تمدید: %s", "🔄 Renews: %s"), esc(o.ClientName)))
+	case model.OrderAddon:
+		lines = append(lines, fmt.Sprintf(t("➕ برای: %s", "➕ For: %s"), esc(o.ClientName)))
+		back = fmt.Sprintf("p:addon:%d", clientID)
 	}
 	lines = append(lines, "")
 	if o.Discount > 0 {
@@ -677,7 +824,7 @@ func (b *bot) planScreen(from int64, planID, clientID uint) (string, [][]button)
 	kb := [][]button{
 		{{Text: t("💳 کارت به کارت", "💳 Card transfer"), Data: "p:card:" + ids}, {Text: t("👛 پرداخت از کیف پول", "👛 Pay from wallet"), Data: "p:wal:" + ids}},
 		{{Text: t("🏷 کد تخفیف", "🏷 Discount code"), Data: "p:code:" + ids}},
-		{{Text: t("⬅️ بازگشت", "⬅️ Back"), Data: fmt.Sprintf("p:plans:%d", clientID)}, {Text: t("🏠 منو", "🏠 Menu"), Data: "p:home"}},
+		{{Text: t("⬅️ بازگشت", "⬅️ Back"), Data: back}, {Text: t("🏠 منو", "🏠 Menu"), Data: "p:home"}},
 	}
 	if o.Paid == 0 {
 		kb[0] = []button{{Text: t("✅ دریافت رایگان", "✅ Get it free"), Data: "p:walY:" + ids}}
@@ -713,7 +860,7 @@ func (b *bot) payFromWallet(ctx context.Context, chatID, msgID, from int64, plan
 		b.sendKeyboard(ctx, chatID, b.t("failed", esc(b.errText(err)))+"\n"+b.tr("مبلغ به کیف پول برگشت.", "The money is back in the wallet."), [][]button{b.homeRow()})
 		return
 	}
-	sessions.update(chatID, func(s *shopSession) { s.code, s.codePct = "", 0 })
+	sessions.update(chatID, func(s *shopSession) { s.code, s.codePct, s.codeAmt = "", 0, 0 })
 }
 
 func (b *bot) walletScreen(from int64) (string, [][]button) {
@@ -729,7 +876,8 @@ func (b *bot) walletScreen(from int64) (string, [][]button) {
 			lines = append(lines, fmt.Sprintf("%s %s · %s · %s", sign, b.money(abs64(tx.Amount)), b.txReason(tx.Reason), time.Unix(tx.CreatedAt, 0).In(b.loc).Format("01/02 15:04")))
 		}
 	}
-	return strings.Join(lines, "\n"), [][]button{{{Text: t("➕ شارژ کیف پول", "➕ Top up"), Data: "p:topup"}, {Text: t("🎁 کد هدیه", "🎁 Gift code"), Data: "p:gift"}}, b.homeRow()}
+	return strings.Join(lines, "\n"), [][]button{{{Text: t("➕ شارژ کیف پول", "➕ Top up"), Data: "p:topup"}, {Text: t("🎁 کد هدیه", "🎁 Gift code"), Data: "p:gift"}},
+		{{Text: t("🧾 سفارش‌های من", "🧾 My orders"), Data: "p:orders"}}, b.homeRow()}
 }
 
 func abs64(n int64) int64 {
@@ -941,6 +1089,36 @@ func (b *bot) renewClient(id uint, volume int64, days int) (*model.Client, error
 	return rawFullClient(id)
 }
 
+// addPack adds an extra pack to a service: the volume on top of what it has
+// (an unlimited one stays so), the days after its expiry. The usage stays,
+// and a service that ran out comes back.
+func (b *bot) addPack(id uint, volume int64, days int) (*model.Client, error) {
+	rb := b.root()
+	err := rb.editClient(id, func(c *model.Client) error {
+		now := time.Now()
+		if c.Volume > 0 && volume > 0 {
+			c.Volume += volume
+		}
+		if days > 0 && c.Expiry > 0 {
+			base := now
+			if c.Expiry > now.Unix() {
+				base = time.Unix(c.Expiry, 0)
+			}
+			c.Expiry = base.Add(time.Duration(days) * 24 * time.Hour).Unix()
+		}
+		left := c.Volume <= 0 || c.Up+c.Down < c.Volume
+		alive := c.Expiry <= 0 || c.Expiry > now.Unix()
+		if left && alive {
+			c.Enable = true
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return rawFullClient(id)
+}
+
 // deliver carries out an approved order and tells the customer.
 func (b *bot) deliver(ctx context.Context, o *model.ShopOrder) error {
 	t := b.tr
@@ -977,6 +1155,15 @@ func (b *bot) deliver(ctx context.Context, o *model.ShopOrder) error {
 		} else {
 			b.send(ctx, o.TgId, fmt.Sprintf(t("✅ سرویس %s تمدید شد (سفارش #%d).", "✅ %s is renewed (order #%d)."), esc(c.Name), o.Id))
 		}
+		text, kb := b.userView(*c)
+		b.sendKeyboard(ctx, o.TgId, text, kb)
+	case model.OrderAddon:
+		c, err := b.addPack(o.ClientId, o.Volume, o.Days)
+		if err != nil {
+			return err
+		}
+		_ = b.shopSvc().Finish(o)
+		b.send(ctx, o.TgId, fmt.Sprintf(t("✅ %s به سرویس %s اضافه شد (سفارش #%d).", "✅ %s was added to %s (order #%d)."), humanBytes(o.Volume), esc(c.Name), o.Id))
 		text, kb := b.userView(*c)
 		b.sendKeyboard(ctx, o.TgId, text, kb)
 	}

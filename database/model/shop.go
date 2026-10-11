@@ -16,6 +16,13 @@ type ShopPlan struct {
 	Group  string `json:"group"`
 	Enable bool   `json:"enable" gorm:"default:true;not null"`
 	Sort   int    `json:"sort" gorm:"default:0;not null"`
+	// Category groups the plans in the bot's shop (volume, unlimited, VIP…);
+	// "" is none.
+	Category string `json:"category"`
+	// Addon makes the plan an extra pack for a service the customer has: its
+	// volume is added to the service's, and its days, if any, extend it;
+	// the usage is not reset.
+	Addon bool `json:"addon" gorm:"default:false;not null"`
 }
 
 func (ShopPlan) TableName() string { return "shop_plans" }
@@ -25,6 +32,8 @@ const (
 	OrderBuy   = "buy"
 	OrderRenew = "renew"
 	OrderTopup = "topup"
+	// OrderAddon adds an extra pack (an Addon plan) to a service.
+	OrderAddon = "addon"
 
 	OrderPending  = "pending"
 	OrderApproved = "approved"
@@ -195,6 +204,8 @@ type ShopUser struct {
 	RefPaid  bool  `json:"refPaid"`
 	TrialAt  int64 `json:"trialAt"`
 	JoinedAt int64 `json:"joinedAt"`
+	// SeenAt is when they last used the bot (kept to a few minutes).
+	SeenAt int64 `json:"seenAt"`
 	// Blocked users cannot use the shop; Gone ones blocked the bot, so
 	// broadcasts skip them.
 	Blocked bool `json:"blocked"`
@@ -204,3 +215,35 @@ type ShopUser struct {
 }
 
 func (ShopUser) TableName() string { return "shop_users" }
+
+// Ticket states. A customer's new message opens a ticket, or goes on the one
+// still open; an answer from the support marks it answered.
+const (
+	TicketOpen     = "open"
+	TicketAnswered = "answered"
+	TicketClosed   = "closed"
+)
+
+// ShopTicket is a conversation of a customer with the support.
+type ShopTicket struct {
+	Id     uint   `json:"id" gorm:"primaryKey;autoIncrement"`
+	TgId   int64  `json:"tgId" gorm:"index"`
+	Status string `json:"status" gorm:"index"`
+	// Subject is the start of the first message.
+	Subject   string `json:"subject"`
+	CreatedAt int64  `json:"createdAt"`
+	UpdatedAt int64  `json:"updatedAt"`
+}
+
+// ShopTicketMsg is one message of a ticket: the customer's (a text, or a
+// photo, voice or file kept by its Telegram file id) or an answer.
+type ShopTicketMsg struct {
+	Id        uint   `json:"id" gorm:"primaryKey;autoIncrement"`
+	TicketId  uint   `json:"ticketId" gorm:"index"`
+	FromTg    int64  `json:"fromTg"`
+	Answer    bool   `json:"answer"`
+	Kind      string `json:"kind"`
+	Text      string `json:"text"`
+	FileId    string `json:"fileId"`
+	CreatedAt int64  `json:"createdAt"`
+}

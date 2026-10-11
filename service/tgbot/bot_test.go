@@ -74,6 +74,11 @@ type sent struct {
 	Method string `json:"-"`
 	Markup *struct {
 		Keyboard [][]button `json:"inline_keyboard"`
+		// The bottom menu.
+		Reply [][]struct {
+			Text string `json:"text"`
+		} `json:"keyboard"`
+		Persistent bool `json:"is_persistent"`
 	} `json:"reply_markup"`
 }
 
@@ -90,6 +95,9 @@ var fakeAPI struct {
 	sync.Mutex
 	menus []menuCall
 	chats map[int64]string
+	// members are the users getChatMember finds in a channel; nil makes it
+	// fail, as for a channel the bot is not in.
+	members map[int64]bool
 }
 
 func fakeMenuCalls() []menuCall {
@@ -110,7 +118,7 @@ func fakeTelegram(t *testing.T) (*bot, func() []sent) {
 	var mu sync.Mutex
 	var messages []sent
 	fakeAPI.Lock()
-	fakeAPI.menus, fakeAPI.chats = nil, map[int64]string{}
+	fakeAPI.menus, fakeAPI.chats, fakeAPI.members = nil, map[int64]string{}, nil
 	fakeAPI.Unlock()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		method := r.URL.Path[strings.LastIndex(r.URL.Path, "/")+1:]
@@ -122,9 +130,15 @@ func fakeTelegram(t *testing.T) (*bot, func() []sent) {
 			mu.Lock()
 			messages = append(messages, m)
 			mu.Unlock()
-		case "sendPhoto", "sendDocument":
+		case "sendPhoto", "sendDocument", "sendVoice":
+			// Uploads are multipart; a file sent again by its id is JSON.
+			m := sent{Method: method}
+			if strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
+				_ = json.NewDecoder(r.Body).Decode(&m)
+				m.Method = method
+			}
 			mu.Lock()
-			messages = append(messages, sent{Method: method})
+			messages = append(messages, m)
 			mu.Unlock()
 		case "setMyCommands", "deleteMyCommands":
 			var req struct {
@@ -143,6 +157,24 @@ func fakeTelegram(t *testing.T) (*bot, func() []sent) {
 			fakeAPI.Lock()
 			fakeAPI.menus = append(fakeAPI.menus, call)
 			fakeAPI.Unlock()
+		case "getChatMember":
+			var req struct {
+				UserID int64 `json:"user_id"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&req)
+			fakeAPI.Lock()
+			members := fakeAPI.members
+			in := members[req.UserID]
+			fakeAPI.Unlock()
+			switch {
+			case members == nil:
+				_, _ = w.Write([]byte(`{"ok":false,"description":"Bad Request: member list is inaccessible"}`))
+			case in:
+				_, _ = w.Write([]byte(`{"ok":true,"result":{"status":"member"}}`))
+			default:
+				_, _ = w.Write([]byte(`{"ok":true,"result":{"status":"left"}}`))
+			}
+			return
 		case "getChat":
 			var req struct {
 				ChatID int64 `json:"chat_id"`

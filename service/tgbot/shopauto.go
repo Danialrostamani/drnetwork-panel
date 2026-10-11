@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Danialrostamani/drnetwork-panel/database"
@@ -211,4 +213,59 @@ func (b *bot) autoRenewFailed(ctx context.Context, r model.ShopAutoRenew, c *mod
 	}
 	kb = append(kb, []button{{Text: t("🔄 تمدید", "🔄 Renew"), Data: fmt.Sprintf("p:plans:%d", c.Id)}}, b.homeRow())
 	b.sendKeyboard(ctx, r.TgId, msg, kb)
+}
+
+// autoDeleteEvery is how often the expired shop services are looked for.
+const autoDeleteEvery = time.Hour
+
+// autoDelete removes the shop's services, bought or renewed in the shop or
+// trial accounts, that expired more than the set days ago, and tells the
+// administrators who see them. Clients the shop never sold are kept.
+func (b *bot) autoDelete(ctx context.Context, now time.Time) {
+	st := b.shopSvc().Settings()
+	if st.AutoDelete <= 0 {
+		return
+	}
+	cutoff := now.Add(-time.Duration(st.AutoDelete) * 24 * time.Hour).Unix()
+	db := database.GetDB()
+	var expired []model.Client
+	if err := db.Where("expiry > 0 AND expiry < ?", cutoff).Order("id").Find(&expired).Error; err != nil {
+		logger.Warning("telegram bot: auto-delete: ", err)
+		return
+	}
+	if len(expired) == 0 {
+		return
+	}
+	var sold []uint
+	if err := db.Model(&model.ShopOrder{}).Where("status = ? AND client_id > 0", model.OrderApproved).Distinct().Pluck("client_id", &sold).Error; err != nil {
+		logger.Warning("telegram bot: auto-delete: ", err)
+		return
+	}
+	isSold := map[uint]bool{}
+	for _, id := range sold {
+		isSold[id] = true
+	}
+	const maxPerRound = 200
+	var ids []uint
+	var gone []clientAlert
+	for _, c := range expired {
+		trial := c.TgId != 0 && strings.HasPrefix(c.Name, st.Prefix+"t"+strconv.FormatInt(c.TgId, 10))
+		if !isSold[c.Id] && !trial {
+			continue
+		}
+		ids = append(ids, c.Id)
+		gone = append(gone, clientAlert{c.Group, "• <b>" + esc(c.Name) + "</b>"})
+		if len(ids) == maxPerRound {
+			break
+		}
+	}
+	if len(ids) == 0 {
+		return
+	}
+	if err := b.deleteClients(ids); err != nil {
+		logger.Warning("telegram bot: auto-delete: ", err)
+		return
+	}
+	logger.Info("telegram bot: auto-deleted ", len(ids), " expired shop services")
+	b.tellClientAdmins(ctx, fmt.Sprintf(b.tr("🗑 سرویس‌های فروشگاه که بیش از %d روز از انقضایشان گذشته بود حذف شدند:", "🗑 Shop services expired more than %d days ago were deleted:"), st.AutoDelete), gone)
 }

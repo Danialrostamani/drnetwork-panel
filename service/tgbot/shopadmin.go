@@ -100,6 +100,9 @@ func (b *bot) notifyApprovers(ctx context.Context, o *model.ShopOrder) {
 
 // dropButtons takes the keyboard off a message; it works on photos too.
 func (b *bot) dropButtons(ctx context.Context, chatID, msgID int64) {
+	if msgID == 0 {
+		return
+	}
 	_ = b.call(ctx, "editMessageReplyMarkup", map[string]any{"chat_id": chatID, "message_id": msgID, "reply_markup": map[string]any{"inline_keyboard": [][]button{}}}, nil)
 }
 
@@ -214,14 +217,38 @@ func (b *bot) shopAdminScreen() (string, [][]button) {
 			t("۷ روز: ", "7 days: ")+b.money(st.Revenue7)+" · "+t("۳۰ روز: ", "30 days: ")+b.money(st.Revenue30),
 			fmt.Sprintf(t("سفارش در انتظار: %d · کاربران: %d", "Pending orders: %d · Users: %d"), st.Pending, st.Users))
 	}
+	now := time.Now().In(b.loc)
+	day := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, b.loc).Unix()
+	active, off, soon := serviceCounts(allClients(), now, expiryAlertDays)
+	lines = append(lines,
+		fmt.Sprintf(t("🟢 کاربران فعال امروز: %d", "🟢 Active today: %d"), b.shopSvc().ActiveSince(day)),
+		fmt.Sprintf(t("📦 سرویس‌ها: %d فعال · %d غیرفعال یا منقضی · %d رو به انقضا (%d روز)", "📦 Services: %d active · %d off or expired · %d expiring (%d days)"), active, off, soon, expiryAlertDays))
 	return strings.Join(lines, "\n"), [][]button{
 		{{Text: t("⏳ سفارش‌های در انتظار", "⏳ Pending orders"), Data: "q:pend"}, {Text: t("📈 گزارش فروش", "📈 Sales report"), Data: "q:rep"}},
 		{{Text: t("📦 پلن‌ها", "📦 Plans"), Data: "q:pl"}, {Text: t("🏷 کدهای تخفیف", "🏷 Discount codes"), Data: "q:dc"}},
-		{{Text: t("⚙️ تنظیمات فروش", "⚙️ Shop settings"), Data: "q:set"}, {Text: t("👛 کیف پول کاربر", "👛 User wallet"), Data: "q:wl"}},
+		{{Text: t("⚙️ تنظیمات فروش", "⚙️ Shop settings"), Data: "q:set"}, {Text: t("🔎 جستجوی کاربر", "🔎 Find a user"), Data: "q:usr"}},
 		{{Text: t("👔 نماینده‌ها", "👔 Resellers"), Data: "q:rs"}, {Text: t("📣 پیام همگانی", "📣 Broadcast"), Data: "q:bc"}},
+		{{Text: fmt.Sprintf(t("🎫 تیکت‌ها (%d)", "🎫 Tickets (%d)"), b.shopSvc().OpenTickets()), Data: "q:tk:ls"}, {Text: t("👛 کیف پول کاربر", "👛 User wallet"), Data: "q:wl"}},
 		{{Text: t("🚫 مسدود کردن کاربر", "🚫 Block a user"), Data: "q:blk"}, {Text: t("🛍 فروشگاه (نمای مشتری)", "🛍 Shop (customer view)"), Data: "p:home"}},
 		b.menuRow(),
 	}
+}
+
+// serviceCounts sorts services into active and off (disabled, expired or
+// out of volume), and counts the active ones that expire within days.
+func serviceCounts(clients []model.Client, now time.Time, days int) (active, off, soon int) {
+	for _, c := range clients {
+		over := !c.Enable || (c.Expiry > 0 && c.Expiry <= now.Unix()) || (c.Volume > 0 && c.Up+c.Down >= c.Volume)
+		if over {
+			off++
+			continue
+		}
+		active++
+		if c.Expiry > 0 && c.Expiry-now.Unix() <= int64(days)*86400 {
+			soon++
+		}
+	}
+	return active, off, soon
 }
 
 func (b *bot) pendingOrdersScreen() (string, [][]button) {
@@ -342,8 +369,11 @@ func (b *bot) discountsScreen() (string, [][]button) {
 			exp = " · " + t("تا ", "until ") + time.Unix(d.Expiry, 0).In(b.loc).Format("2006-01-02")
 		}
 		value := fmt.Sprintf("%d%%", d.Percent)
-		if d.IsGift() {
+		switch {
+		case d.IsGift():
 			value = "🎁 " + b.money(d.Amount)
+		case d.Amount > 0:
+			value = "−" + b.money(d.Amount)
 		}
 		var limits []string
 		if d.PlanIds != "" {
@@ -385,6 +415,12 @@ var shopSettingInfo = []struct{ key, fa, en, hintFa, hintEn string }{
 	{"shopPrefix", "🔤 پیشوند نام کلاینت", "🔤 Client name prefix", "پیشوند نام کلاینت‌های فروشگاه را بفرستید، مثلا u", "Send the prefix of shop client names, e.g. u"},
 	{"shopUniqueAmount", "🔢 مبلغ یکتا", "🔢 Unique amount", "بیشترین مبلغی را بفرستید که به هر سفارش کارت به کارت اضافه می‌شود تا مبلغش با سفارش‌های باز دیگر یکی نباشد (0 = خاموش، تا 9999). این مبلغ پس از تایید به کیف پول مشتری برمی‌گردد و تایید خودکار با پیامک بانک به آن نیاز دارد.",
 		"Send the most a card order's amount may grow by so no other open order has the same amount (0 = off, up to 9999). It goes to the customer's wallet once approved; confirming by bank message needs it."},
+	{"shopChannel", "📢 قفل کانال", "📢 Channel lock", "آیدی کانال را بفرستید، مثلا <code>@mychannel</code>؛ برای کانال خصوصی شناسه و لینک دعوت: <code>-100123456789 https://t.me/+abc</code>. مشتری‌ها تا عضو نشوند از ربات استفاده نمی‌کنند و ربات باید مدیر کانال باشد. <code>-</code> = خاموش.",
+		"Send the channel, e.g. <code>@mychannel</code>; for a private one its ID and invite link: <code>-100123456789 https://t.me/+abc</code>. Customers use the bot only once they join, and the bot must be an administrator of the channel. <code>-</code> turns it off."},
+	{"shopMaintenance", "🛠 حالت تعمیر", "🛠 Maintenance", "پیامی را بفرستید که مشتری‌ها در زمان تعمیر می‌بینند؛ تا روشن است ربات فقط به مدیرها جواب می‌دهد. <code>-</code> = خاموش.",
+		"Send what customers are told during maintenance; while it is on the bot answers only administrators. <code>-</code> turns it off."},
+	{"shopAutoDelete", "🗑 حذف خودکار منقضی‌ها", "🗑 Auto-delete expired", "سرویس‌های فروشگاه چند روز پس از انقضا خودکار حذف شوند؟ (0 = خاموش)",
+		"Delete shop services this many days after they expire (0 = off)."},
 }
 
 func (b *bot) shopSettingsScreen() (string, [][]button) {
@@ -460,6 +496,10 @@ func (b *bot) shopAdminCallback(ctx context.Context, cbID string, chatID, msgID 
 	switch parts[1] {
 	case "menu":
 		show(b.shopAdminScreen())
+	case "tk":
+		b.ticketAdminCallback(ctx, cbID, chatID, msgID, parts)
+	case "usr", "u", "uw", "ub", "um", "ug", "ut":
+		b.crmCallback(ctx, cbID, chatID, msgID, parts)
 	case "pend":
 		show(b.pendingOrdersScreen())
 	case "ord":
@@ -516,8 +556,8 @@ func (b *bot) shopAdminCallback(ctx context.Context, cbID string, chatID, msgID 
 	case "dc":
 		show(b.discountsScreen())
 	case "dn":
-		ask("sh.code", "", 0, "q:dc", t("کد را بفرستید.\nکد تخفیف: <code>کد درصد [حداکثر استفاده] [روز اعتبار] [یکبار]</code>\nمثال: <code>NOROOZ 20 100 7 یکبار</code> («یکبار»: هر مشتری یک بار)\n\nکد هدیه (شارژ کیف پول، هر مشتری یک بار): <code>هدیه کد مبلغ [حداکثر استفاده] [روز اعتبار]</code>\nمثال: <code>هدیه GIFT50 50000 100 30</code>\n\nمحدود کردن کد به پلن‌ها یا فقط خرید/تمدید از صفحه فروش پنل.",
-			"Send the code.\nDiscount: <code>CODE percent [max uses] [days valid] [once]</code>\nExample: <code>SPRING 20 100 7 once</code> (once: one use per customer)\n\nGift (wallet credit, once per customer): <code>gift CODE amount [max uses] [days valid]</code>\nExample: <code>gift GIFT50 50000 100 30</code>\n\nLimit a code to plans, or to purchases or renewals, on the panel's Sales page."))
+		ask("sh.code", "", 0, "q:dc", t("کد را بفرستید.\nکد تخفیف: <code>کد درصد [حداکثر استفاده] [روز اعتبار] [یکبار]</code>\nمثال: <code>NOROOZ 20 100 7 یکبار</code> («یکبار»: هر مشتری یک بار)\nعدد بالای ۱۰۰ مبلغ ثابت تخفیف است: <code>OFF 50000</code>\n\nکد هدیه (شارژ کیف پول، هر مشتری یک بار): <code>هدیه کد مبلغ [حداکثر استفاده] [روز اعتبار]</code>\nمثال: <code>هدیه GIFT50 50000 100 30</code>\n\nمحدود کردن کد به پلن‌ها یا فقط خرید/تمدید از صفحه فروش پنل.",
+			"Send the code.\nDiscount: <code>CODE percent [max uses] [days valid] [once]</code>\nExample: <code>SPRING 20 100 7 once</code> (once: one use per customer)\nA number above 100 is a fixed amount off: <code>OFF 50000</code>\n\nGift (wallet credit, once per customer): <code>gift CODE amount [max uses] [days valid]</code>\nExample: <code>gift GIFT50 50000 100 30</code>\n\nLimit a code to plans, or to purchases or renewals, on the panel's Sales page."))
 	case "dd":
 		_ = b.shopSvc().DeleteDiscount(arg(2))
 		show(b.discountsScreen())
@@ -559,19 +599,8 @@ func (b *bot) shopAdminCallback(ctx context.Context, cbID string, chatID, msgID 
 		ask("sh.block", "", 0, "q:menu", t("شناسه تلگرام را بفرستید تا مسدود شود؛ برای رفع مسدودی <code>-شناسه</code>.", "Send a Telegram ID to block it; <code>-ID</code> unblocks."))
 	case "bc":
 		ask("sh.bc", "", 0, "q:menu", t("متن پیام همگانی را بفرستید. به همه کاربران فروشگاه و کلاینت‌های متصل به تلگرام ارسال می‌شود.", "Send the broadcast text. It goes to every shop user and every client bound to Telegram."))
-	case "bcy":
-		text := takeDraft(chatID)
-		if text == "" {
-			show(t("پیش‌نویس پیدا نشد؛ دوباره بفرستید.", "The draft is gone; send it again."), [][]button{b.navRow("q:menu")})
-			return
-		}
-		ids, err := b.shopSvc().BroadcastTargets()
-		if err != nil {
-			show(b.t("failed", esc(err.Error())), [][]button{b.navRow("q:menu")})
-			return
-		}
-		show(fmt.Sprintf(t("📣 ارسال به %d نفر شروع شد…", "📣 Sending to %d people…"), len(ids)), [][]button{b.navRow("q:menu")})
-		go b.broadcastTo(ctx, chatID, ids, text)
+	case "bcy", "bca", "bcn", "bcg", "bcp":
+		b.audienceCallback(ctx, cbID, chatID, msgID, parts)
 	default:
 		b.answer(ctx, cbID, "")
 	}
@@ -582,7 +611,17 @@ func (b *bot) shopAdminCallback(ctx context.Context, cbID string, chatID, msgID 
 func (b *bot) shopPending(ctx context.Context, chatID int64, p *pending, text string, retry func(error), finish func(string, [][]button)) {
 	t := b.tr
 	svc := b.shopSvc()
+	if b.crmPending(ctx, p, text, retry, finish) {
+		return
+	}
 	switch p.kind {
+	case "sh.tkans":
+		tk, err := b.ticketAnswer(ctx, chatID, p.id, text)
+		if err != nil {
+			retry(err)
+			return
+		}
+		finish(fmt.Sprintf(t("✅ پاسخ تیکت #%d فرستاده شد.", "✅ The answer to ticket #%d is sent."), tk.Id), [][]button{b.navRow("q:tk:ls")})
 	case "sh.plan":
 		np, err := service.ParsePlanLine(normalizeDigitsKeepSpaces(text))
 		if err != nil {
@@ -650,8 +689,11 @@ func (b *bot) shopPending(ctx context.Context, chatID int64, p *pending, text st
 		finish(b.t("done")+"\n\n"+text, kb)
 	case "sh.set":
 		v := text
-		if p.key == "shopTrial" || p.key == "shopRefPercent" || p.key == "shopUniqueAmount" {
+		if p.key == "shopTrial" || p.key == "shopRefPercent" || p.key == "shopUniqueAmount" || p.key == "shopAutoDelete" || p.key == "shopChannel" {
 			v = normalizeDigitsKeepSpaces(v)
+		}
+		if strings.TrimSpace(v) == "-" && (p.key == "shopChannel" || p.key == "shopMaintenance") {
+			v = ""
 		}
 		if err := svc.SetSetting(p.key, v); err != nil {
 			retry(err)
@@ -729,7 +771,7 @@ func (b *bot) shopPending(ctx context.Context, chatID int64, p *pending, text st
 			return
 		}
 		putDraft(p.chatID, text)
-		finish(t("📣 پیش‌نمایش:", "📣 Preview:")+"\n\n"+esc(text), [][]button{{{Text: t("✅ ارسال", "✅ Send"), Data: "q:bcy"}, {Text: t("✖️ انصراف", "✖️ Cancel"), Data: "q:menu"}}})
+		finish(t("📣 پیش‌نمایش:", "📣 Preview:")+"\n\n"+esc(text)+"\n\n"+t("به چه کسانی فرستاده شود؟", "Who should get it?"), b.audienceRows())
 	default:
 		retry(errors.New("unknown prompt"))
 	}
@@ -763,6 +805,13 @@ func putDraft(chatID int64, text string) {
 	draftMu.Lock()
 	drafts[chatID] = text
 	draftMu.Unlock()
+}
+
+// peekDraft is the draft, kept for the send.
+func peekDraft(chatID int64) string {
+	draftMu.Lock()
+	defer draftMu.Unlock()
+	return drafts[chatID]
 }
 
 func takeDraft(chatID int64) string {
