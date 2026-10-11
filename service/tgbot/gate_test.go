@@ -136,3 +136,35 @@ func TestShopAutoDeleteRemovesOnlyOldShopServices(t *testing.T) {
 		t.Fatalf("admin told %q", told)
 	}
 }
+
+// A closed shop tells a newcomer so, and tells the administrators how to
+// open it, with a button on the shop screen.
+func TestClosedShopIsExplained(t *testing.T) {
+	e := newScopeEnv(t)
+	b := e.b
+	n := len(e.got())
+	e.say(buyer, "/start")
+	if txt := lastText(e.since(n), "sendMessage"); txt != b.t("shopClosed", buyer) {
+		t.Fatalf("newcomer: %q", txt)
+	}
+	n = len(e.got())
+	e.say(fullAdmin, "/start")
+	out := e.since(n)
+	if len(out) != 2 || !strings.Contains(out[0].Text, b.tr("فروشگاه بسته است", "The shop is closed")) {
+		t.Fatalf("admin start: %+v", out)
+	}
+	n = len(e.got())
+	e.press(fullAdmin, "q:menu")
+	if m := e.since(n); len(m) == 0 || m[len(m)-1].Markup == nil || m[len(m)-1].Markup.Keyboard[0][0].Data != "q:sen" {
+		t.Fatalf("no open button: %+v", m)
+	}
+	if err := (&service.ShopService{}).SetSetting("shopEnable", "true"); err != nil {
+		t.Fatal(err)
+	}
+	b.menus = &menuState{}
+	n = len(e.got())
+	e.say(fullAdmin, "/start")
+	if out := e.since(n); len(out) != 2 || strings.Contains(out[0].Text, b.tr("فروشگاه بسته است", "The shop is closed")) {
+		t.Fatalf("open shop start: %+v", out)
+	}
+}

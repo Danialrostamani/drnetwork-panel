@@ -212,7 +212,7 @@ func (b *bot) handle(ctx context.Context, u update) {
 			// only hears why.
 			text, kb := b.menuScreen()
 			if kb != nil {
-				b.sendAdminMenu(ctx, chatID, "🔐 <b>"+b.tr("پنل مدیریت", "Admin panel")+"</b>", cmd == "menu")
+				b.sendAdminMenu(ctx, chatID, "🔐 <b>"+b.tr("پنل مدیریت", "Admin panel")+"</b>"+b.shopClosedHint(), cmd == "menu")
 			}
 			b.sendKeyboard(ctx, chatID, text, kb)
 			return
@@ -237,9 +237,14 @@ func (b *bot) handle(ctx context.Context, u update) {
 	}
 	bound := boundClients(from)
 	if len(bound) == 0 {
-		if cmd == "start" {
+		switch {
+		case cmd == "start" && len(b.access().order) > 0:
+			// Somebody who came for the shop while it is closed; the ID
+			// is still there for an administrator setting the bot up.
+			b.send(ctx, chatID, b.t("shopClosed", from))
+		case cmd == "start":
 			b.send(ctx, chatID, b.t("yourId", from))
-		} else {
+		default:
 			b.send(ctx, chatID, b.t("denied"))
 		}
 		return

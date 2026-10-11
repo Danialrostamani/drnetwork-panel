@@ -223,7 +223,11 @@ func (b *bot) shopAdminScreen() (string, [][]button) {
 	lines = append(lines,
 		fmt.Sprintf(t("🟢 کاربران فعال امروز: %d", "🟢 Active today: %d"), b.shopSvc().ActiveSince(day)),
 		fmt.Sprintf(t("📦 سرویس‌ها: %d فعال · %d غیرفعال یا منقضی · %d رو به انقضا (%d روز)", "📦 Services: %d active · %d off or expired · %d expiring (%d days)"), active, off, soon, expiryAlertDays))
-	return strings.Join(lines, "\n"), [][]button{
+	var kb [][]button
+	if !set.Enable {
+		kb = append(kb, []button{{Text: t("🟢 باز کردن فروشگاه", "🟢 Open the shop"), Data: "q:sen"}})
+	}
+	return strings.Join(lines, "\n"), append(kb, [][]button{
 		{{Text: t("⏳ سفارش‌های در انتظار", "⏳ Pending orders"), Data: "q:pend"}, {Text: t("📈 گزارش فروش", "📈 Sales report"), Data: "q:rep"}},
 		{{Text: t("📦 پلن‌ها", "📦 Plans"), Data: "q:pl"}, {Text: t("🏷 کدهای تخفیف", "🏷 Discount codes"), Data: "q:dc"}},
 		{{Text: t("⚙️ تنظیمات فروش", "⚙️ Shop settings"), Data: "q:set"}, {Text: t("🔎 جستجوی کاربر", "🔎 Find a user"), Data: "q:usr"}},
@@ -231,7 +235,7 @@ func (b *bot) shopAdminScreen() (string, [][]button) {
 		{{Text: fmt.Sprintf(t("🎫 تیکت‌ها (%d)", "🎫 Tickets (%d)"), b.shopSvc().OpenTickets()), Data: "q:tk:ls"}, {Text: t("👛 کیف پول کاربر", "👛 User wallet"), Data: "q:wl"}},
 		{{Text: t("🚫 مسدود کردن کاربر", "🚫 Block a user"), Data: "q:blk"}, {Text: t("🛍 فروشگاه (نمای مشتری)", "🛍 Shop (customer view)"), Data: "p:home"}},
 		b.menuRow(),
-	}
+	}...)
 }
 
 // serviceCounts sorts services into active and off (disabled, expired or

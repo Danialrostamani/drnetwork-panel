@@ -251,3 +251,13 @@ func (b *bot) sendAdminMenu(ctx context.Context, chatID int64, text string, once
 	b.sendMenu(ctx, chatID, text, b.adminMenu())
 	return true
 }
+
+// shopClosedHint tells an administrator who runs the shop that it is closed
+// and where to open it: until then a new user only hears that it is closed.
+func (b *bot) shopClosedHint() string {
+	if !b.can("shop") || b.shopSvc().Settings().Enable {
+		return ""
+	}
+	return "\n\n" + b.tr("🛒 فروشگاه بسته است و کاربران جدید نمی‌توانند خرید کنند. برای شروع فروش: «🛒 مدیریت فروشگاه» ← «🟢 باز کردن فروشگاه» (یا صفحه فروش پنل).",
+		"🛒 The shop is closed, so new users cannot buy. To start selling: “🛒 Shop admin” → “🟢 Open the shop” (or the panel's Shop page).")
+}

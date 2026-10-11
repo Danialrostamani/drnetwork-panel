@@ -31,7 +31,7 @@ func (b *bot) announce(ctx context.Context) {
 	for _, id := range b.access().order {
 		ab := b.as(id)
 		if _, kb := ab.menuScreen(); kb != nil {
-			ab.sendAdminMenu(ctx, id, b.t("started"), false)
+			ab.sendAdminMenu(ctx, id, b.t("started")+ab.shopClosedHint(), false)
 			continue
 		}
 		b.send(ctx, id, b.t("started"))
