@@ -210,6 +210,7 @@ func (b *bot) shopStart(ctx context.Context, chatID int64, from *fromUser, arg s
 	}
 	text, _ := b.shopHome(from.ID)
 	b.sendMenu(ctx, chatID, text, b.customerMenu(from.ID, false))
+	b.markMenu(from.ID)
 }
 
 type fromUser struct {

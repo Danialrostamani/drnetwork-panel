@@ -188,6 +188,13 @@ func (s *ShopService) Seen(tgID int64) {
 	database.GetDB().Model(&model.ShopUser{}).Where("tg_id = ?", tgID).Update("seen_at", now)
 }
 
+// TakeMenu marks the bottom menu of version ver as a shop user's, and tells
+// whether they did not have it yet.
+func (s *ShopService) TakeMenu(tgID int64, ver int) bool {
+	res := database.GetDB().Model(&model.ShopUser{}).Where("tg_id = ? AND menu_ver < ?", tgID, ver).Update("menu_ver", ver)
+	return res.Error == nil && res.RowsAffected > 0
+}
+
 // ActiveSince counts the customers who used the bot since then.
 func (s *ShopService) ActiveSince(since int64) int64 {
 	var n int64

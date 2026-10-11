@@ -1,6 +1,7 @@
 package tgbot
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -157,5 +158,70 @@ func TestBottomMenu(t *testing.T) {
 	e.say(buyer, b.menuLabel("p:guide"))
 	if !has(inlineData(e.since(n)), "p:guide:android") {
 		t.Fatal("closed shop lost the guide")
+	}
+}
+
+// The bottom menu reaches the people who started the bot before it existed:
+// the administrators with the start message and the first /menu, the
+// customers once with their next message.
+func TestBottomMenuReachesExistingChats(t *testing.T) {
+	e, _ := shopEnv(t)
+	b := e.b
+
+	b.announce(context.Background())
+	var told []int64
+	for _, m := range e.got() {
+		if strings.Contains(m.Text, b.t("started")) && has(bottomMenu([]sent{m}), "m:menu") {
+			told = append(told, m.ChatID)
+		}
+	}
+	if len(told) != 2 {
+		t.Fatalf("started with a menu went to %v", told)
+	}
+
+	// The start message carried it, so /menu sends only the menu; after a
+	// restart the first /menu brings it again.
+	n := len(e.got())
+	e.say(fullAdmin, "/menu")
+	if out := e.since(n); len(out) != 1 {
+		t.Fatalf("/menu after the start message: %d messages", len(out))
+	}
+	b.menus = &menuState{}
+	n = len(e.got())
+	e.say(fullAdmin, "/menu")
+	e.say(fullAdmin, "/menu")
+	if out := e.since(n); len(out) != 3 || !has(bottomMenu(out[:1]), "m:menu") {
+		t.Fatalf("/menu after a restart: %d messages", len(out))
+	}
+
+	// A customer from before the menu gets it with their next press, once.
+	if _, err := (&service.ShopService{}).Touch(buyer, "Old", "", 0); err != nil {
+		t.Fatal(err)
+	}
+	n = len(e.got())
+	e.press(buyer, "p:wallet")
+	out := e.since(n)
+	if !has(bottomMenu(out), "p:plans:0") {
+		t.Fatalf("no menu for an old customer: %+v", out)
+	}
+	n = len(e.got())
+	b.menus = &menuState{}
+	e.press(buyer, "p:wallet")
+	if bottomMenu(e.since(n)) != nil {
+		t.Fatal("the menu was sent twice")
+	}
+	// A new customer gets it from /start and not again.
+	const fresh = int64(6000)
+	n = len(e.got())
+	e.say(fresh, "/start")
+	e.press(fresh, "p:wallet")
+	menus := 0
+	for _, m := range e.since(n) {
+		if m.Markup != nil && len(m.Markup.Reply) > 0 {
+			menus++
+		}
+	}
+	if menus != 1 {
+		t.Fatalf("a new customer got %d menus", menus)
 	}
 }

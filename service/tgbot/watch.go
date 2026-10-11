@@ -25,9 +25,17 @@ const (
 	lowVolumeLeft       = 1 << 30 // a big plan is told when its last GB starts
 )
 
-// announce tells every administrator the bot is up.
+// announce tells every administrator the bot is up, with their bottom menu:
+// a new menu shows up after an update without a /start.
 func (b *bot) announce(ctx context.Context) {
-	b.broadcastAll(ctx, b.t("started"))
+	for _, id := range b.access().order {
+		ab := b.as(id)
+		if _, kb := ab.menuScreen(); kb != nil {
+			ab.sendAdminMenu(ctx, id, b.t("started"), false)
+			continue
+		}
+		b.send(ctx, id, b.t("started"))
+	}
 }
 
 type nodeWatch struct {

@@ -212,6 +212,8 @@ type ShopUser struct {
 	Gone    bool `json:"gone"`
 	// ResellerPercent is the discount a bot administrator gets as a reseller.
 	ResellerPercent int `json:"resellerPercent"`
+	// MenuVer is the version of the bottom menu they were last sent.
+	MenuVer int `json:"menuVer"`
 }
 
 func (ShopUser) TableName() string { return "shop_users" }

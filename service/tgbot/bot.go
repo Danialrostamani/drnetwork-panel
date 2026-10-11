@@ -336,6 +336,7 @@ type bot struct {
 	configService *service.ConfigService
 	pend          *pendingStore
 	members       *memberCache
+	menus         *menuState
 
 	// acc is who may do what. It is live: the supervisor and the owner's edits
 	// replace it while the bot runs, and every copy of the bot shares it.
@@ -373,6 +374,7 @@ func newBot(cfg botConfig) *bot {
 		loc:     loc,
 		pend:    &pendingStore{},
 		members: &memberCache{},
+		menus:   &menuState{},
 		acc:     newAccessState(cfg.access()),
 	}
 }
@@ -719,13 +721,6 @@ func (b *bot) toOwner(ctx context.Context, text string, sections ...string) {
 		return
 	}
 	b.broadcast(ctx, text, sections...)
-}
-
-// broadcastAll reaches every administrator, limited ones included.
-func (b *bot) broadcastAll(ctx context.Context, text string) {
-	for _, id := range b.access().order {
-		b.send(ctx, id, text)
-	}
 }
 
 func splitMessage(text string, limit int) []string {

@@ -135,6 +135,9 @@ func (b *bot) handle(ctx context.Context, u update) {
 		if b.gate(ctx, chatID, fu, "", 0, m.Text) {
 			return
 		}
+		if cmd, _ := parseCommand(m.Text); cmd != "start" {
+			b.refreshMenu(ctx, chatID, from)
+		}
 	}
 	text := m.Text
 	// A bottom-menu button comes first, and abandons a half-typed answer.
@@ -203,12 +206,13 @@ func (b *bot) handle(ctx context.Context, u update) {
 			b.sendKeyboard(ctx, chatID, text, kb)
 			return
 		}
-		if cmd == "start" || cmd == "admin" {
-			// The bottom menu first; an administrator with no section yet
+		if cmd == "start" || cmd == "admin" || cmd == "menu" {
+			// The bottom menu first - for /menu only when it was not sent
+			// since the bot started; an administrator with no section yet
 			// only hears why.
 			text, kb := b.menuScreen()
 			if kb != nil {
-				b.sendMenu(ctx, chatID, "🔐 <b>"+b.tr("پنل مدیریت", "Admin panel")+"</b>", b.adminMenu())
+				b.sendAdminMenu(ctx, chatID, "🔐 <b>"+b.tr("پنل مدیریت", "Admin panel")+"</b>", cmd == "menu")
 			}
 			b.sendKeyboard(ctx, chatID, text, kb)
 			return
@@ -287,6 +291,7 @@ func (b *bot) userCommand(ctx context.Context, chatID int64, bound []model.Clien
 	case "usage", "start", "help":
 		if cmd != "usage" {
 			b.sendMenu(ctx, chatID, b.t("userHelp"), b.customerMenu(chatID, false))
+			b.markMenu(chatID)
 		}
 		for _, c := range bound {
 			text, kb := b.userView(c)
@@ -693,6 +698,7 @@ func (b *bot) handleCallback(ctx context.Context, u update) {
 		if b.gate(ctx, chatID, fu, cb.ID, msgID, cb.Data) {
 			return
 		}
+		b.refreshMenu(ctx, chatID, cb.From.ID)
 	}
 	if parts[0] == "u" {
 		b.userCallback(ctx, cb.ID, chatID, msgID, cb.From.ID, parts)

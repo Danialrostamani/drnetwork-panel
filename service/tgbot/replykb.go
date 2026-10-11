@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"sync"
 )
 
 // The bottom menu is a persistent reply keyboard that stays under the chat.
@@ -157,7 +158,7 @@ func (b *bot) menuPress(ctx context.Context, chatID int64, from *fromUser, data 
 			b.sendMenu(ctx, chatID, text, b.customerMenu(from.ID, true))
 			return true
 		}
-		b.sendMenu(ctx, chatID, "🔐 <b>"+b.tr("پنل مدیریت", "Admin panel")+"</b>", b.adminMenu())
+		b.sendAdminMenu(ctx, chatID, "🔐 <b>"+b.tr("پنل مدیریت", "Admin panel")+"</b>", false)
 		text, kb := b.menuScreen()
 		b.sendKeyboard(ctx, chatID, text, kb)
 		return true
@@ -204,4 +205,49 @@ func menuUpdate(chatID, from int64, data string) update {
 	}})
 	_ = json.Unmarshal(raw, &u)
 	return u
+}
+
+// menuVersion grows with every change of the bottom menu: a customer with an
+// older one, or with none because they started the bot before it existed,
+// gets it once with their next message.
+const menuVersion = 1
+
+// menuState remembers, since the bot started, the customers checked for the
+// current bottom menu and the administrators who got theirs.
+type menuState struct {
+	customers, admins sync.Map
+}
+
+// refreshMenu sends a customer the current bottom menu if they do not have
+// it yet.
+func (b *bot) refreshMenu(ctx context.Context, chatID, from int64) {
+	if b.menus != nil {
+		if _, done := b.menus.customers.LoadOrStore(from, true); done {
+			return
+		}
+	}
+	if !b.shopSvc().TakeMenu(from, menuVersion) {
+		return
+	}
+	b.sendMenu(ctx, chatID, b.tr("📋 منوی ربات حالا پایین صفحه است.", "📋 The bot's menu is now at the bottom of the chat."), b.customerMenu(from, false))
+}
+
+// markMenu notes that a customer was just sent the current bottom menu.
+func (b *bot) markMenu(from int64) {
+	if b.menus != nil {
+		b.menus.customers.Store(from, true)
+	}
+	b.shopSvc().TakeMenu(from, menuVersion)
+}
+
+// sendAdminMenu sends an administrator their bottom menu with text; once
+// tells to do it only if they did not get it since the bot started.
+func (b *bot) sendAdminMenu(ctx context.Context, chatID int64, text string, once bool) bool {
+	if b.menus != nil {
+		if _, done := b.menus.admins.LoadOrStore(chatID, true); done && once {
+			return false
+		}
+	}
+	b.sendMenu(ctx, chatID, text, b.adminMenu())
+	return true
 }

@@ -264,7 +264,7 @@ DrNetwork includes an optional Telegram bot for administrators (**Settings → T
 2. Send `/id` to your bot, add the number it returns to **Admin Telegram IDs** and, if you are the one who manages the other admins, put the same number in **Bot owner Telegram ID** (see below).
 3. Enable the bot. If the server cannot reach `api.telegram.org`, set a proxy (`http://` or `socks5://`).
 
-Run the bot **on the master only** (nodes do not need it). Send `/menu` for the button panel — it mirrors the web panel:
+Run the bot **on the master only** (nodes do not need it). Send `/menu` for the button panel — it mirrors the web panel. A **bottom menu** (🏠 Home, 📋 Main menu, 👥 Clients, 🖥 Nodes, 🛒 Shop admin, 📊 Stats - the ones your role opens) stays under the chat; it comes with `/start`, the first `/menu` and the bot's start message after an update, and customers get theirs with their next message:
 
 | Menu | What you can do |
 | --- | --- |
