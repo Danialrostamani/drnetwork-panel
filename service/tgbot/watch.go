@@ -389,7 +389,7 @@ func (b *bot) checkClients(ctx context.Context, reported map[string]bool) {
 		// A client bound to Telegram hears about its own limits directly.
 		if owner.TgId != 0 && !b.isAdmin(owner.TgId) {
 			var kb [][]button
-			if b.shopOpen(owner.TgId) {
+			if b.shopServes(owner.TgId) {
 				kb = [][]button{{{Text: b.tr("🔄 تمدید سریع", "🔄 Quick renew"), Data: "p:plans:" + strconv.FormatUint(uint64(owner.Id), 10)}}}
 			}
 			b.sendKeyboard(ctx, owner.TgId, b.t("userAlertTitle", esc(owner.Name))+"\n"+reason, kb)

@@ -137,20 +137,52 @@ func TestShopAutoDeleteRemovesOnlyOldShopServices(t *testing.T) {
 	}
 }
 
-// A closed shop tells a newcomer so, and tells the administrators how to
-// open it, with a button on the shop screen.
-func TestClosedShopIsExplained(t *testing.T) {
+// A closed shop still gives everybody every screen and the whole bottom
+// menu; only buying says that sales are closed. The administrators are told
+// how to open it, with a button on the shop screen.
+func TestClosedShopKeepsEveryOption(t *testing.T) {
 	e := newScopeEnv(t)
 	b := e.b
 	n := len(e.got())
 	e.say(buyer, "/start")
-	if txt := lastText(e.since(n), "sendMessage"); txt != b.t("shopClosed", buyer) {
-		t.Fatalf("newcomer: %q", txt)
+	out := e.since(n)
+	menu := bottomMenu(out)
+	for _, want := range []string{"p:plans:0", "p:my", "p:renew", "p:wallet", "p:guide", "p:support"} {
+		if !has(menu, want) {
+			t.Fatalf("newcomer menu %v lacks %s", menu, want)
+		}
+	}
+	if txt := lastText(out, "sendMessage"); !strings.Contains(txt, b.tr("فروش فعلا بسته است", "Sales are closed")) {
+		t.Fatalf("newcomer home: %q", txt)
+	}
+	for _, data := range []string{"p:plans:0", "p:renew", "p:topup", "p:trial"} {
+		n = len(e.got())
+		e.press(buyer, data)
+		if txt := lastText(e.since(n), "editMessageText"); txt != b.salesClosed() {
+			t.Fatalf("%s in a closed shop: %q", data, txt)
+		}
+	}
+	for _, data := range []string{"p:wallet", "p:guide", "p:orders", "p:home"} {
+		n = len(e.got())
+		e.press(buyer, data)
+		if txt := lastText(e.since(n), "editMessageText"); txt == "" || txt == b.salesClosed() {
+			t.Fatalf("%s in a closed shop: %q", data, txt)
+		}
+	}
+	// A blocked user keeps nothing of the shop.
+	if err := (&service.ShopService{}).SetBlocked(buyer, true); err != nil {
+		t.Fatal(err)
 	}
 	n = len(e.got())
+	e.say(buyer, "/start")
+	if txt := lastText(e.since(n), "sendMessage"); txt != b.t("denied") {
+		t.Fatalf("blocked: %q", txt)
+	}
+
+	n = len(e.got())
 	e.say(fullAdmin, "/start")
-	out := e.since(n)
-	if len(out) != 2 || !strings.Contains(out[0].Text, b.tr("فروشگاه بسته است", "The shop is closed")) {
+	out = e.since(n)
+	if len(out) != 2 || !strings.Contains(out[0].Text, b.tr("فروش بسته است", "Sales are closed")) || !has(bottomMenu(out), "k:shop") {
 		t.Fatalf("admin start: %+v", out)
 	}
 	n = len(e.got())
@@ -164,7 +196,7 @@ func TestClosedShopIsExplained(t *testing.T) {
 	b.menus = &menuState{}
 	n = len(e.got())
 	e.say(fullAdmin, "/start")
-	if out := e.since(n); len(out) != 2 || strings.Contains(out[0].Text, b.tr("فروشگاه بسته است", "The shop is closed")) {
+	if out := e.since(n); len(out) != 2 || strings.Contains(out[0].Text, b.tr("فروش بسته است", "Sales are closed")) {
 		t.Fatalf("open shop start: %+v", out)
 	}
 }

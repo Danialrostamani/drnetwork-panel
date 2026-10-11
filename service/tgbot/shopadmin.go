@@ -437,7 +437,7 @@ func (b *bot) shopSettingsScreen() (string, [][]button) {
 		toggle = t("🔴 بستن فروشگاه", "🔴 Close the shop")
 		lines = append(lines, t("وضعیت: باز — هر کسی می‌تواند ربات را استارت کند و خرید کند.", "State: open — anybody can start the bot and buy."))
 	} else {
-		lines = append(lines, t("وضعیت: بسته", "State: closed"))
+		lines = append(lines, t("وضعیت: فروش بسته — کاربران همه بخش‌ها را می‌بینند ولی خرید، تمدید، شارژ و تست رایگان بسته است.", "State: sales closed — users see every screen, but buying, renewing, top-ups and the trial are off."))
 	}
 	var btns []button
 	for _, s := range shopSettingInfo {

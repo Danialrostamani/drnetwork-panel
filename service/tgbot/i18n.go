@@ -15,7 +15,6 @@ var messages = map[string]map[string]string{
 			"/traffic — مصرف کل و پرمصرف‌ترین‌ها\n" +
 			"/id — شناسه تلگرام شما",
 		"yourId":        "شناسه تلگرام شما: <code>%d</code>\nاین عدد را در تنظیمات پنل، بخش ربات تلگرام، به‌عنوان ادمین وارد کنید.",
-		"shopClosed":    "👋 سلام! فروشگاه این ربات فعلا بسته است؛ لطفا بعدا دوباره سر بزنید.\n\nشناسه تلگرام شما: <code>%d</code>\nاگر مدیر این ربات هستید، این عدد را در تنظیمات پنل، بخش ربات تلگرام، به‌عنوان ادمین وارد کنید.",
 		"denied":        "شما دسترسی ندارید. با /id شناسه خود را بگیرید و به مدیر پنل بدهید.",
 		"unknown":       "دستور ناشناخته است. /help",
 		"status":        "📊 <b>DrNetwork %s</b>",
@@ -86,7 +85,6 @@ var messages = map[string]map[string]string{
 			"/traffic — total usage and top users\n" +
 			"/id — your Telegram ID",
 		"yourId":        "Your Telegram ID: <code>%d</code>\nAdd it as an admin in the panel settings, Telegram bot section.",
-		"shopClosed":    "👋 Hi! This bot's shop is closed for now; please come back later.\n\nYour Telegram ID: <code>%d</code>\nIf you run this bot, add it as an admin in the panel settings, Telegram bot section.",
 		"denied":        "You are not allowed to use this bot. Send /id and give the number to the panel admin.",
 		"unknown":       "Unknown command. /help",
 		"status":        "📊 <b>DrNetwork %s</b>",

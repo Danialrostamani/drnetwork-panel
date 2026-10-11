@@ -60,7 +60,7 @@ export default {
     block: "Block a user",
     blocked: "Blocked",
     enable: "Shop open",
-    enableHint: "When open, anybody can start the Telegram bot, buy plans, renew and top up a wallet.",
+    enableHint: "Everybody who starts the Telegram bot always sees every screen (services, wallet, guide, support). While sales are open they can also buy plans, renew, top up the wallet and take the trial.",
     card: "Card details shown to buyers",
     currency: "Currency",
     trial: "Free trial",

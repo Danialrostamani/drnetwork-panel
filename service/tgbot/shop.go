@@ -188,15 +188,29 @@ func (b *bot) shopperOf(id int64) shopper {
 
 // ---- entry points ----
 
-// shopOpen tells whether the shop serves this person.
-func (b *bot) shopOpen(id int64) bool {
-	if !b.shopSvc().Settings().Enable {
-		return false
-	}
-	if u := b.shopSvc().User(id); u != nil && u.Blocked {
-		return false
-	}
-	return true
+// shopServes tells whether the shop's screens serve this person: everybody
+// but the blocked, whether the shop sells or not.
+func (b *bot) shopServes(id int64) bool {
+	u := b.shopSvc().User(id)
+	return u == nil || !u.Blocked
+}
+
+// salesOpen tells whether the shop sells. A closed shop keeps every screen
+// and stops only what makes or extends a service or adds money: buying,
+// renewing, extra packs, top-ups and the trial.
+func (b *bot) salesOpen() bool {
+	return b.shopSvc().Settings().Enable
+}
+
+// salesActions are the shop buttons a closed shop answers with salesClosed.
+var salesActions = map[string]bool{"plans": true, "plan": true, "cat": true, "addon": true, "renew": true, "code": true,
+	"card": true, "wal": true, "walY": true, "topup": true, "trial": true}
+
+// salesClosed is what a customer hears when they try to buy from a closed
+// shop.
+func (b *bot) salesClosed() string {
+	return b.tr("🔴 فروش فعلا بسته است؛ خرید، تمدید، شارژ کیف پول و تست رایگان به‌زودی باز می‌شود. بقیه بخش‌ها مثل سرویس‌های من، آموزش اتصال و پشتیبانی در دسترس هستند.",
+		"🔴 Sales are closed for now; buying, renewing, wallet top-ups and the free trial will be back soon. Everything else - your services, the guide, support - still works.")
 }
 
 // shopStart answers /start of somebody who is not an administrator.
@@ -223,6 +237,9 @@ func (b *bot) shopHome(id int64) (string, [][]button) {
 	sh := b.shopperOf(id)
 	t := b.tr
 	lines := []string{"🛍 <b>" + t("فروشگاه", "Shop") + "</b>"}
+	if !st.Enable {
+		lines = append(lines, t("🔴 فروش فعلا بسته است؛ به‌زودی باز می‌شود.", "🔴 Sales are closed for now; back soon."))
+	}
 	if sh.reseller {
 		lines = append(lines, t("حالت نماینده: خرید برای مشتری از کیف پول یا کارت.", "Reseller mode: buy for a customer from your wallet or by card."))
 		if sh.percent > 0 {
@@ -273,8 +290,13 @@ type shopInput struct {
 // whether it took the message.
 func (b *bot) shopMessage(ctx context.Context, chatID int64, from int64, in shopInput) bool {
 	ss := sessions.peek(chatID)
-	if ss == nil || !b.shopOpen(from) {
+	if ss == nil || !b.shopServes(from) {
 		return false
+	}
+	if !b.salesOpen() && (ss.await == "code" || ss.await == "topup" || ss.await == "rname") {
+		sessions.update(chatID, func(s *shopSession) { s.await = "" })
+		b.sendKeyboard(ctx, chatID, b.salesClosed(), [][]button{b.homeRow()})
+		return true
 	}
 	t := b.tr
 	text := in.text
@@ -467,7 +489,7 @@ func (b *bot) redeemGift(ctx context.Context, chatID, from int64, code string, b
 // ---- callbacks ----
 
 func (b *bot) shopCallback(ctx context.Context, cbID string, chatID, msgID, from int64, parts []string) {
-	if !b.shopOpen(from) {
+	if !b.shopServes(from) {
 		b.answer(ctx, cbID, b.tr("فروشگاه فعال نیست.", "The shop is closed."))
 		return
 	}
@@ -484,6 +506,10 @@ func (b *bot) shopCallback(ctx context.Context, cbID string, chatID, msgID, from
 	}
 	t := b.tr
 	sessions.update(chatID, func(s *shopSession) { s.await = "" })
+	if salesActions[parts[1]] && !b.salesOpen() {
+		show(b.salesClosed(), [][]button{b.homeRow()})
+		return
+	}
 	switch parts[1] {
 	case "home":
 		show(b.shopHome(from))

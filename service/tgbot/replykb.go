@@ -65,7 +65,7 @@ func (b *bot) menuLabel(data string) string {
 // customerMenu is the bottom menu of the shop. An administrator in the
 // customer view also gets the way back to the panel.
 func (b *bot) customerMenu(id int64, admin bool) [][]string {
-	if !b.shopOpen(id) {
+	if !b.shopServes(id) {
 		rows := [][]string{{"p:my", "p:guide"}}
 		if strings.TrimSpace(b.shopSvc().Settings().Support) != "" {
 			rows = append(rows, []string{"p:support"})
@@ -111,10 +111,7 @@ func (b *bot) adminMenu() [][]string {
 	if len(rows) == 0 {
 		rows = [][]string{{"m:menu"}}
 	}
-	if b.shopSvc().Settings().Enable {
-		rows = append(rows, []string{"k:shop"})
-	}
-	return rows
+	return append(rows, []string{"k:shop"})
 }
 
 func (b *bot) replyMarkup(rows [][]string) map[string]any {
@@ -163,7 +160,7 @@ func (b *bot) menuPress(ctx context.Context, chatID int64, from *fromUser, data 
 		b.sendKeyboard(ctx, chatID, text, kb)
 		return true
 	case strings.HasPrefix(data, "p:"):
-		if !b.shopOpen(from.ID) {
+		if !b.shopServes(from.ID) {
 			b.closedShopPress(ctx, chatID, from.ID, data)
 			return true
 		}
@@ -175,8 +172,8 @@ func (b *bot) menuPress(ctx context.Context, chatID int64, from *fromUser, data 
 	return true
 }
 
-// closedShopPress answers the few buttons a closed shop keeps: the
-// services of the person, the guide and the support contact.
+// closedShopPress answers the few buttons a blocked user keeps: their
+// services, the guide and the support contact.
 func (b *bot) closedShopPress(ctx context.Context, chatID, from int64, data string) {
 	switch data {
 	case "p:guide":
@@ -258,6 +255,6 @@ func (b *bot) shopClosedHint() string {
 	if !b.can("shop") || b.shopSvc().Settings().Enable {
 		return ""
 	}
-	return "\n\n" + b.tr("🛒 فروشگاه بسته است و کاربران جدید نمی‌توانند خرید کنند. برای شروع فروش: «🛒 مدیریت فروشگاه» ← «🟢 باز کردن فروشگاه» (یا صفحه فروش پنل).",
-		"🛒 The shop is closed, so new users cannot buy. To start selling: “🛒 Shop admin” → “🟢 Open the shop” (or the panel's Shop page).")
+	return "\n\n" + b.tr("🔴 فروش بسته است: کاربران همه بخش‌ها را می‌بینند ولی خرید، تمدید، شارژ و تست رایگان ندارند. برای باز کردن: «🛒 مدیریت فروشگاه» ← «🟢 باز کردن فروشگاه» (یا صفحه فروش پنل).",
+		"🔴 Sales are closed: users see every screen but cannot buy, renew, top up or take the trial. To open them: “🛒 Shop admin” → “🟢 Open the shop” (or the panel's Shop page).")
 }

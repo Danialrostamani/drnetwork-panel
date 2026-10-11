@@ -151,7 +151,7 @@ func TestBottomMenu(t *testing.T) {
 	_ = (&service.ShopService{}).SetSetting("shopEnable", "false")
 	n = len(e.got())
 	e.say(buyer, b.menuLabel("p:plans:0"))
-	if txt := lastText(e.since(n), "sendMessage"); !strings.Contains(txt, b.tr("فروشگاه فعال نیست", "The shop is closed")) {
+	if txt := lastText(e.since(n), "sendMessage"); txt != b.salesClosed() {
 		t.Fatalf("closed shop: %q", txt)
 	}
 	n = len(e.got())

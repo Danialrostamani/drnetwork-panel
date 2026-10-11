@@ -224,7 +224,12 @@ func (b *bot) handle(ctx context.Context, u update) {
 		b.adminCommand(ctx, chatID, cmd, arg)
 		return
 	}
-	if b.shopOpen(from) {
+	if cmd == "start" && len(b.access().order) == 0 {
+		// A bot nobody runs yet: the ID is what its owner needs.
+		b.send(ctx, chatID, b.t("yourId", from))
+		return
+	}
+	if b.shopServes(from) {
 		switch cmd {
 		case "start", "shop", "buy", "menu":
 			b.shopStart(ctx, chatID, &fromUser{ID: from, FirstName: m.From.FirstName, LastName: m.From.LastName, Username: m.From.Username}, arg)
@@ -237,16 +242,7 @@ func (b *bot) handle(ctx context.Context, u update) {
 	}
 	bound := boundClients(from)
 	if len(bound) == 0 {
-		switch {
-		case cmd == "start" && len(b.access().order) > 0:
-			// Somebody who came for the shop while it is closed; the ID
-			// is still there for an administrator setting the bot up.
-			b.send(ctx, chatID, b.t("shopClosed", from))
-		case cmd == "start":
-			b.send(ctx, chatID, b.t("yourId", from))
-		default:
-			b.send(ctx, chatID, b.t("denied"))
-		}
+		b.send(ctx, chatID, b.t("denied"))
 		return
 	}
 	b.userCommand(ctx, chatID, bound, cmd)
@@ -277,7 +273,7 @@ func (b *bot) userView(c model.Client) (string, [][]button) {
 	}
 	id := strconv.FormatUint(uint64(c.Id), 10)
 	kb := [][]button{{b.btn("btnSub", "u:sub:"+id), b.btn("btnRefresh", "u:view:"+id)}}
-	if b.shopOpen(owner) {
+	if b.shopServes(owner) {
 		// Renewing straight from the service, with this service picked.
 		row := []button{{Text: b.tr("🔄 تمدید سریع", "🔄 Quick renew"), Data: "p:plans:" + id}}
 		if c.Volume > 0 && len(b.addonPlans()) > 0 {

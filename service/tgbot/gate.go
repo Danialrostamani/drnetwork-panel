@@ -50,7 +50,7 @@ func (b *bot) gate(ctx context.Context, chatID int64, from *fromUser, cbID strin
 			return false
 		}
 		b.answer(ctx, cbID, "✅")
-		if b.shopOpen(from.ID) {
+		if b.shopServes(from.ID) {
 			b.shopStart(ctx, chatID, from, "")
 		} else {
 			b.edit(ctx, chatID, msgID, t("✅ عضویت شما تایید شد. /start را بزنید.", "✅ You are in. Send /start."), nil)
@@ -62,7 +62,7 @@ func (b *bot) gate(ctx context.Context, chatID int64, from *fromUser, cbID strin
 		return true
 	}
 	// A referral link is kept for when they come back.
-	if cmd, arg := parseCommand(data); cmd == "start" && strings.HasPrefix(arg, "ref") && b.shopOpen(from.ID) {
+	if cmd, arg := parseCommand(data); cmd == "start" && strings.HasPrefix(arg, "ref") && b.shopServes(from.ID) {
 		ref, _ := strconv.ParseInt(strings.TrimPrefix(arg, "ref"), 10, 64)
 		if _, err := b.shopSvc().Touch(from.ID, strings.TrimSpace(from.FirstName+" "+from.LastName), from.Username, ref); err != nil {
 			logger.Warning("telegram bot: shop user: ", err)
