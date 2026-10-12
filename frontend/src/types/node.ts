@@ -138,8 +138,7 @@ export interface NodeStatus {
   certExpiry?: number
   downSince?: number
   // Why the node's links are out of the subscriptions.
-  hidden?: '' | 'down' | 'cap' | 'filtered'
-  filtered?: boolean
+  hidden?: '' | 'down' | 'cap'
   warnings?: NodeWarning[]
   // The node's panel is older than the master's.
   outdated?: boolean

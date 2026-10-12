@@ -67,11 +67,8 @@ type NodeStatus struct {
 	LastOnline int64  `json:"lastOnline"`
 	// Since when the node is not online; zero while it is.
 	DownSince int64 `json:"downSince,omitempty"`
-	// Why the node's links are out of the subscriptions: "down", "cap" or
-	// "filtered".
-	Hidden string `json:"hidden,omitempty"`
-	// The filter check finds the node unreachable from Iran.
-	Filtered bool          `json:"filtered,omitempty"`
+	// Why the node's links are out of the subscriptions: "down" or "cap".
+	Hidden   string        `json:"hidden,omitempty"`
 	Warnings []NodeWarning `json:"warnings,omitempty"`
 	// Outdated tells that the node's panel is older than the master's, whether
 	// its version warning is on or not: the Nodes page offers to update it.

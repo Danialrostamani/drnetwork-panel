@@ -78,8 +78,6 @@ func (a *APIHandler) postHandler(c *gin.Context) {
 		a.ApiService.SaveShop(c)
 	case "totp":
 		a.ApiService.SaveTotp(c)
-	case "remoteBackup":
-		a.ApiService.SendRemoteBackup(c)
 	case "panelUpdate":
 		a.ApiService.StartPanelUpdate(c, loginUser)
 	default:

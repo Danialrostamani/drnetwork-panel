@@ -266,8 +266,8 @@
     <v-col cols="12">
       <v-data-table
         :headers="headers"
-        :items="filterSettings.enabled ? filterSettings.filteredClients : clients"
-        :hide-default-footer="filterSettings.enabled ? filterSettings.filteredClients.length<=10 : clients.length<=10"
+        :items="filteredClients"
+        :hide-default-footer="filteredClients.length<=10"
         :items-per-page="itemPerPage"
         hide-no-data
         fixed-header
@@ -529,7 +529,7 @@ const inboundTags = computed((): { title: string, value: number }[] => {
 
 const groups = computed((): string[] => {
   if (!clients.value) return []
-  if (filterSettings?.value.enabled) return Array.from(new Set(filterSettings.value.filteredClients?.map(c => c.group)))
+  if (appliedFilter.value) return Array.from(new Set(filteredClients.value.map(c => c.group)))
   return Array.from(new Set(clients.value?.map(c => c.group)))
 })
 
@@ -540,7 +540,40 @@ const filterSettings = ref({
   state: '',
   group: '-',
   text: '',
-  filteredClients: <ClientRow[]>[]
+})
+
+// The filter the last "apply" set. The rows are worked out from the live list
+// each time it changes, so usage and online state keep updating while a
+// filter is on; a list copied once froze them until the page was reloaded.
+const appliedFilter = ref<{ state: string, group: string, text: string } | null>(null)
+
+const filteredClients = computed((): ClientRow[] => {
+  const f = appliedFilter.value
+  if (!f) return clients.value
+  let rows = clients.value
+  if (f.group != '-') {
+    rows = rows.filter(c => c.group == f.group)
+  }
+  if (f.text.length>0) {
+    // includes, not search: String.search compiles its argument as a regular
+    // expression, so typing "a.b" matched anything with a character between a
+    // and b, and an unbalanced "(" threw out of the filter entirely.
+    const txt = f.text.toLowerCase()
+    rows = rows.filter(c =>
+      (c.name ?? '').toLowerCase().includes(txt) || (c.desc ?? '').toLowerCase().includes(txt))
+  }
+  switch (f.state) {
+    case "disable":
+      rows = rows.filter(c => c.enable == false)
+      break
+    case "expired":
+      rows = rows.filter(c => c.expiry > 0 && c.expiry < (Date.now()/1000) )
+      break
+    case "online":
+      rows = rows.filter(c => Data().onlines?.user?.includes(c.name))
+      break
+  }
+  return rows
 })
 
 const filterItems = [
@@ -652,30 +685,8 @@ const showIps = (name: string) => { ips.value = { visible: true, name } }
 const ipCount = (client: Client) => Data().ipCounts?.[client.name] ?? 0
 
 const doFilter = () => {
-  let filteredClients = clients.value.slice()
-  if (filterSettings.value.group != '-') {
-    filteredClients = filteredClients.filter(c => c.group == filterSettings.value.group)
-  }
-  if (filterSettings.value.text.length>0) {
-    // includes, not search: String.search compiles its argument as a regular
-    // expression, so typing "a.b" matched anything with a character between a
-    // and b, and an unbalanced "(" threw out of the filter entirely.
-    const txt = filterSettings.value.text.toLowerCase()
-    filteredClients = filteredClients.filter(c =>
-      (c.name ?? '').toLowerCase().includes(txt) || (c.desc ?? '').toLowerCase().includes(txt))
-  }
-  switch (filterSettings.value.state) {
-    case "disable":
-      filteredClients = filteredClients.filter(c => c.enable == false)
-      break
-    case "expired":
-      filteredClients = filteredClients.filter(c => c.expiry > 0 && c.expiry < (Date.now()/1000) )
-      break
-    case "online":
-      filteredClients = filteredClients.filter(c => Data().onlines?.user?.includes(c.name))
-      break
-  }
-  filterSettings.value.filteredClients = filteredClients
+  const { state, group, text } = filterSettings.value
+  appliedFilter.value = { state, group, text }
   filterSettings.value.enabled = true
   filterMenu.value = false
 }
@@ -686,8 +697,8 @@ const clearFilter = () => {
     state: '',
     group: '-',
     text: '',
-    filteredClients: <ClientRow[]>[]
   }
+  appliedFilter.value = null
   filterMenu.value = false
 }
 
