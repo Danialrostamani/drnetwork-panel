@@ -129,6 +129,7 @@ var defaultValueMap = map[string]string{
 	"shopChannel":        "",
 	"shopMaintenance":    "",
 	"shopAutoDelete":     "0",
+	"shopWelcome":        DefaultShopWelcome,
 	"globalReset":        "",
 	"globalResetLast":    "0",
 	"config":             defaultConfig,

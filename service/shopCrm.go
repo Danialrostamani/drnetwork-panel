@@ -11,6 +11,16 @@ import (
 	"github.com/Danialrostamani/drnetwork-panel/database/model"
 )
 
+// ListUsers is the newest shop customers, for the Sales page.
+func (s *ShopService) ListUsers(limit int) ([]model.ShopUser, error) {
+	if limit <= 0 {
+		limit = 80
+	}
+	var out []model.ShopUser
+	err := database.GetDB().Order("seen_at desc, joined_at desc").Limit(limit).Find(&out).Error
+	return out, err
+}
+
 // FindUsers looks shop customers up by Telegram id, @username or a part of
 // the name or username.
 func (s *ShopService) FindUsers(query string, limit int) ([]model.ShopUser, error) {

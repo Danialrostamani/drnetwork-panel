@@ -200,6 +200,31 @@ func decideFromPanel(id uint, approve bool) (string, error) {
 	return plainText(msg), nil
 }
 
+// notifyTicketFromPanel is service.ShopTicketNotify.
+func notifyTicketFromPanel(tk *model.ShopTicket, answer string, closed bool) {
+	rb := running.Load()
+	if rb == nil || tk == nil {
+		return
+	}
+	b := rb.b.root()
+	t := b.tr
+	if closed {
+		b.send(rb.ctx, tk.TgId, fmt.Sprintf(t("✔️ تیکت #%d توسط پشتیبانی بسته شد. برای کار تازه از «💬 پشتیبانی» پیام بدهید.", "✔️ The support closed ticket #%d. Write from «💬 Support» for anything new."), tk.Id))
+		return
+	}
+	b.sendKeyboard(rb.ctx, tk.TgId, fmt.Sprintf("🎧 <b>%s</b> · %s #%d\n\n%s", t("پاسخ پشتیبانی", "Support's answer"), t("تیکت", "ticket"), tk.Id, esc(answer)),
+		[][]button{{{Text: t("✍️ پاسخ دادن", "✍️ Reply"), Data: "p:support"}, {Text: t("✔️ بستن تیکت", "✔️ Close it"), Data: fmt.Sprintf("p:tk:x:%d", tk.Id)}}})
+}
+
+// broadcastFromPanel is service.ShopBroadcaster.
+func broadcastFromPanel(ids []int64, text string) (sent, failed int) {
+	rb := running.Load()
+	if rb == nil {
+		return 0, len(ids)
+	}
+	return rb.b.root().broadcastSend(rb.ctx, ids, text)
+}
+
 // ---- screens ----
 
 func (b *bot) shopAdminScreen() (string, [][]button) {
@@ -348,7 +373,18 @@ func (b *bot) planAdminScreen(id uint) (string, [][]button) {
 	if group == "" {
 		group = "—"
 	}
-	text := fmt.Sprintf("📦 <b>%s</b> · %s\n%s\n💰 %s\n🏷 %s: %s\n↕️ %s: %d", esc(p.Name), state, b.planLine(*p), b.money(p.Price), t("گروه", "Group"), esc(group), t("ترتیب", "Order"), p.Sort)
+	cat := strings.TrimSpace(p.Category)
+	if cat == "" {
+		cat = "—"
+	}
+	extra := ""
+	if p.Addon {
+		extra = "\n➕ " + t("بستهٔ حجم اضافه", "extra volume pack")
+	}
+	if d := strings.TrimSpace(p.Desc); d != "" {
+		extra += "\n" + esc(d)
+	}
+	text := fmt.Sprintf("📦 <b>%s</b> · %s\n%s\n💰 %s\n🏷 %s: %s\n📂 %s: %s\n↕️ %s: %d%s", esc(p.Name), state, b.planLine(*p), b.money(p.Price), t("گروه", "Group"), esc(group), t("دسته", "Category"), esc(cat), t("ترتیب", "Order"), p.Sort, extra)
 	sid := strconv.FormatUint(uint64(p.Id), 10)
 	return text, [][]button{
 		{{Text: t("✏️ ویرایش", "✏️ Edit"), Data: "q:pe:" + sid}, {Text: toggle, Data: "q:pt:" + sid}},
@@ -411,6 +447,8 @@ func (b *bot) discountsScreen() (string, [][]button) {
 
 // shopSettingInfo describes the shop settings on the settings screen.
 var shopSettingInfo = []struct{ key, fa, en, hintFa, hintEn string }{
+	{"shopWelcome", "📋 متن خوش‌آمد و تعرفه", "📋 Welcome and tariff", "متنی را بفرستید که مشتری با /start می‌بیند (تعرفه، امکانات، لینک کانال). قیمت خرید همچنان از پلن‌هاست. <code>-</code> = حذف.",
+		"Send what customers see on /start (tariff, features, channel). Buying still uses the plans. <code>-</code> clears it."},
 	{"shopCard", "💳 اطلاعات کارت", "💳 Card details", "شماره کارت، نام صاحب کارت و بانک را بفرستید (چند خطی مجاز است).", "Send the card number, holder and bank (several lines are fine)."},
 	{"shopCurrency", "💱 واحد پول", "💱 Currency", "واحد پول را بفرستید، مثلا: تومان", "Send the currency, e.g. USD"},
 	{"shopTrial", "🎁 تست رایگان", "🎁 Free trial", "حجم (GB) و روز را بفرستید، مثلا <code>1 1</code>. برای خاموش کردن <code>0 0</code>.", "Send GB and days, e.g. <code>1 1</code>. <code>0 0</code> turns it off."},
@@ -696,7 +734,7 @@ func (b *bot) shopPending(ctx context.Context, chatID int64, p *pending, text st
 		if p.key == "shopTrial" || p.key == "shopRefPercent" || p.key == "shopUniqueAmount" || p.key == "shopAutoDelete" || p.key == "shopChannel" {
 			v = normalizeDigitsKeepSpaces(v)
 		}
-		if strings.TrimSpace(v) == "-" && (p.key == "shopChannel" || p.key == "shopMaintenance") {
+		if strings.TrimSpace(v) == "-" && (p.key == "shopChannel" || p.key == "shopMaintenance" || p.key == "shopWelcome") {
 			v = ""
 		}
 		if err := svc.SetSetting(p.key, v); err != nil {
@@ -830,12 +868,11 @@ func takeDraft(chatID int64) string {
 // a second.
 var broadcastGap = 50 * time.Millisecond
 
-func (b *bot) broadcastTo(ctx context.Context, adminChat int64, ids []int64, text string) {
-	sent, failed := 0, 0
+func (b *bot) broadcastSend(ctx context.Context, ids []int64, text string) (sent, failed int) {
 	for _, id := range ids {
 		select {
 		case <-ctx.Done():
-			return
+			return sent, failed + (len(ids) - sent - failed)
 		case <-time.After(broadcastGap):
 		}
 		err := b.call(ctx, "sendMessage", map[string]any{"chat_id": id, "text": text, "disable_web_page_preview": true}, nil)
@@ -848,5 +885,10 @@ func (b *bot) broadcastTo(ctx context.Context, adminChat int64, ids []int64, tex
 		}
 		sent++
 	}
+	return sent, failed
+}
+
+func (b *bot) broadcastTo(ctx context.Context, adminChat int64, ids []int64, text string) {
+	sent, failed := b.broadcastSend(ctx, ids, text)
 	b.send(ctx, adminChat, fmt.Sprintf(b.tr("📣 پیام همگانی تمام شد: %d ارسال، %d ناموفق.", "📣 Broadcast done: %d sent, %d failed."), sent, failed))
 }

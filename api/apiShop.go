@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Danialrostamani/drnetwork-panel/database/model"
 	"github.com/Danialrostamani/drnetwork-panel/service"
@@ -27,13 +28,20 @@ func (a *ApiService) GetShop(c *gin.Context) {
 	codes, _ := s.Discounts()
 	orders, _ := s.Orders(strings.TrimSpace(c.Query("status")), 0, 200)
 	sms, _ := s.SmsLog(100)
+	tickets, _ := s.Tickets(0, true, 80)
+	users, _ := s.ListUsers(80)
 	jsonObj(c, map[string]any{
-		"sms":       sms,
-		"stats":     stats,
-		"plans":     plans,
-		"discounts": codes,
-		"orders":    orders,
-		"settings":  s.RawSettings(),
+		"sms":         sms,
+		"stats":       stats,
+		"plans":       plans,
+		"discounts":   codes,
+		"orders":      orders,
+		"settings":    s.RawSettings(),
+		"tickets":     tickets,
+		"users":       users,
+		"groups":      s.ClientGroups(),
+		"nodes":       s.NodeNames(),
+		"openTickets": s.OpenTickets(),
 	}, nil)
 }
 
@@ -122,6 +130,91 @@ func (a *ApiService) SaveShop(c *gin.Context) {
 				msg, err = service.ShopDecider(uint(id), c.PostForm("approve") == "true")
 				if err == nil {
 					jsonMsgObj(c, "save", msg, nil)
+					return
+				}
+			}
+		}
+	case "users":
+		q := strings.TrimSpace(c.PostForm("query"))
+		var list []model.ShopUser
+		if q == "" {
+			list, err = s.ListUsers(80)
+		} else {
+			list, err = s.FindUsers(q, 50)
+		}
+		if err == nil {
+			jsonObj(c, list, nil)
+			return
+		}
+	case "user":
+		var id int64
+		if id, err = formID(c, "tgId"); err == nil {
+			u := s.User(id)
+			if u == nil {
+				err = common.NewError("user not found")
+			} else {
+				orders, _ := s.Orders("", id, 20)
+				tickets, _ := s.Tickets(id, false, 10)
+				jsonObj(c, map[string]any{
+					"user":    u,
+					"summary": s.Summary(id),
+					"balance": s.Balance(id),
+					"orders":  orders,
+					"tickets": tickets,
+				}, nil)
+				return
+			}
+		}
+	case "ticketMsgs":
+		var id int64
+		if id, err = formID(c, "id"); err == nil {
+			var msgs []model.ShopTicketMsg
+			msgs, err = s.TicketMsgs(uint(id), 80)
+			if err == nil {
+				jsonObj(c, msgs, nil)
+				return
+			}
+		}
+	case "ticketAnswer":
+		var id int64
+		if id, err = formID(c, "id"); err == nil {
+			if service.ShopTicketNotify == nil {
+				err = service.ErrBotDown
+			} else {
+				text := strings.TrimSpace(c.PostForm("text"))
+				var tk *model.ShopTicket
+				tk, err = s.TicketAnswer(uint(id), 0, text)
+				if err == nil {
+					service.ShopTicketNotify(tk, text, false)
+				}
+			}
+		}
+	case "ticketClose":
+		var id int64
+		if id, err = formID(c, "id"); err == nil {
+			var tk *model.ShopTicket
+			tk, err = s.TicketClose(uint(id), 0)
+			if err == nil && service.ShopTicketNotify != nil {
+				service.ShopTicketNotify(tk, "", true)
+			}
+		}
+	case "broadcast":
+		if service.ShopBroadcaster == nil {
+			err = service.ErrBotDown
+		} else {
+			text := strings.TrimSpace(c.PostForm("text"))
+			if text == "" || len([]rune(text)) > 4000 {
+				err = common.NewError("broadcast text is empty or too long")
+			} else {
+				aud := strings.TrimSpace(c.PostForm("audience"))
+				if aud == "all" {
+					aud = ""
+				}
+				var ids []int64
+				ids, err = s.AudienceTargets(aud, time.Now())
+				if err == nil {
+					sent, failed := service.ShopBroadcaster(ids, text)
+					jsonMsgObj(c, "save", map[string]any{"sent": sent, "failed": failed, "total": len(ids)}, nil)
 					return
 				}
 			}

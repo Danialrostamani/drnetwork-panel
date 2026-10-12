@@ -54,10 +54,47 @@ type ShopSettings struct {
 	// AutoDelete removes a shop service this many days after it expired; 0
 	// keeps them.
 	AutoDelete int `json:"autoDelete"`
+	// Welcome is the intro and tariff the customer sees on /start; "" uses
+	// the short shop title only.
+	Welcome string `json:"welcome"`
 }
 
+// DefaultShopWelcome is the shop window (features, prices, channel) until
+// the owner edits it. Buying still uses the plans, not this text.
+const DefaultShopWelcome = `🎉 <b>تعرفه‌ها (Multi-Location)</b> 🌍
+
+📊 <b>لیست قیمت اشتراک‌ها:</b>
+
+🌱 <b>پلن‌های اقتصادی</b>
+🔹 <b>۱۰ گیگ:</b> ۴۶ هزار تومان
+🔹 <b>۲۰ گیگ:</b> ۸۶ هزار تومان
+🔹 <b>۳۰ گیگ:</b> ۱۲۶ هزار تومان
+
+🔥 <b>پلن محبوب</b>
+🔹 <b>۵۰ گیگ:</b> ۱۹۶ هزار تومان
+
+👑 <b>پلن‌های طلایی</b>
+🔹 <b>۱۰۰ گیگ:</b> ۳۶۸ هزار تومان
+🔹 <b>۲۰۰ گیگ:</b> ۶۹۰ هزار تومان
+🔹 <b>۳۰۰ گیگ:</b> ۹۷۸ هزار تومان
+
+💎 <b>پلن‌های ویژه (حجم بالا - فوق‌العاده به‌صرفه)</b>
+🔹 <b>۵۰۰ گیگ:</b> ۱ میلیون و ۳۰۰ هزار تومان
+🔹 <b>۱ ترابایت (۱۰۰۰ گیگ):</b> ۲ میلیون و ۴۰۰ هزار تومان
+
+✨ <b>امکانات و ویژگی‌های اشتراک شما:</b>
+🌍 <b>۵ لوکیشن همزمان در یک اکانت:</b> آمریکا 🇺🇸 | آلمان🇩🇪 | هلند🇳🇱 | فرانسه 🇫🇷 | ترکیه🇹🇷
+🇮🇷 <b>تفکیک ترافیک ایران و خارج</b>
+🛡 <b>حذف تبلیغات تا ۹۷٪</b>
+🎬 <b>حذف تبلیغات یوتیوب</b>
+⏳ <b>بدون محدودیت زمانی و کاربر</b>
+⚡️ <b>پشتیبانی از IPv6</b>
+
+🔗 <b>عضویت در کانال:</b> https://t.me/DrNetWorkSingBox
+📩 <a href="https://t.me/DrNetWorkSingBox?direct"><b>ارتباط با پشتیبانی و سفارش</b></a>`
+
 var shopSettingKeys = []string{"shopEnable", "shopCard", "shopCurrency", "shopTrial", "shopRefPercent", "shopSupport", "shopPrefix",
-	"shopUniqueAmount", "shopSmsSecret", "shopSmsRial", "shopAutoRenew", "shopChannel", "shopMaintenance", "shopAutoDelete"}
+	"shopUniqueAmount", "shopSmsSecret", "shopSmsRial", "shopAutoRenew", "shopChannel", "shopMaintenance", "shopAutoDelete", "shopWelcome"}
 
 // IsShopSetting tells the settings that belong to the shop.
 func IsShopSetting(key string) bool {
@@ -174,6 +211,10 @@ func CheckShopSetting(key, value string) error {
 		if err != nil || n < 0 || n > 3650 {
 			return errors.New("days must be 0 (off) to 3650")
 		}
+	case "shopWelcome":
+		if len([]rune(value)) > 4000 {
+			return errors.New("too long")
+		}
 	case "shopCurrency":
 		if len(value) > 30 {
 			return errors.New("too long")
@@ -209,6 +250,7 @@ func (s *ShopService) Settings() ShopSettings {
 	out.Maintenance = strings.TrimSpace(get("shopMaintenance"))
 	out.AutoDelete, _ = strconv.Atoi(strings.TrimSpace(get("shopAutoDelete")))
 	out.AutoDelete = max(min(out.AutoDelete, 3650), 0)
+	out.Welcome = strings.TrimSpace(get("shopWelcome"))
 	if !shopPrefixRe.MatchString(out.Prefix) {
 		out.Prefix = "u"
 	}
@@ -264,6 +306,14 @@ func checkPlan(p *model.ShopPlan) error {
 	}
 	if p.Volume < 0 || p.Days < 0 || p.Days > 3650 || p.Price < 0 || p.LimitIp < 0 || p.LimitIp > 1000 {
 		return errors.New("bad plan numbers")
+	}
+	p.Category = strings.TrimSpace(p.Category)
+	p.Desc = strings.TrimSpace(p.Desc)
+	if len([]rune(p.Category)) > 40 {
+		return errors.New("category: at most 40 characters")
+	}
+	if len([]rune(p.Desc)) > 500 {
+		return errors.New("plan description: at most 500 characters")
 	}
 	return nil
 }
@@ -720,6 +770,12 @@ func (s *ShopService) Stats(loc *time.Location, days int) (*ShopStats, error) {
 // ShopDecider approves (true) or rejects a pending order through the running
 // Telegram bot, which delivers it and tells the customer. The bot sets it.
 var ShopDecider func(id uint, approve bool) (string, error)
+
+// ShopTicketNotify delivers a panel answer (or a close) to the customer.
+var ShopTicketNotify func(tk *model.ShopTicket, answer string, closed bool)
+
+// ShopBroadcaster sends a panel broadcast and reports how many went out.
+var ShopBroadcaster func(ids []int64, text string) (sent, failed int)
 
 // ErrBotDown is returned when an order needs the bot and it is not running.
 var ErrBotDown = errors.New("the Telegram bot is not running")

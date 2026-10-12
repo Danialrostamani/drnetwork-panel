@@ -56,6 +56,8 @@ func Start(configService *service.ConfigService) {
 	managerCancel, managerDone = cancel, done
 	service.ShopDecider = decideFromPanel
 	service.ShopSmsApproved = smsApproved
+	service.ShopTicketNotify = notifyTicketFromPanel
+	service.ShopBroadcaster = broadcastFromPanel
 	go func() {
 		defer close(done)
 		supervise(ctx, configService)

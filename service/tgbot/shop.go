@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -232,11 +233,59 @@ type fromUser struct {
 	FirstName, LastName, Username string
 }
 
+var (
+	mdLink   = regexp.MustCompile(`\[([^\]]+)\]\((https?://[^)\s]+)\)`)
+	welcomeA = regexp.MustCompile(`(?i)^<a\s+href="(https?://[^"]+)"\s*>$`)
+)
+
+// welcomeHTML keeps a small set of Telegram HTML tags in the shop intro and
+// escapes the rest, so an owner can paste the channel post.
+func welcomeHTML(s string) string {
+	s = strings.ReplaceAll(strings.TrimSpace(s), "\r\n", "\n")
+	s = mdLink.ReplaceAllString(s, `<a href="$2">$1</a>`)
+	var b strings.Builder
+	rest := s
+	for {
+		loc := htmlTag.FindStringIndex(rest)
+		if loc == nil {
+			b.WriteString(esc(rest))
+			break
+		}
+		b.WriteString(esc(rest[:loc[0]]))
+		if w := allowedWelcomeTag(rest[loc[0]:loc[1]]); w != "" {
+			b.WriteString(w)
+		} else {
+			b.WriteString(esc(rest[loc[0]:loc[1]]))
+		}
+		rest = rest[loc[1]:]
+	}
+	return b.String()
+}
+
+func allowedWelcomeTag(tag string) string {
+	low := strings.ToLower(strings.TrimSpace(tag))
+	switch low {
+	case "<b>", "</b>", "<strong>", "</strong>", "<i>", "</i>", "<em>", "</em>",
+		"<u>", "</u>", "<s>", "</s>", "<code>", "</code>", "<pre>", "</pre>", "</a>":
+		return low
+	case "<br>", "<br/>", "<br />":
+		return "\n"
+	}
+	if m := welcomeA.FindStringSubmatch(low); len(m) == 2 {
+		return `<a href="` + m[1] + `">`
+	}
+	return ""
+}
+
 func (b *bot) shopHome(id int64) (string, [][]button) {
 	st := b.shopSvc().Settings()
 	sh := b.shopperOf(id)
 	t := b.tr
-	lines := []string{"🛍 <b>" + t("فروشگاه", "Shop") + "</b>"}
+	var lines []string
+	if w := strings.TrimSpace(st.Welcome); w != "" {
+		lines = append(lines, welcomeHTML(w), "")
+	}
+	lines = append(lines, "🛍 <b>"+t("فروشگاه", "Shop")+"</b>")
 	if !st.Enable {
 		lines = append(lines, t("🔴 فروش فعلا بسته است؛ به‌زودی باز می‌شود.", "🔴 Sales are closed for now; back soon."))
 	}
@@ -717,6 +766,13 @@ func (b *bot) plansIn(from int64, clientID uint, cat int) (string, [][]button) {
 	for _, p := range plans {
 		_, paid := service.Price(p.Price, sh.percent, 0)
 		lines = append(lines, "• <b>"+esc(p.Name)+"</b> — "+b.planLine(p)+" — "+b.money(paid))
+		if d := strings.TrimSpace(p.Desc); d != "" {
+			runes := []rune(d)
+			if len(runes) > 80 {
+				d = string(runes[:80]) + "…"
+			}
+			lines = append(lines, "<i>"+esc(d)+"</i>")
+		}
 		kb = append(kb, []button{{Text: p.Name + " · " + b.money(paid), Data: fmt.Sprintf("p:plan:%d:%d", p.Id, clientID)}})
 	}
 	return strings.Join(lines, "\n"), append(kb, back)
@@ -752,6 +808,13 @@ func (b *bot) addonScreen(from int64, clientID uint) (string, [][]button) {
 	for _, p := range packs {
 		_, paid := service.Price(p.Price, sh.percent, 0)
 		lines = append(lines, "• <b>"+esc(p.Name)+"</b> — "+b.planLine(p)+" — "+b.money(paid))
+		if d := strings.TrimSpace(p.Desc); d != "" {
+			runes := []rune(d)
+			if len(runes) > 80 {
+				d = string(runes[:80]) + "…"
+			}
+			lines = append(lines, "<i>"+esc(d)+"</i>")
+		}
 		kb = append(kb, []button{{Text: p.Name + " · " + b.money(paid), Data: fmt.Sprintf("p:plan:%d:%d", p.Id, clientID)}})
 	}
 	return strings.Join(lines, "\n"), append(kb, b.homeRow())
@@ -831,6 +894,9 @@ func (b *bot) planScreen(from int64, planID, clientID uint) (string, [][]button)
 	}
 	p, _ := b.shopSvc().Plan(planID)
 	lines := []string{"📦 <b>" + esc(p.Name) + "</b>", b.planLine(*p)}
+	if d := strings.TrimSpace(p.Desc); d != "" {
+		lines = append(lines, esc(d))
+	}
 	back := fmt.Sprintf("p:plans:%d", clientID)
 	switch o.Kind {
 	case model.OrderRenew:

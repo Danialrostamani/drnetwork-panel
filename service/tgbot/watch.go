@@ -383,7 +383,12 @@ func (b *bot) checkClients(ctx context.Context, reported map[string]bool) {
 		if owner.TgId != 0 && !b.isAdmin(owner.TgId) {
 			var kb [][]button
 			if b.shopServes(owner.TgId) {
-				kb = [][]button{{{Text: b.tr("🔄 تمدید سریع", "🔄 Quick renew"), Data: "p:plans:" + strconv.FormatUint(uint64(owner.Id), 10)}}}
+				id := strconv.FormatUint(uint64(owner.Id), 10)
+				row := []button{{Text: b.tr("🔄 تمدید سریع", "🔄 Quick renew"), Data: "p:plans:" + id}}
+				if owner.Volume > 0 && len(b.addonPlans()) > 0 {
+					row = append(row, button{Text: b.tr("➕ حجم اضافه", "➕ Extra volume"), Data: "p:addon:" + id})
+				}
+				kb = [][]button{row}
 			}
 			b.sendKeyboard(ctx, owner.TgId, b.t("userAlertTitle", esc(owner.Name))+"\n"+reason, kb)
 		}

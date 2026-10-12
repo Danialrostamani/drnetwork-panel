@@ -23,6 +23,13 @@
     <v-tab value="wallets">
       {{ $t('shop.wallets') }}
     </v-tab>
+    <v-tab value="tickets">
+      {{ $t('shop.tickets') }}
+      <span v-if="(data?.openTickets ?? 0) > 0">({{ data?.openTickets }})</span>
+    </v-tab>
+    <v-tab value="customers">
+      {{ $t('shop.customers') }}
+    </v-tab>
     <v-tab value="settings">
       {{ $t('pages.settings') }}
     </v-tab>
@@ -497,6 +504,112 @@
       </v-row>
     </v-window-item>
 
+    <v-window-item value="tickets">
+      <v-data-table
+        :headers="ticketHeaders"
+        :items="data?.tickets ?? []"
+        density="compact"
+        item-value="id"
+      >
+        <template #item.status="{ item }">
+          <v-chip
+            size="small"
+            :color="ticketColor(item.status)"
+            label
+          >
+            {{ ticketStatus(item.status) }}
+          </v-chip>
+        </template>
+        <template #item.updatedAt="{ item }">
+          {{ date(item.updatedAt) }}
+        </template>
+        <template #item.actions="{ item }">
+          <v-btn
+            size="small"
+            variant="text"
+            @click="openTicket(item)"
+          >
+            {{ $t('actions.edit') }}
+          </v-btn>
+        </template>
+      </v-data-table>
+    </v-window-item>
+
+    <v-window-item value="customers">
+      <v-card
+        variant="outlined"
+        class="mb-4"
+        :title="$t('shop.broadcast')"
+      >
+        <v-card-text>
+          <p class="text-caption mb-2">
+            {{ $t('shop.broadcastHint') }}
+          </p>
+          <v-select
+            v-model="broadcast.audience"
+            :items="audienceItems"
+            :label="$t('shop.audience')"
+            density="compact"
+            class="mb-2"
+          />
+          <v-textarea
+            v-model="broadcast.text"
+            :label="$t('shop.broadcastText')"
+            rows="3"
+            auto-grow
+            class="mb-2"
+          />
+          <v-btn
+            color="primary"
+            :disabled="!broadcast.text.trim()"
+            @click="sendBroadcast"
+          >
+            {{ $t('shop.broadcastSend') }}
+          </v-btn>
+        </v-card-text>
+      </v-card>
+      <v-text-field
+        v-model="userQuery"
+        :label="$t('shop.searchUsers')"
+        density="compact"
+        clearable
+        class="mb-3"
+        @keyup.enter="searchUsers"
+      />
+      <v-data-table
+        :headers="userHeaders"
+        :items="users"
+        density="compact"
+        item-value="tgId"
+      >
+        <template #item.username="{ item }">
+          <span dir="ltr">{{ item.username ? '@' + item.username : '—' }}</span>
+        </template>
+        <template #item.blocked="{ item }">
+          <v-chip
+            v-if="item.blocked"
+            size="small"
+            color="error"
+            label
+          >
+            {{ $t('shop.blocked') }}
+          </v-chip>
+        </template>
+        <template #item.seenAt="{ item }">
+          {{ item.seenAt ? date(item.seenAt) : '—' }}
+        </template>
+        <template #item.actions="{ item }">
+          <v-btn
+            size="small"
+            variant="text"
+            @click="openUser(item.tgId)"
+          >
+            {{ $t('actions.edit') }}
+          </v-btn>
+        </template>
+      </v-data-table>
+    </v-window-item>
+
     <v-window-item value="settings">
       <v-card
         variant="outlined"
@@ -510,6 +623,15 @@
             density="compact"
             :hint="$t('shop.enableHint')"
             persistent-hint
+          />
+          <v-textarea
+            v-model="settings.shopWelcome"
+            :label="$t('shop.welcome')"
+            :hint="$t('shop.welcomeHint')"
+            persistent-hint
+            rows="8"
+            auto-grow
+            class="mt-3 mb-2"
           />
           <v-textarea
             v-model="settings.shopCard"
@@ -689,6 +811,15 @@
           color="primary"
           density="compact"
         />
+        <v-textarea
+          v-model="plan.desc"
+          :label="$t('shop.planDesc')"
+          :hint="$t('shop.planDescHint')"
+          persistent-hint
+          rows="2"
+          auto-grow
+          class="mb-2"
+        />
         <v-switch
           v-model="plan.addon"
           :label="$t('shop.addon')"
@@ -835,6 +966,77 @@
       </v-card-actions>
     </v-card>
   </v-dialog>
+  <v-dialog
+    v-model="ticketDialog"
+    max-width="640"
+  >
+    <v-card :title="ticketTitle">
+      <v-card-text>
+        <div
+          v-for="m in ticketMsgs"
+          :key="m.id"
+          class="mb-3"
+        >
+          <div class="text-caption">
+            {{ m.answer ? $t('shop.ticketAnswer') : $t('shop.customer') }}
+            · {{ date(m.createdAt) }}
+          </div>
+          <div class="sms-text">
+            {{ m.text || m.kind }}
+          </div>
+        </div>
+        <v-textarea
+          v-if="ticket && ticket.status !== 'closed'"
+          v-model="ticketAnswer"
+          :label="$t('shop.ticketAnswer')"
+          rows="3"
+          auto-grow
+        />
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer />
+        <v-btn @click="ticketDialog = false">
+          {{ $t('actions.close') }}
+        </v-btn>
+        <v-btn
+          v-if="ticket && ticket.status !== 'closed'"
+          @click="closeTicket"
+        >
+          {{ $t('shop.ticketClosed') }}
+        </v-btn>
+        <v-btn
+          v-if="ticket && ticket.status !== 'closed'"
+          color="primary"
+          :disabled="!ticketAnswer.trim()"
+          @click="answerTicket"
+        >
+          {{ $t('shop.ticketAnswer') }}
+        </v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+
+  <v-dialog
+    v-model="userDialog"
+    max-width="560"
+  >
+    <v-card :title="userTitle">
+      <v-card-text>
+        <div v-if="userInfo">
+          <div>{{ $t('shop.tgId') }}: <span dir="ltr">{{ userInfo.user.tgId }}</span></div>
+          <div>{{ $t('shop.balance') }}: {{ money(userInfo.balance) }}</div>
+          <div>{{ $t('shop.spent') }}: {{ money(userInfo.summary.spent) }} · {{ $t('shop.orders') }}: {{ userInfo.summary.orders }}</div>
+          <div>{{ $t('shop.tickets') }}: {{ userInfo.summary.tickets }}</div>
+        </div>
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer />
+        <v-btn @click="userDialog = false">
+          {{ $t('actions.close') }}
+        </v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
 </template>
 
 <script lang="ts" setup>
@@ -848,7 +1050,7 @@ import Clipboard from 'clipboard'
 import { push } from 'notivue'
 import { i18n, locale } from '@/locales'
 import { barOptions, chartColors } from '@/components/node/charts'
-import type { ShopData, ShopOrder, ShopPlan, ShopDiscount, ShopSms } from '@/types/shop'
+import type { ShopData, ShopOrder, ShopPlan, ShopDiscount, ShopSms, ShopTicket, ShopTicketMsg, ShopUser } from '@/types/shop'
 
 const GIB = 1024 * 1024 * 1024
 const theme = useTheme()
@@ -968,17 +1170,17 @@ const decide = async (id: number, approve: boolean) => {
 }
 
 const planDialog = ref(false)
-const plan = ref({ id: 0, name: '', gb: 0, days: 30, price: 0, limitIp: 0, group: '', sort: 0, enable: true, category: '', addon: false })
+const plan = ref({ id: 0, name: '', gb: 0, days: 30, price: 0, limitIp: 0, group: '', sort: 0, enable: true, category: '', desc: '', addon: false })
 const planCategories = computed(() => [...new Set((data.value?.plans ?? []).map(p => (p.category ?? '').trim()).filter(c => c !== ''))])
 const editPlan = (p: ShopPlan | null) => {
   plan.value = p
-    ? { id: p.id, name: p.name, gb: Math.round(p.volume / GIB * 100) / 100, days: p.days, price: p.price, limitIp: p.limitIp, group: p.group, sort: p.sort, enable: p.enable, category: p.category ?? '', addon: !!p.addon }
-    : { id: 0, name: '', gb: 0, days: 30, price: 0, limitIp: 0, group: '', sort: 0, enable: true, category: '', addon: false }
+    ? { id: p.id, name: p.name, gb: Math.round(p.volume / GIB * 100) / 100, days: p.days, price: p.price, limitIp: p.limitIp, group: p.group, sort: p.sort, enable: p.enable, category: p.category ?? '', desc: p.desc ?? '', addon: !!p.addon }
+    : { id: 0, name: '', gb: 0, days: 30, price: 0, limitIp: 0, group: '', sort: 0, enable: true, category: '', desc: '', addon: false }
   planDialog.value = true
 }
 const savePlan = async () => {
   const p = plan.value
-  const body: ShopPlan = { id: p.id, name: p.name, volume: Math.round((Number(p.gb) || 0) * GIB), days: Number(p.days) || 0, price: Number(p.price) || 0, limitIp: Number(p.limitIp) || 0, group: p.group, sort: Number(p.sort) || 0, enable: p.enable, category: p.addon ? '' : (p.category ?? '').trim(), addon: p.addon }
+  const body: ShopPlan = { id: p.id, name: p.name, volume: Math.round((Number(p.gb) || 0) * GIB), days: Number(p.days) || 0, price: Number(p.price) || 0, limitIp: Number(p.limitIp) || 0, group: p.group, sort: Number(p.sort) || 0, enable: p.enable, category: p.addon ? '' : (p.category ?? '').trim(), desc: (p.desc ?? '').trim(), addon: p.addon }
   if (await post('plan', { data: JSON.stringify(body) })) planDialog.value = false
 }
 
@@ -1081,6 +1283,86 @@ const autoRenew = boolSetting('shopAutoRenew')
 const wallet = ref({ tgId: '', amount: '', note: '' })
 const reseller = ref({ tgId: '', percent: '0' })
 const block = ref({ tgId: '', blocked: true })
+
+const ticketHeaders = computed(() => [
+  { title: '#', key: 'id' },
+  { title: t('shop.tgId'), key: 'tgId' },
+  { title: t('shop.subject'), key: 'subject' },
+  { title: t('shop.state'), key: 'status' },
+  { title: t('shop.date'), key: 'updatedAt' },
+  { title: '', key: 'actions', sortable: false },
+])
+const ticketColor = (s: string) => ({ open: 'warning', answered: 'success', closed: 'grey' } as Record<string, string>)[s] ?? 'grey'
+const ticketStatus = (s: string) => t('shop.ticket' + s.charAt(0).toUpperCase() + s.slice(1))
+const ticketDialog = ref(false)
+const ticket = ref<ShopTicket | null>(null)
+const ticketMsgs = ref<ShopTicketMsg[]>([])
+const ticketAnswer = ref('')
+const ticketTitle = computed(() => ticket.value ? ('#' + ticket.value.id + ' · ' + ticket.value.subject) : t('shop.tickets'))
+const openTicket = async (row: ShopTicket) => {
+  ticket.value = row
+  ticketAnswer.value = ''
+  ticketDialog.value = true
+  const msg = await HttpUtils.post<ShopTicketMsg[]>('api/shop', { obj: 'ticketMsgs', id: row.id })
+  ticketMsgs.value = msg.success && msg.obj ? msg.obj : []
+}
+const answerTicket = async () => {
+  if (!ticket.value) return
+  if (await post('ticketAnswer', { id: ticket.value.id, text: ticketAnswer.value })) {
+    ticketDialog.value = false
+  }
+}
+const closeTicket = async () => {
+  if (!ticket.value) return
+  if (await post('ticketClose', { id: ticket.value.id })) ticketDialog.value = false
+}
+
+const userQuery = ref('')
+const users = computed(() => data.value?.users ?? [])
+const userHeaders = computed(() => [
+  { title: t('shop.tgId'), key: 'tgId' },
+  { title: t('shop.customer'), key: 'name' },
+  { title: t('shop.username'), key: 'username' },
+  { title: t('shop.seen'), key: 'seenAt' },
+  { title: t('shop.blocked'), key: 'blocked' },
+  { title: '', key: 'actions', sortable: false },
+])
+const audienceItems = computed(() => {
+  const items = [
+    { title: t('shop.audienceAll'), value: 'all' },
+    { title: t('shop.audienceBuyers'), value: 'buyers' },
+    { title: t('shop.audienceNever'), value: 'never' },
+    { title: t('shop.audienceIdle30'), value: 'idle30' },
+    { title: t('shop.audienceActive'), value: 'active' },
+    { title: t('shop.audienceExpired'), value: 'expired' },
+  ]
+  for (const g of data.value?.groups ?? []) {
+    items.push({ title: t('shop.group') + ' ' + g, value: 'group:' + g })
+  }
+  for (const n of data.value?.nodes ?? []) {
+    items.push({ title: n.name, value: 'node:' + n.id })
+  }
+  return items
+})
+const broadcast = ref({ audience: 'all', text: '' })
+const sendBroadcast = async () => {
+  if (await post('broadcast', { audience: broadcast.value.audience, text: broadcast.value.text })) {
+    broadcast.value.text = ''
+  }
+}
+const searchUsers = async () => {
+  const q = userQuery.value.trim()
+  const msg = await HttpUtils.post<ShopUser[]>('api/shop', { obj: 'users', query: q })
+  if (msg.success && msg.obj && data.value) data.value.users = msg.obj
+}
+const userDialog = ref(false)
+const userInfo = ref<{ user: ShopUser, summary: { orders: number, spent: number, tickets: number }, balance: number } | null>(null)
+const userTitle = computed(() => userInfo.value?.user.name || t('shop.customers'))
+const openUser = async (tgId: number) => {
+  const msg = await HttpUtils.post<{ user: ShopUser, summary: { orders: number, spent: number, tickets: number }, balance: number }>('api/shop', { obj: 'user', tgId })
+  userInfo.value = msg.success && msg.obj ? msg.obj : null
+  userDialog.value = true
+}
 
 const saveSettings = async () => {
   const s = { ...settings.value, shopEnable: String(settingOn.value) }

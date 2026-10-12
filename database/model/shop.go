@@ -19,6 +19,8 @@ type ShopPlan struct {
 	// Category groups the plans in the bot's shop (volume, unlimited, VIP…);
 	// "" is none.
 	Category string `json:"category"`
+	// Desc is an optional extra line on the plan in the bot.
+	Desc string `json:"desc"`
 	// Addon makes the plan an extra pack for a service the customer has: its
 	// volume is added to the service's, and its days, if any, extend it;
 	// the usage is not reset.

@@ -13,6 +13,7 @@ export interface ShopPlan {
   // category groups the plans in the bot; addon makes an extra pack for a
   // service the customer has.
   category: string
+  desc: string
   addon: boolean
 }
 
@@ -96,6 +97,39 @@ export interface ShopStats {
   topPlans: { name: string, orders: number, revenue: number }[]
 }
 
+export interface ShopUser {
+  tgId: number
+  name: string
+  username: string
+  referredBy: number
+  trialAt: number
+  joinedAt: number
+  seenAt: number
+  blocked: boolean
+  gone: boolean
+  resellerPercent: number
+}
+
+export interface ShopTicket {
+  id: number
+  tgId: number
+  status: 'open' | 'answered' | 'closed'
+  subject: string
+  createdAt: number
+  updatedAt: number
+}
+
+export interface ShopTicketMsg {
+  id: number
+  ticketId: number
+  fromTg: number
+  answer: boolean
+  kind: string
+  text: string
+  fileId: string
+  createdAt: number
+}
+
 export interface ShopData {
   stats: ShopStats
   plans: ShopPlan[]
@@ -103,4 +137,9 @@ export interface ShopData {
   orders: ShopOrder[]
   sms: ShopSms[]
   settings: Record<string, string>
+  tickets: ShopTicket[]
+  users: ShopUser[]
+  groups: string[]
+  nodes: { id: number, name: string }[]
+  openTickets: number
 }
