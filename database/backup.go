@@ -79,6 +79,11 @@ func GetDb(exclude string) ([]byte, error) {
 		}
 	}
 
+	// Drop this machine's IPs so a restore on another server does not keep them.
+	if err := scrubPanelHost(backupDb); err != nil {
+		return nil, common.NewErrorf("stripping this server's address from the backup: %v", err)
+	}
+
 	// Fold the WAL in, or the bytes read below miss whatever is still in it.
 	if err = backupDb.Exec("PRAGMA wal_checkpoint(TRUNCATE);").Error; err != nil {
 		return nil, err
@@ -161,6 +166,9 @@ func ImportDB(file multipart.File) error {
 	if err = InitDB(dbPath); err != nil {
 		restoreFallback(dbPath, fallbackPath)
 		return common.NewErrorf("Error initialising imported db: %v", err)
+	}
+	if err = fillPanelHost(db); err != nil {
+		logger.Warning("could not put this server's address into the restored database: ", err)
 	}
 
 	logger.Info("database imported; previous database kept at ", fallbackPath)
