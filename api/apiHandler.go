@@ -163,8 +163,6 @@ func (a *APIHandler) getHandler(c *gin.Context) {
 		a.ApiService.GetShop(c)
 	case "subUrl":
 		a.ApiService.GetSubUrl(c)
-	case "subNamePreview":
-		a.ApiService.GetSubNamePreview(c)
 	default:
 		jsonMsg(c, "failed", common.NewError("unknown action: ", action))
 	}

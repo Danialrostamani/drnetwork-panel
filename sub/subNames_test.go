@@ -32,19 +32,6 @@ func TestHeaderText(t *testing.T) {
 	}
 }
 
-func TestHeaderURL(t *testing.T) {
-	for in, want := range map[string]string{
-		"https://t.me/support":      "https://t.me/support",
-		"https://example.com/a b":   "https://example.com/a%20b",
-		"https://example.com/پ":     "https://example.com/%D9%BE",
-		"https://example.com/\r\nX": "https://example.com/%0D%0AX",
-	} {
-		if got := headerURL(in); got != want {
-			t.Errorf("headerURL(%q) = %q, want %q", in, got, want)
-		}
-	}
-}
-
 func TestParseLinkAndSetLinkName(t *testing.T) {
 	obj, _ := json.Marshal(map[string]interface{}{"v": "2", "add": "v.example.com", "port": "8443", "net": "tcp", "type": "http", "ps": "old"})
 	vmess := "vmess://" + base64.StdEncoding.EncodeToString(obj)
@@ -85,10 +72,7 @@ func TestSubscriptionNamesLinksAndSendsAppHeaders(t *testing.T) {
 	}
 	db := database.GetDB()
 	for k, v := range map[string]string{
-		"subNameTemplate": "{USER} | {PROTOCOL}-{NETWORK} | {NODE}",
-		"subAnnounce":     "تمدید تا جمعه",
-		"subSupportUrl":   "https://t.me/drnet support",
-		"subDomain":       "*.sub.example.com, sub2.example.com",
+		"subDomain": "*.sub.example.com, sub2.example.com",
 	} {
 		if err := db.Create(&model.Setting{Key: k, Value: v}).Error; err != nil {
 			t.Fatal(err)
@@ -143,10 +127,10 @@ func TestSubscriptionNamesLinksAndSendsAppHeaders(t *testing.T) {
 	if len(names) != 4 {
 		t.Fatalf("links: %q", names)
 	}
-	if names[0] != "alice | vless-ws" || names[1] == names[0] || !strings.HasPrefix(names[1], "alice | vless-ws") {
+	if names[0] != "in1-cdn" || names[1] != "in2" {
 		t.Errorf("local names %q %q", names[0], names[1])
 	}
-	if names[2] != "alice | trojan-tcp | de1" {
+	if names[2] != "[de1] in3" {
 		t.Errorf("node link name %q", names[2])
 	}
 	if names[3] != "hand made" {
@@ -154,21 +138,12 @@ func TestSubscriptionNamesLinksAndSendsAppHeaders(t *testing.T) {
 	}
 
 	h := w.Header()
-	if got := h.Get("Announce"); got != headerText("تمدید تا جمعه") {
-		t.Errorf("Announce %q", got)
-	}
-	if got := h.Get("Support-Url"); got != "https://t.me/drnet%20support" {
-		t.Errorf("Support-Url %q", got)
-	}
-	if got := h.Get("Profile-Web-Page-Url"); !strings.Contains(got, own) || !strings.HasSuffix(got, "/sub/alice") {
-		t.Errorf("Profile-Web-Page-Url %q", got)
+	for _, k := range []string{"Announce", "Support-Url", "Profile-Web-Page-Url"} {
+		if v := h.Get(k); v != "" {
+			t.Errorf("%s sent: %q", k, v)
+		}
 	}
 
-	// Off and empty send nothing.
-	db.Model(&model.Setting{}).Where("key IN ?", []string{"subAnnounce", "subSupportUrl"}).Update("value", "")
-	if err := db.Create(&model.Setting{Key: "subWebPage", Value: "false"}).Error; err != nil {
-		t.Fatal(err)
-	}
 	w = get("sub2.example.com")
 	if w.Code != 200 {
 		t.Fatalf("second domain: %d", w.Code)
@@ -187,9 +162,6 @@ func TestJSONAndClashUseTheClientsHostAndNames(t *testing.T) {
 		t.Fatal(err)
 	}
 	db := database.GetDB()
-	if err := db.Create(&model.Setting{Key: "subNameTemplate", Value: "{USER} {PROTOCOL}-{NETWORK}"}).Error; err != nil {
-		t.Fatal(err)
-	}
 	in := model.Inbound{Type: "vless", Tag: "in1",
 		Options: json.RawMessage(`{"listen_port":443,"transport":{"type":"ws","path":"/ws","headers":{"Host":"*.cdn.example.com"}}}`),
 		OutJson: json.RawMessage(`{"type":"vless","tag":"in1","server":"panel.example.com","server_port":443,"tls":{"enabled":true,"server_name":"*.cdn.example.com"},"transport":{"type":"ws","path":"/ws","headers":{"Host":"*.cdn.example.com"}}}`),
@@ -234,7 +206,7 @@ func TestJSONAndClashUseTheClientsHostAndNames(t *testing.T) {
 	if sni := d["tls"].(map[string]interface{})["server_name"]; sni != "*.cdn.example.com" {
 		t.Errorf("the direct address took the wildcard host: %v", sni)
 	}
-	if w["tag"] != "alice vless-ws" || d["tag"] == w["tag"] || !strings.HasPrefix(d["tag"].(string), "alice vless-ws") {
+	if w["tag"] != "in1-cdn" || d["tag"] != "in1-direct" {
 		t.Errorf("tags %v %v", w["tag"], d["tag"])
 	}
 
@@ -242,7 +214,7 @@ func TestJSONAndClashUseTheClientsHostAndNames(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(*clash, own) || !strings.Contains(*clash, "alice vless-ws") || strings.Contains(*clash, "server: '*.") || strings.Contains(*clash, "server: \"*.") {
+	if !strings.Contains(*clash, own) || !strings.Contains(*clash, "in1-cdn") || strings.Contains(*clash, "server: '*.") || strings.Contains(*clash, "server: \"*.") {
 		t.Errorf("clash config:\n%s", *clash)
 	}
 }

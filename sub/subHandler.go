@@ -100,17 +100,6 @@ func (s *SubHandler) addHeaders(c *gin.Context, headers []string) {
 	c.Writer.Header().Set("Profile-Update-Interval", headers[1])
 	c.Writer.Header().Set("Profile-Title", headerText(headers[2]))
 	c.Writer.Header().Set("Content-Disposition", contentDispositionHeader(headers[2]))
-	// What Happ and v2RayTun show with the subscription; nothing is sent for
-	// what is not set.
-	if announce := strings.TrimSpace(s.SettingService.GetSubAnnounce()); announce != "" {
-		c.Writer.Header().Set("Announce", headerText(announce))
-	}
-	if support := strings.TrimSpace(s.SettingService.GetSubSupportUrl()); support != "" {
-		c.Writer.Header().Set("Support-Url", headerURL(support))
-	}
-	if s.SettingService.GetSubWebPage() && s.SettingService.GetSubPage() {
-		c.Writer.Header().Set("Profile-Web-Page-Url", requestURL(c))
-	}
 }
 
 // headerText puts text into a header the way the apps read it: as it is when
@@ -128,23 +117,6 @@ func headerText(text string) string {
 		return text
 	}
 	return "base64:" + base64.StdEncoding.EncodeToString([]byte(text))
-}
-
-// headerURL escapes what a link may hold but a header may not.
-func headerURL(link string) string {
-	var b strings.Builder
-	const hex = "0123456789ABCDEF"
-	for i := 0; i < len(link); i++ {
-		c := link[i]
-		if c <= 0x20 || c >= 0x7f {
-			b.WriteByte('%')
-			b.WriteByte(hex[c>>4])
-			b.WriteByte(hex[c&0x0f])
-			continue
-		}
-		b.WriteByte(c)
-	}
-	return b.String()
 }
 
 func contentDispositionHeader(name string) string {

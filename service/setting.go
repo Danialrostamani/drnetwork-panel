@@ -99,10 +99,6 @@ var defaultValueMap = map[string]string{
 	"subClashNoDefGrp":   "false",
 	"subClashSprtAll":    "false",
 	"subClashUdp":        "false",
-	"subAnnounce":        "",
-	"subSupportUrl":      "",
-	"subWebPage":         "true",
-	"subNameTemplate":    "",
 	"webDecoyDir":        "",
 	"labelSecret":        common.Random(32),
 	"maintenance":        "false",
@@ -425,29 +421,6 @@ func (s *SettingService) GetSubPage() bool {
 
 func (s *SettingService) GetSubURI() (string, error) {
 	return s.getString("subURI")
-}
-
-// GetSubAnnounce is the message apps show above the subscription.
-func (s *SettingService) GetSubAnnounce() string {
-	v, _ := s.getString("subAnnounce")
-	return v
-}
-
-// GetSubSupportUrl is the support link apps offer with the subscription.
-func (s *SettingService) GetSubSupportUrl() string {
-	v, _ := s.getString("subSupportUrl")
-	return v
-}
-
-// GetSubWebPage tells whether apps are pointed at the account page.
-func (s *SettingService) GetSubWebPage() bool {
-	v, err := s.getBool("subWebPage")
-	return err != nil || v
-}
-
-// GetSubNameTemplate is the link name template; "" keeps the old names.
-func (s *SettingService) GetSubNameTemplate() (string, error) {
-	return s.getString("subNameTemplate")
 }
 
 // GetWebDecoyDir is the folder of the site shown outside the panel path.

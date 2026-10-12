@@ -115,18 +115,6 @@ func TestCheckNewSetting(t *testing.T) {
 		{"subDomain", "sub.example.com, *.sub.example.com", nil, true},
 		{"subDomain", "*.*.example.com", nil, false},
 		{"subDomain", "bad_domain!", nil, false},
-		{"subAnnounce", strings.Repeat("ب", 1000), nil, true},
-		{"subAnnounce", strings.Repeat("ب", 1001), nil, false},
-		{"subSupportUrl", "", nil, true},
-		{"subSupportUrl", "https://t.me/drnet", nil, true},
-		{"subSupportUrl", "tg://resolve?domain=drnet", nil, true},
-		{"subSupportUrl", "javascript:alert(1)", nil, false},
-		{"subSupportUrl", "https://x.example\r\nSet-Cookie: a=b", nil, false},
-		{"subWebPage", "false", nil, true},
-		{"subWebPage", "maybe", nil, false},
-		{"subNameTemplate", "", nil, true},
-		{"subNameTemplate", "{USER} {PROTOCOL}", nil, true},
-		{"subNameTemplate", "no variables", nil, false},
 		{"webDecoyDir", "", nil, true},
 		{"webDecoyDir", "relative/site", nil, false},
 		{"webDecoyDir", "/", nil, false},
@@ -144,10 +132,5 @@ func TestCheckNewSetting(t *testing.T) {
 		if err := checkNewSetting(db, c.key, c.value, all); (err == nil) != c.ok {
 			t.Errorf("%s=%q: err = %v", c.key, c.value, err)
 		}
-	}
-	// Save runs the checks.
-	payload, _ := json.Marshal(map[string]string{"subNameTemplate": "no variables"})
-	if err := (&SettingService{}).Save(db, payload); err == nil {
-		t.Fatal("Save took a template without variables")
 	}
 }

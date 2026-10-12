@@ -38,7 +38,6 @@ h1{font-size:1.3rem;margin:0 0 4px}.muted{color:var(--muted);font-size:.9rem}
     </div>
     {{if not .Unlimited}}<div class="bar"><i style="width:{{.Percent}}%"></i></div>{{end}}
   </div>
-  {{if .Announce}}<div class="card announce">{{.Announce}}</div>{{end}}
   <div class="card">
     <div class="muted">{{.T.link}}</div>
     <div class="link" id="link">{{.Link}}</div>
@@ -53,7 +52,7 @@ h1{font-size:1.3rem;margin:0 0 4px}.muted{color:var(--muted);font-size:.9rem}
       <div class="acts">{{if .Import}}<a class="btn" href="{{.Import}}">{{$.T.import}}</a>{{end}}<a class="btn alt" href="{{.Download}}" target="_blank" rel="noopener">{{$.T.download}}</a></div></div>
     {{end}}
   </div>
-  {{if or .Bot .Support}}<div class="card" style="text-align:center">{{if .Bot}}<a class="btn" href="{{.Bot}}" target="_blank" rel="noopener">{{.T.renew}}</a> {{end}}{{if .Support}}<a class="btn alt" href="{{.Support}}" target="_blank" rel="noopener">{{.T.support}}</a>{{end}}</div>{{end}}
+  {{if .Bot}}<div class="card" style="text-align:center"><a class="btn" href="{{.Bot}}" target="_blank" rel="noopener">{{.T.renew}}</a></div>{{end}}
 </div>
 <script>
 document.getElementById('copy').addEventListener('click', function () {

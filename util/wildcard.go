@@ -6,6 +6,10 @@ import (
 	"github.com/Danialrostamani/drnetwork-panel/util/hosts"
 )
 
+// WildcardLabel gives the per-client label of a wildcard address
+// ("*.cdn.example.com"). The service sets the keyed version at start.
+var WildcardLabel = func(base, name string) string { return hosts.Label(nil, base, name) }
+
 // An inbound address written as "*.cdn.example.com" gives every client a host
 // of its own under that name: "<label>.cdn.example.com", with a label only the
 // panel can work out. When one host is blocked, only one client loses it.

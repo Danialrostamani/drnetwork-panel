@@ -3,44 +3,22 @@ package service
 import (
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/Danialrostamani/drnetwork-panel/database/model"
-	"github.com/Danialrostamani/drnetwork-panel/util"
 	"github.com/Danialrostamani/drnetwork-panel/util/common"
 	"github.com/Danialrostamani/drnetwork-panel/util/hosts"
 
 	"gorm.io/gorm"
 )
 
-// checkNewSetting validates the settings added with the subscription headers,
-// the domain list, the link names and the decoy site. all is the whole form
-// being saved, for the checks that depend on another setting.
+// checkNewSetting validates the subscription domain list and the decoy site.
+// all is the whole form being saved, for the checks that depend on another setting.
 func checkNewSetting(tx *gorm.DB, key, value string, all map[string]string) error {
 	switch key {
 	case "subDomain":
 		if bad, err := hosts.CheckList(value); err != nil {
 			return common.NewError("subscription domain <", bad, ">: ", err)
-		}
-	case "subAnnounce":
-		if len([]rune(value)) > 1000 {
-			return common.NewError("the announcement is longer than 1000 characters")
-		}
-	case "subSupportUrl":
-		if value != "" && !strings.HasPrefix(value, "https://") && !strings.HasPrefix(value, "http://") && !strings.HasPrefix(value, "tg://") {
-			return common.NewError("the support link must start with https://, http:// or tg://")
-		}
-		if len(value) > 500 || strings.ContainsAny(value, "\r\n") {
-			return common.NewError("the support link is not a single short link")
-		}
-	case "subWebPage":
-		if _, err := strconv.ParseBool(value); err != nil {
-			return common.NewError("subWebPage must be true or false")
-		}
-	case "subNameTemplate":
-		if err := util.CheckNameTemplate(value); err != nil {
-			return err
 		}
 	case "webDecoyDir":
 		if value == "" {

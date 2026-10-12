@@ -6,18 +6,14 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/Danialrostamani/drnetwork-panel/database"
 	"github.com/Danialrostamani/drnetwork-panel/database/model"
-	"github.com/Danialrostamani/drnetwork-panel/service"
 	"github.com/Danialrostamani/drnetwork-panel/util"
 )
 
-// The link name template (subNameTemplate) names every link the panel makes
-// for a client -- its own inbounds and the replicas of node inbounds -- the
-// same way in the base64 list, the sing-box JSON and the Clash config.
-// Links added by hand and outside subscriptions keep their own names.
+// namer numbers outbound tags that would otherwise collide, the same way in
+// the base64 list, the sing-box JSON and the Clash config.
 
 // linkInfo is what a template knows of one link besides the client.
 type linkInfo struct {
@@ -33,23 +29,8 @@ func (l *linkInfo) as(protocol string) *linkInfo {
 	return &c
 }
 
-func (l *linkInfo) vars(client map[string]string) map[string]string {
-	v := make(map[string]string, len(client)+8)
-	for k, val := range client {
-		v[k] = val
-	}
-	v["INBOUND"], v["ROUTE"], v["NODE"] = l.inbound, l.route, l.node
-	v["PROTOCOL"], v["NETWORK"], v["SERVER"] = l.protocol, l.network, util.NormalizeHost(l.server)
-	if l.port > 0 {
-		v["PORT"] = strconv.Itoa(l.port)
-	}
-	return v
-}
-
 // namer hands out the names of one subscription.
 type namer struct {
-	tpl   string
-	vars  map[string]string
 	taken map[string]bool
 	// nodes are the names of the nodes, read when first needed: only links
 	// of a real node are the panel's to rename.
@@ -57,21 +38,10 @@ type namer struct {
 }
 
 func newNamer(c *model.Client) *namer {
-	ss := &service.SettingService{}
-	tpl, _ := ss.GetSubNameTemplate()
-	return newNamerWith(c, tpl)
+	return &namer{taken: map[string]bool{}}
 }
 
-func newNamerWith(c *model.Client, tpl string) *namer {
-	n := &namer{tpl: tpl, taken: map[string]bool{}}
-	if tpl != "" && c != nil {
-		loc, _ := (&service.SettingService{}).GetTimeLocation()
-		n.vars = util.ClientNameVars(c, time.Now(), loc)
-	}
-	return n
-}
-
-func (n *namer) active() bool { return n != nil && n.tpl != "" }
+func (n *namer) active() bool { return false }
 
 // reserve marks names the subscription uses for something else.
 func (n *namer) reserve(names ...string) {
@@ -94,15 +64,9 @@ func (n *namer) isNode(name string) bool {
 	return n.nodes[name]
 }
 
-// name is the name of a link: the template's when it gives one, otherwise
-// def. unique numbers a name that is already taken.
+// name is the name of a link. unique numbers a name that is already taken.
 func (n *namer) name(info *linkInfo, def string, unique bool) string {
 	out := def
-	if n.active() && info != nil {
-		if r := util.RenderName(n.tpl, info.vars(n.vars)); r != "" {
-			out = r
-		}
-	}
 	if unique {
 		out = uniqueOutboundTag(out, n.taken)
 	}
@@ -271,28 +235,4 @@ func (n *namer) infoForLink(link Link, clientRemark string) (*linkInfo, string) 
 	info.node, info.inbound = node, tag
 	info.route = routeOf(name, clientRemark, tag)
 	return info, name
-}
-
-// PreviewNames renders a template for the links of a client, the way its
-// base64 subscription would name them.
-func PreviewNames(c *model.Client, tpl string) ([]string, error) {
-	if err := util.CheckNameTemplate(tpl); err != nil {
-		return nil, err
-	}
-	n := newNamerWith(c, tpl)
-	var links []Link
-	if len(c.Links) > 0 {
-		if err := json.Unmarshal(c.Links, &links); err != nil {
-			return nil, err
-		}
-	}
-	out := []string{}
-	for _, l := range links {
-		info, def := n.infoForLink(l, c.Remark)
-		if info == nil {
-			continue
-		}
-		out = append(out, n.name(info, def, true))
-	}
-	return out, nil
 }
