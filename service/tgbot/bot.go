@@ -54,10 +54,6 @@ func Start(configService *service.ConfigService) {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	managerCancel, managerDone = cancel, done
-	service.ShopDecider = decideFromPanel
-	service.ShopSmsApproved = smsApproved
-	service.ShopTicketNotify = notifyTicketFromPanel
-	service.ShopBroadcaster = broadcastFromPanel
 	go func() {
 		defer close(done)
 		supervise(ctx, configService)
@@ -118,7 +114,6 @@ func (sv *supervisor) halt() {
 		sv.stop()
 		<-sv.done
 		sv.stop, sv.done, sv.running, sv.runCtx = nil, nil, nil, nil
-		running.Store(nil)
 	}
 }
 
@@ -137,7 +132,6 @@ func (sv *supervisor) apply(cfg botConfig) {
 			b := newBot(cfg)
 			b.configService = sv.configService
 			sv.running, sv.runCtx = b, botCtx
-			running.Store(&runningBot{b: b, ctx: botCtx})
 			go func() {
 				defer close(finished)
 				b.run(botCtx)
@@ -337,7 +331,6 @@ type bot struct {
 	loc           *time.Location
 	configService *service.ConfigService
 	pend          *pendingStore
-	members       *memberCache
 	menus         *menuState
 
 	// acc is who may do what. It is live: the supervisor and the owner's edits
@@ -371,13 +364,12 @@ func newBot(cfg botConfig) *bot {
 		loc = l
 	}
 	return &bot{
-		cfg:     cfg,
-		client:  &http.Client{Timeout: (pollTimeoutSeconds + 20) * time.Second, Transport: transport},
-		loc:     loc,
-		pend:    &pendingStore{},
-		members: &memberCache{},
-		menus:   &menuState{},
-		acc:     newAccessState(cfg.access()),
+		cfg:    cfg,
+		client: &http.Client{Timeout: (pollTimeoutSeconds + 20) * time.Second, Transport: transport},
+		loc:    loc,
+		pend:   &pendingStore{},
+		menus:  &menuState{},
+		acc:    newAccessState(cfg.access()),
 	}
 }
 
@@ -510,8 +502,6 @@ func (b *bot) run(ctx context.Context) {
 		logger.Warning("telegram bot: getMe failed (check the token and proxy): ", err)
 	} else {
 		logger.Info("telegram bot: running as @", me.Username)
-		botUsername.Store(me.Username)
-		service.BotUsername.Store(me.Username)
 	}
 	b.registerCommands(ctx)
 	go b.watch(ctx)

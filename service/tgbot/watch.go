@@ -3,7 +3,6 @@ package tgbot
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -31,7 +30,7 @@ func (b *bot) announce(ctx context.Context) {
 	for _, id := range b.access().order {
 		ab := b.as(id)
 		if _, kb := ab.menuScreen(); kb != nil {
-			ab.sendAdminMenu(ctx, id, b.t("started")+ab.shopClosedHint(), false)
+			ab.sendAdminMenu(ctx, id, b.t("started"), false)
 			continue
 		}
 		b.send(ctx, id, b.t("started"))
@@ -63,7 +62,7 @@ func (b *bot) watch(ctx context.Context) {
 	nodes := map[uint]*nodeWatch{}
 	reported := map[string]bool{}
 	core := &coreWatch{}
-	var lastClientCheck, lastAutoRenew, lastAutoDelete time.Time
+	var lastClientCheck time.Time
 	var report *reportSchedule
 	if b.cfg.Report != "" {
 		sched, err := service.CronParser.Parse(b.cfg.Report)
@@ -96,14 +95,6 @@ func (b *bot) watch(ctx context.Context) {
 		if report != nil && !time.Now().Before(report.next) {
 			report.next = report.sched.Next(time.Now().In(b.loc))
 			b.sendReport(ctx)
-		}
-		if time.Since(lastAutoRenew) >= autoRenewEvery {
-			lastAutoRenew = time.Now()
-			b.root().autoRenew(ctx, lastAutoRenew)
-		}
-		if time.Since(lastAutoDelete) >= autoDeleteEvery {
-			lastAutoDelete = time.Now()
-			b.root().autoDelete(ctx, lastAutoDelete)
 		}
 	}
 }
@@ -381,16 +372,7 @@ func (b *bot) checkClients(ctx context.Context, reported map[string]bool) {
 		fresh = append(fresh, clientAlert{owner.Group, fmt.Sprintf("• <b>%s</b> — %s", esc(owner.Name), reason)})
 		// A client bound to Telegram hears about its own limits directly.
 		if owner.TgId != 0 && !b.isAdmin(owner.TgId) {
-			var kb [][]button
-			if b.shopServes(owner.TgId) {
-				id := strconv.FormatUint(uint64(owner.Id), 10)
-				row := []button{{Text: b.tr("🔄 تمدید سریع", "🔄 Quick renew"), Data: "p:plans:" + id}}
-				if owner.Volume > 0 && len(b.addonPlans()) > 0 {
-					row = append(row, button{Text: b.tr("➕ حجم اضافه", "➕ Extra volume"), Data: "p:addon:" + id})
-				}
-				kb = [][]button{row}
-			}
-			b.sendKeyboard(ctx, owner.TgId, b.t("userAlertTitle", esc(owner.Name))+"\n"+reason, kb)
+			b.send(ctx, owner.TgId, b.t("userAlertTitle", esc(owner.Name))+"\n"+reason)
 		}
 	}
 	// The first check after the start only notes what is already over: those

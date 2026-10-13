@@ -53,7 +53,6 @@ var sectionDefs = []sectionDef{
 	{"core", "♻️", "هسته", "Core"},
 	{"backup", "💾", "پشتیبان", "Backup"},
 	{"admins", "👮", "مدیران", "Admins"},
-	{"shop", "🛒", "فروشگاه", "Shop"},
 }
 
 func sectionKnown(key string) bool {
@@ -384,12 +383,6 @@ func callbackSection(parts []string) string {
 			return "admins"
 		}
 		return secOwner
-	case "p":
-		// The shop's own screens: open to everybody, each handler checks
-		// who is asking (shopCallback).
-		return secNone
-	case "q":
-		return "shop"
 	case "u":
 		// A bound client's own buttons (their usage and subscription). They
 		// belong to no section: pressing one is checked against the client's
@@ -415,7 +408,6 @@ var commandSections = map[string]string{
 	"backup":   "backup",
 	"logs":     "logs",
 	"restart":  "core", "maintenance": "core",
-	"shop": "shop", "sales": "shop",
 }
 
 // pendingSection names the section a typed answer the bot waits for belongs to.
@@ -435,8 +427,6 @@ func pendingSection(p *pending) string {
 		return "routing"
 	case p.kind == "set":
 		return "settings"
-	case strings.HasPrefix(p.kind, "sh."):
-		return "shop"
 	}
 	return secDeny
 }

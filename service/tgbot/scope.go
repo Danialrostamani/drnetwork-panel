@@ -336,19 +336,7 @@ func (b *bot) scopedMenu() [][]button {
 		{{Text: b.tr("🏠 خانه", "🏠 Home"), Data: "h:home"}, {Text: b.tr("👥 کلاینت‌ها", "👥 Clients"), Data: "c:ls:a:0"}},
 		{{Text: b.tr("➕ کلاینت جدید", "➕ New client"), Data: "c:new"}, {Text: b.tr("🔵 آنلاین‌ها", "🔵 Online"), Data: "m:online"}},
 	}
-	if b.resellerButton() {
-		kb = append(kb, []button{{Text: b.tr("🛍 خرید (نمایندگی)", "🛍 Buy (reseller)"), Data: "p:home"}})
-	}
 	return kb
-}
-
-// resellerButton tells whether the menu offers buying as a reseller: with the
-// shop open, to administrators who manage clients.
-func (b *bot) resellerButton() bool {
-	if !b.shopSvc().Settings().Enable {
-		return false
-	}
-	return b.scope != "" || b.sections == nil || b.sections["clients"] || b.sections["shop"]
 }
 
 // scopedHomeText is the Home page of a limited administrator: their group's

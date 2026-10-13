@@ -17,29 +17,19 @@ type menuItem struct {
 	data   string
 }
 
-// Customer items open shop screens ("p:"), administrator items the panel's
-// sections; "k:" ones switch between the two keyboards.
 var menuItems = []menuItem{
-	{"🛒 خرید سرویس", "🛒 Buy a service", "p:plans:0"},
-	{"📦 سرویس‌های من", "📦 My services", "p:my"},
-	{"🔄 تمدید سرویس", "🔄 Renew", "p:renew"},
-	{"👛 کیف پول", "👛 Wallet", "p:wallet"},
-	{"🎁 تست رایگان", "🎁 Free trial", "p:trial"},
-	{"👥 دعوت دوستان", "👥 Invite friends", "p:ref"},
-	{"📚 آموزش اتصال", "📚 How to connect", "p:guide"},
-	{"💬 پشتیبانی", "💬 Support", "p:support"},
 	{"🏠 خانه", "🏠 Home", "h:home"},
 	{"📋 منوی اصلی", "📋 Main menu", "m:menu"},
 	{"👥 کلاینت‌ها", "👥 Clients", "c:ls:a:0"},
 	{"🖥 نودها", "🖥 Nodes", "o:nd:ls:0"},
-	{"🛒 مدیریت فروشگاه", "🛒 Shop admin", "q:menu"},
 	{"📊 آمار", "📊 Stats", "t:d1"},
-	{"🛍 نمای کاربر", "🛍 Customer view", "k:shop"},
-	{"🔙 پنل مدیریت", "🔙 Admin panel", "k:admin"},
 }
 
-// menuData is the callback a bottom-menu label stands for, in either
-// language: a keyboard sent before a language switch keeps working.
+type fromUser struct {
+	ID                            int64
+	FirstName, LastName, Username string
+}
+
 func menuData(text string) string {
 	text = strings.TrimSpace(text)
 	if text == "" {
@@ -62,42 +52,11 @@ func (b *bot) menuLabel(data string) string {
 	return data
 }
 
-// customerMenu is the bottom menu of the shop. An administrator in the
-// customer view also gets the way back to the panel.
-func (b *bot) customerMenu(id int64, admin bool) [][]string {
-	if !b.shopServes(id) {
-		rows := [][]string{{"p:my", "p:guide"}}
-		if strings.TrimSpace(b.shopSvc().Settings().Support) != "" {
-			rows = append(rows, []string{"p:support"})
-		}
-		return rows
-	}
-	st := b.shopSvc().Settings()
-	rows := [][]string{{"p:plans:0", "p:my"}, {"p:renew", "p:wallet"}}
-	var row []string
-	if !admin && (st.TrialGB > 0 || st.TrialDays > 0) {
-		if u := b.shopSvc().User(id); u == nil || u.TrialAt == 0 {
-			row = append(row, "p:trial")
-		}
-	}
-	if !admin && st.RefPercent > 0 {
-		row = append(row, "p:ref")
-	}
-	if len(row) > 0 {
-		rows = append(rows, row)
-	}
-	rows = append(rows, []string{"p:guide", "p:support"})
-	if admin {
-		rows = append(rows, []string{"k:admin"})
-	}
-	return rows
-}
-
 // adminMenu is the bottom menu of an administrator: the sections their role
 // opens.
 func (b *bot) adminMenu() [][]string {
 	var rows [][]string
-	for _, r := range [][]string{{"h:home", "m:menu"}, {"c:ls:a:0", "o:nd:ls:0"}, {"q:menu", "t:d1"}} {
+	for _, r := range [][]string{{"h:home", "m:menu"}, {"c:ls:a:0", "o:nd:ls:0"}, {"t:d1"}} {
 		var row []string
 		for _, d := range r {
 			if b.allowed(strings.Split(d, ":")) {
@@ -111,7 +70,7 @@ func (b *bot) adminMenu() [][]string {
 	if len(rows) == 0 {
 		rows = [][]string{{"m:menu"}}
 	}
-	return append(rows, []string{"k:shop"})
+	return rows
 }
 
 func (b *bot) replyMarkup(rows [][]string) map[string]any {
@@ -131,7 +90,6 @@ func (b *bot) replyMarkup(rows [][]string) map[string]any {
 	}
 }
 
-// sendMenu sends text with a bottom menu.
 func (b *bot) sendMenu(ctx context.Context, chatID int64, text string, rows [][]string) {
 	b.sendMarkup(ctx, chatID, text, b.replyMarkup(rows))
 }
@@ -143,28 +101,7 @@ type menuChat struct{}
 // menuPress runs the bottom-menu button with the given callback data. It
 // reports whether the text was a button for this person.
 func (b *bot) menuPress(ctx context.Context, chatID int64, from *fromUser, data string) bool {
-	admin := b.isAdmin(from.ID)
-	switch {
-	case data == "k:shop" || data == "k:admin":
-		if !admin {
-			return false
-		}
-		b.pend.clear(chatID)
-		if data == "k:shop" {
-			text, _ := b.shopHome(from.ID)
-			b.sendMenu(ctx, chatID, text, b.customerMenu(from.ID, true))
-			return true
-		}
-		b.sendAdminMenu(ctx, chatID, "🔐 <b>"+b.tr("پنل مدیریت", "Admin panel")+"</b>", false)
-		text, kb := b.menuScreen()
-		b.sendKeyboard(ctx, chatID, text, kb)
-		return true
-	case strings.HasPrefix(data, "p:"):
-		if !b.shopServes(from.ID) {
-			b.closedShopPress(ctx, chatID, from.ID, data)
-			return true
-		}
-	case !admin:
+	if !b.isAdmin(from.ID) {
 		return false
 	}
 	ctx = context.WithValue(ctx, menuChat{}, chatID)
@@ -172,28 +109,6 @@ func (b *bot) menuPress(ctx context.Context, chatID int64, from *fromUser, data 
 	return true
 }
 
-// closedShopPress answers the few buttons a blocked user keeps: their
-// services, the guide and the support contact.
-func (b *bot) closedShopPress(ctx context.Context, chatID, from int64, data string) {
-	switch data {
-	case "p:guide":
-		text, kb := b.guideScreen("")
-		b.sendKeyboard(ctx, chatID, text, kb)
-	case "p:support":
-		b.send(ctx, chatID, b.supportText())
-	case "p:my":
-		if bound := boundClients(from); len(bound) > 0 {
-			b.userCommand(ctx, chatID, bound, "usage")
-			return
-		}
-		b.send(ctx, chatID, b.tr("هنوز سرویسی ندارید.", "You have no services yet."))
-	default:
-		b.send(ctx, chatID, b.tr("فروشگاه فعال نیست.", "The shop is closed."))
-	}
-}
-
-// menuUpdate is the callback a bottom-menu button stands for, with no message
-// to edit: the answer goes in a new one.
 func menuUpdate(chatID, from int64, data string) update {
 	var u update
 	raw, _ := json.Marshal(map[string]any{"callback_query": map[string]any{
@@ -204,37 +119,10 @@ func menuUpdate(chatID, from int64, data string) update {
 	return u
 }
 
-// menuVersion grows with every change of the bottom menu: a customer with an
-// older one, or with none because they started the bot before it existed,
-// gets it once with their next message.
-const menuVersion = 1
-
-// menuState remembers, since the bot started, the customers checked for the
-// current bottom menu and the administrators who got theirs.
+// menuState remembers, since the bot started, the administrators who got
+// their bottom menu.
 type menuState struct {
-	customers, admins sync.Map
-}
-
-// refreshMenu sends a customer the current bottom menu if they do not have
-// it yet.
-func (b *bot) refreshMenu(ctx context.Context, chatID, from int64) {
-	if b.menus != nil {
-		if _, done := b.menus.customers.LoadOrStore(from, true); done {
-			return
-		}
-	}
-	if !b.shopSvc().TakeMenu(from, menuVersion) {
-		return
-	}
-	b.sendMenu(ctx, chatID, b.tr("📋 منوی ربات حالا پایین صفحه است.", "📋 The bot's menu is now at the bottom of the chat."), b.customerMenu(from, false))
-}
-
-// markMenu notes that a customer was just sent the current bottom menu.
-func (b *bot) markMenu(from int64) {
-	if b.menus != nil {
-		b.menus.customers.Store(from, true)
-	}
-	b.shopSvc().TakeMenu(from, menuVersion)
+	admins sync.Map
 }
 
 // sendAdminMenu sends an administrator their bottom menu with text; once
@@ -247,14 +135,4 @@ func (b *bot) sendAdminMenu(ctx context.Context, chatID int64, text string, once
 	}
 	b.sendMenu(ctx, chatID, text, b.adminMenu())
 	return true
-}
-
-// shopClosedHint tells an administrator who runs the shop that it is closed
-// and where to open it: until then a new user only hears that it is closed.
-func (b *bot) shopClosedHint() string {
-	if !b.can("shop") || b.shopSvc().Settings().Enable {
-		return ""
-	}
-	return "\n\n" + b.tr("🔴 فروش بسته است: کاربران همه بخش‌ها را می‌بینند ولی خرید، تمدید، شارژ و تست رایگان ندارند. برای باز کردن: «🛒 مدیریت فروشگاه» ← «🟢 باز کردن فروشگاه» (یا صفحه فروش پنل).",
-		"🔴 Sales are closed: users see every screen but cannot buy, renew, top up or take the trial. To open them: “🛒 Shop admin” → “🟢 Open the shop” (or the panel's Shop page).")
 }

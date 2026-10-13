@@ -38,7 +38,6 @@ export default {
     system: "Phòng bán",
   },
   pages: {
-    shop: "Bán hàng",
     nodes: "Node",
     login: "Đăng nhập",
     home: "Trang chủ",

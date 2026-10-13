@@ -115,21 +115,6 @@ var defaultValueMap = map[string]string{
 	"tgBotReport":        "",
 	"tgBotReportBackup":  "false",
 	"tgBotClientSort":    "asc",
-	"shopEnable":         "false",
-	"shopCard":           "",
-	"shopCurrency":       "",
-	"shopTrial":          "",
-	"shopRefPercent":     "0",
-	"shopSupport":        "",
-	"shopPrefix":         "u",
-	"shopUniqueAmount":   "0",
-	"shopSmsSecret":      "",
-	"shopSmsRial":        "true",
-	"shopAutoRenew":      "false",
-	"shopChannel":        "",
-	"shopMaintenance":    "",
-	"shopAutoDelete":     "0",
-	"shopWelcome":        DefaultShopWelcome,
 	"globalReset":        "",
 	"globalResetLast":    "0",
 	"config":             defaultConfig,
@@ -589,12 +574,6 @@ func (s *SettingService) Save(tx *gorm.DB, data json.RawMessage) error {
 	}
 	for key, obj := range settings {
 		if protectedSettings[key] {
-			continue
-		}
-		// The shop's settings belong to the Sales page, which checks them.
-		// The settings form posts back every key it loaded, and would put
-		// back an old value over one the Sales page or the bot saved since.
-		if IsShopSetting(key) {
 			continue
 		}
 		// An unknown key would UPDATE zero rows and report success. Rejecting

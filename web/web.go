@@ -140,9 +140,6 @@ func (s *Server) initRouter() (*gin.Engine, error) {
 	group_api := engine.Group(base_url+"api", middleware.SameOrigin())
 	api.NewAPIHandler(group_api, apiv2)
 
-	// The bank's deposit messages, from a forwarder app on the shop's phone.
-	engine.POST(base_url+"hook/sms/:secret", api.SmsHook)
-
 	// Outside the panel's path, the decoy site when one is set.
 	decoyDir := ""
 	if base_url != "/" {

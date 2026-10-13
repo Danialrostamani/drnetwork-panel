@@ -38,7 +38,6 @@ export default {
     system: "跟随系统",
   },
   pages: {
-    shop: "销售",
     nodes: "节点",
     login: "登录",
     home: "主页",

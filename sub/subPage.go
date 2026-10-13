@@ -12,7 +12,6 @@ import (
 
 	"github.com/Danialrostamani/drnetwork-panel/database"
 	"github.com/Danialrostamani/drnetwork-panel/database/model"
-	"github.com/Danialrostamani/drnetwork-panel/service"
 
 	"github.com/gin-gonic/gin"
 	"github.com/skip2/go-qrcode"
@@ -157,11 +156,6 @@ func (s *SubHandler) page(c *gin.Context, subID string) bool {
 		{"Streisand", "iOS · macOS", "https://apps.apple.com/app/streisand/id6450534064", template.URL("streisand://import/" + d.Link + "#" + name)},
 		{"v2rayN", "Windows · Linux · macOS", "https://github.com/2dust/v2rayN/releases/latest", ""},
 		{"NekoBox", "Android", "https://github.com/MatsuriDayo/NekoBoxForAndroid/releases/latest", template.URL("sn://subscription?url=" + q + "&name=" + name)},
-	}
-	if (&service.ShopService{}).Settings().Enable {
-		if bot, _ := service.BotUsername.Load().(string); bot != "" {
-			d.Bot = "https://t.me/" + bot + "?start=sub"
-		}
 	}
 	var buf bytes.Buffer
 	if err := subPageTmpl.Execute(&buf, d); err != nil {

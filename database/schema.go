@@ -37,17 +37,6 @@ func schema() []table {
 		{"node_metrics", &model.NodeMetric{}, copyRows[model.NodeMetric]},
 		{"node_outages", &model.NodeOutage{}, copyRows[model.NodeOutage]},
 		{"node_traffic", &model.NodeTraffic{}, copyRows[model.NodeTraffic]},
-		{"shop_plans", &model.ShopPlan{}, copyRows[model.ShopPlan]},
-		{"shop_orders", &model.ShopOrder{}, copyRows[model.ShopOrder]},
-		{"shop_wallets", &model.ShopWallet{}, copyRows[model.ShopWallet]},
-		{"shop_wallet_txs", &model.ShopWalletTx{}, copyRows[model.ShopWalletTx]},
-		{"shop_discounts", &model.ShopDiscount{}, copyRows[model.ShopDiscount]},
-		{"shop_users", &model.ShopUser{}, copyRows[model.ShopUser]},
-		{"shop_code_uses", &model.ShopCodeUse{}, copyRows[model.ShopCodeUse]},
-		{"shop_sms", &model.ShopSms{}, copyRows[model.ShopSms]},
-		{"shop_auto_renews", &model.ShopAutoRenew{}, copyRows[model.ShopAutoRenew]},
-		{"shop_tickets", &model.ShopTicket{}, copyRows[model.ShopTicket]},
-		{"shop_ticket_msgs", &model.ShopTicketMsg{}, copyRows[model.ShopTicketMsg]},
 	}
 }
 

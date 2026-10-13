@@ -74,8 +74,6 @@ func (a *APIHandler) postHandler(c *gin.Context) {
 		a.ApiService.ReconcileNode(c)
 	case "nodeAction":
 		a.ApiService.NodeAction(c, loginUser)
-	case "shop":
-		a.ApiService.SaveShop(c)
 	case "totp":
 		a.ApiService.SaveTotp(c)
 	case "panelUpdate":
@@ -159,8 +157,6 @@ func (a *APIHandler) getHandler(c *gin.Context) {
 		a.ApiService.GetNodeBackup(c)
 	case "nodesBackup":
 		a.ApiService.GetNodesBackup(c)
-	case "shop":
-		a.ApiService.GetShop(c)
 	case "subUrl":
 		a.ApiService.GetSubUrl(c)
 	default:
