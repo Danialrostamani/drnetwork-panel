@@ -398,7 +398,7 @@ func TestOwnerHasEverythingAndIsNotLimitedByLines(t *testing.T) {
 func TestOnlyTheOwnerCanEditAdmins(t *testing.T) {
 	e := newAccessEnv(t)
 	adminsBefore, scopesBefore, permsBefore := accessSettings(t)
-	buttons := []string{"a:e:55", "a:t:55:logs", "a:p:55:full", "a:g:55", "a:sg:55:0", "a:sg:55:#new", "a:rm:55", "a:rmy:55", "a:add", "a:e:77", "a:p:77:none", "a:rmy:42", "a:t:42:logs",
+	buttons := []string{"a:e:55", "a:t:55:logs", "a:p:55:full", "a:g:55", "a:gv:55", "a:sg:55:0", "a:sg:55:#new", "a:sgq:55:0", "a:sgq:55:#new", "a:rm:55", "a:rmy:55", "a:add", "a:e:77", "a:p:77:none", "a:rmy:42", "a:t:42:logs",
 		"a:q:55", "a:qa:55:50", "a:qt:55", "a:qr:55", "a:qry:55", "a:qc:55", "a:qcy:55"}
 	for _, who := range []int64{fullAdmin, salesAdmin, clientsOnly, noSections, 999} {
 		for _, data := range buttons {
@@ -698,7 +698,7 @@ func TestOwnerLimitsAnAdminToAGroup(t *testing.T) {
 	n = len(e.got())
 	e.press(ownerID, "a:e:55")
 	kb = keyboardOf(e.since(n))
-	if hasData(kb, "a:t:55:clients") || !hasData(kb, "a:p:55:full") || !hasData(kb, "a:g:55") {
+	if hasData(kb, "a:t:55:clients") || !hasData(kb, "a:p:55:full") || !hasData(kb, "a:g:55") || !hasData(kb, "a:gv:55") {
 		t.Fatalf("edit screen of a limited admin: %v", callbackData(kb))
 	}
 	if text := lastEditText(e); !strings.Contains(text, "group: <b>Other</b>") {
@@ -749,6 +749,82 @@ func TestOwnerLimitsAnAdminToAGroup(t *testing.T) {
 	if _, scopes, _ := accessSettings(t); strings.Contains(scopes, "56") {
 		t.Fatalf("scopes = %q", scopes)
 	}
+}
+
+func TestOwnerGivesAnAdminAGroupAndAVolumeLimit(t *testing.T) {
+	e := newAccessEnv(t)
+
+	e.runPress(ownerID, "a:e:42")
+	kb := keyboardOf(e.got())
+	if !hasData(kb, "a:gv:42") || !hasData(kb, "a:g:42") || !hasData(kb, "a:q:42") {
+		t.Fatalf("the admin's card lacks group/volume buttons: %v", callbackData(kb))
+	}
+
+	n := len(e.got())
+	e.press(ownerID, "a:gv:55")
+	msgs := e.since(n)
+	kb = keyboardOf(msgs)
+	var otherBtn string
+	for _, row := range kb {
+		for _, btn := range row {
+			if strings.Contains(btn.Text, "Other") {
+				otherBtn = btn.Data
+			}
+			if strings.HasSuffix(btn.Data, ":-") {
+				t.Errorf("the chooser offers “no group”: %v", btn)
+			}
+			if strings.HasPrefix(btn.Data, "a:sg:") {
+				t.Errorf("the combined chooser used the group-only callback: %v", btn)
+			}
+		}
+	}
+	if otherBtn == "" || !strings.HasPrefix(otherBtn, "a:sgq:55:") || !hasData(kb, "a:sgq:55:#new") {
+		t.Fatalf("combined chooser: %v", callbackData(kb))
+	}
+	if text := lastEditText(e); !strings.Contains(text, "Group and volume") || !strings.Contains(text, "then you set a volume limit") {
+		t.Fatalf("combined prompt:\n%s", text)
+	}
+	if p := e.b.pend.get(ownerID); p == nil || p.kind != "ad.grp" || p.data["next"] != "q" {
+		t.Fatalf("pending = %+v", p)
+	}
+
+	n = len(e.got())
+	e.press(ownerID, otherBtn)
+	if _, scopes, perms := accessSettings(t); !strings.Contains(scopes, "55=Other") || strings.Contains(perms, "55=") {
+		t.Fatalf("scopes %q perms %q", scopes, perms)
+	}
+	if as := e.b.as(clientsOnly); as.scope != "Other" {
+		t.Fatalf("55 = %+v", as)
+	}
+	mustContain(t, lastEditText(e), "Volume limit", "No limit")
+	if !hasData(keyboardOf(e.since(n)), "a:qa:55:100") {
+		t.Fatalf("volume screen after the group: %v", callbackData(keyboardOf(e.since(n))))
+	}
+
+	e.runPress(ownerID, "a:qa:55:100")
+	if q := quotaRow(t, 55); q.Total != 100*gib {
+		t.Fatalf("quota = %+v", q)
+	}
+	mustContain(t, e.runPress(ownerID, "a:e:55"), "group: <b>Other</b>", "100.00 GiB left of 100.00 GiB")
+
+	// A typed group name in the combined flow also lands on the volume screen.
+	e.press(ownerID, "a:gv:56")
+	e.say(ownerID, "Both Team")
+	if got := e.b.as(noSections).scope; got != "Both Team" {
+		t.Fatalf("scope = %q", got)
+	}
+	mustContain(t, lastEditText(e), "Volume limit")
+	if !noQuota(t, noSections) {
+		t.Fatal("picking the group already made a volume limit")
+	}
+
+	// A new group from the combined chooser keeps the volume step.
+	e.press(ownerID, "a:sgq:56:#new")
+	e.say(ownerID, "Fresh Both")
+	if got := e.b.as(noSections).scope; got != "Fresh Both" {
+		t.Fatalf("scope = %q", got)
+	}
+	mustContain(t, lastEditText(e), "Volume limit")
 }
 
 func TestOwnerRemovesAnAdmin(t *testing.T) {
@@ -804,7 +880,7 @@ func TestTheOwnerCannotBeEdited(t *testing.T) {
 	e := newAccessEnv(t)
 	before := func() string { a, s, p := accessSettings(t); return a + "|" + s + "|" + p }
 	snapshot := before()
-	for _, data := range []string{"a:e:1000", "a:t:1000:logs", "a:p:1000:none", "a:g:1000", "a:sg:1000:0", "a:rm:1000", "a:rmy:1000",
+	for _, data := range []string{"a:e:1000", "a:t:1000:logs", "a:p:1000:none", "a:g:1000", "a:gv:1000", "a:sg:1000:0", "a:sgq:1000:0", "a:rm:1000", "a:rmy:1000",
 		"a:q:1000", "a:qa:1000:10", "a:qt:1000", "a:qr:1000", "a:qry:1000", "a:qc:1000", "a:qcy:1000"} {
 		n := len(e.got())
 		e.press(ownerID, data)
@@ -1155,7 +1231,7 @@ func TestCommandMenusFollowTheRights(t *testing.T) {
 func TestAdminsCallbacksIgnoreJunk(t *testing.T) {
 	e := newAccessEnv(t)
 	a, s, p := accessSettings(t)
-	for _, data := range []string{"a:e", "a:e:abc", "a:t:55", "a:t:55:nonsense", "a:p:55:weird", "a:sg:55:99", "a:sg:55:x", "a:rm:99999", "a:rmy:99999", "a:zzz:55", "a:g:99999", "a:q", "a:q:abc", "a:q:99999", "a:qa:55", "a:qa:55:x", "a:qa:55:-5", "a:qt:99999", "a:qry:99999", "a:qcy:99999"} {
+	for _, data := range []string{"a:e", "a:e:abc", "a:t:55", "a:t:55:nonsense", "a:p:55:weird", "a:sg:55:99", "a:sg:55:x", "a:sgq:55:99", "a:sgq:55:x", "a:rm:99999", "a:rmy:99999", "a:zzz:55", "a:g:99999", "a:gv:99999", "a:q", "a:q:abc", "a:q:99999", "a:qa:55", "a:qa:55:x", "a:qa:55:-5", "a:qt:99999", "a:qry:99999", "a:qcy:99999"} {
 		e.press(ownerID, data)
 	}
 	if a2, s2, p2 := accessSettings(t); a != a2 || s != s2 || p != p2 {

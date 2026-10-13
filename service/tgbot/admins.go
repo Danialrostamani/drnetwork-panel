@@ -424,14 +424,59 @@ func (b *bot) adminEditScreen(ctx context.Context, id int64) (string, [][]button
 			{Text: b.tr("👥 فقط کلاینت‌ها", "👥 Clients only"), Data: "a:p:" + sid + ":cl"},
 			{Text: b.tr("⛔ هیچ", "⛔ None"), Data: "a:p:" + sid + ":none"},
 		},
-		[]button{{Text: groupLabel, Data: "a:g:" + sid}},
-		[]button{{Text: b.tr("📦 محدودیت حجم", "📦 Volume limit"), Data: "a:q:" + sid}},
+		[]button{
+			{Text: groupLabel, Data: "a:g:" + sid},
+			{Text: b.tr("📦 محدودیت حجم", "📦 Volume limit"), Data: "a:q:" + sid},
+		},
+		[]button{{Text: b.tr("🏷📦 گروه و حجم", "🏷📦 Group and volume"), Data: "a:gv:" + sid}},
 		[]button{{Text: b.tr("🗑 حذف ادمین", "🗑 Remove admin"), Data: "a:rm:" + sid}},
 		b.navRow("a:ls"))
 	lines = append(lines, "", b.tr(
 		"ℹ️ «قوانین/DNS» شامل قوانین، DNS و تنظیمات پایه است. «هسته» ریستارت هسته و حالت نگهداری است. «پشتیبان» کل دیتابیس را می‌دهد. «مدیران» فقط فهرست را نشان می‌دهد؛ ویرایش مدیران فقط برای مالک است. تغییرها همان لحظه اعمال می‌شود.",
 		"ℹ️ “Routing” covers Rules, DNS and Basics. “Core” is restarting the core and maintenance mode. “Backup” hands out the whole database. “Admins” only shows the list; editing admins is for the owner alone. Changes apply at once."))
 	return strings.Join(lines, "\n"), kb
+}
+
+// adminGroupChooser is the group picker for limiting an administrator.
+// thenQuota, after a group is picked, opens the volume-limit screen so the
+// owner can give both in one go.
+func (b *bot) adminGroupChooser(id int64, thenQuota bool) (string, [][]button, *pending) {
+	sid := strconv.FormatInt(id, 10)
+	sel := "a:sg:" + sid + ":"
+	if thenQuota {
+		sel = "a:sgq:" + sid + ":"
+	}
+	var kb [][]button
+	for _, row := range b.groupChoices(sel) {
+		// "No group" would leave the admin unlimited; it is the presets' job.
+		if len(row) == 1 && strings.HasSuffix(row[0].Data, ":-") {
+			continue
+		}
+		kb = append(kb, row)
+	}
+	kb = append(kb, []button{{Text: b.tr("➕ گروه جدید", "➕ New group"), Data: sel + "#new"}}, b.navRow("a:e:"+sid), b.cancelRow())
+	data := map[string]string{"id": sid}
+	if thenQuota {
+		data["next"] = "q"
+	}
+	p := &pending{kind: "ad.grp", back: "a:e:" + sid, data: data}
+	title, body := b.tr("محدود به یک گروه", "Limit to a group"), b.tr("گروه را از دکمه‌ها انتخاب کنید یا نام یک گروه را بفرستید. این ادمین فقط کلاینت‌های همان گروه را می‌بیند و مدیریت می‌کند.", "Pick a group below, or send a group name. This admin will see and manage the clients of that group only.")
+	icon := "🏷"
+	if thenQuota {
+		icon = "🏷📦"
+		title = b.tr("گروه و حجم", "Group and volume")
+		body = b.tr("گروه را از دکمه‌ها انتخاب کنید یا نام یک گروه را بفرستید. این ادمین فقط کلاینت‌های همان گروه را می‌بیند و مدیریت می‌کند؛ بعد سقف حجم را تعیین می‌کنید.", "Pick a group below, or send a group name. This admin will see and manage the clients of that group only; then you set a volume limit.")
+	}
+	return b.header(icon, title) + "\n" + body, kb, p
+}
+
+// afterAdminGroup is the screen that follows a group limit: the volume screen
+// when the owner asked for both, otherwise the admin's card.
+func (b *bot) afterAdminGroup(ctx context.Context, id int64, thenQuota bool) (string, [][]button) {
+	if thenQuota {
+		return b.adminQuotaScreen(ctx, id)
+	}
+	return b.adminEditScreen(ctx, id)
 }
 
 // adminsCallback handles the buttons of the Admins screen. Showing the list is
@@ -534,28 +579,28 @@ func (b *bot) adminsCallback(ctx context.Context, cbID string, chatID, msgID int
 			return
 		}
 		apply(func(d *accessDoc) error { return d.setRole(id, r) }, edited)
-	case "g":
+	case "g", "gv":
 		b.answer(ctx, cbID, "")
-		var kb [][]button
-		for _, row := range b.groupChoices("a:sg:" + sid + ":") {
-			// "No group" would leave the admin unlimited; it is the presets' job.
-			if len(row) == 1 && strings.HasSuffix(row[0].Data, ":-") {
-				continue
-			}
-			kb = append(kb, row)
-		}
-		kb = append(kb, []button{{Text: b.tr("➕ گروه جدید", "➕ New group"), Data: "a:sg:" + sid + ":#new"}}, b.navRow("a:e:"+sid), b.cancelRow())
-		b.pend.set(chatID, &pending{kind: "ad.grp", msgID: msgID, back: "a:e:" + sid, data: map[string]string{"id": sid}})
-		show(b.header("🏷", b.tr("محدود به یک گروه", "Limit to a group"))+"\n"+b.tr("گروه را از دکمه‌ها انتخاب کنید یا نام یک گروه را بفرستید. این ادمین فقط کلاینت‌های همان گروه را می‌بیند و مدیریت می‌کند.", "Pick a group below, or send a group name. This admin will see and manage the clients of that group only."), kb)
-	case "sg":
+		text, kb, p := b.adminGroupChooser(id, verb == "gv")
+		p.msgID = msgID
+		b.pend.set(chatID, p)
+		show(text, kb)
+	case "sg", "sgq":
+		thenQuota := verb == "sgq"
 		sel := ""
 		if len(parts) > 3 {
 			sel = parts[3]
 		}
 		if sel == "#new" {
 			b.answer(ctx, cbID, "")
-			b.pend.set(chatID, &pending{kind: "ad.grp", msgID: msgID, back: "a:e:" + sid, data: map[string]string{"id": sid}})
-			text, kb := b.newGroupPrompt("a:g:" + sid)
+			data := map[string]string{"id": sid}
+			back := "a:g:" + sid
+			if thenQuota {
+				data["next"] = "q"
+				back = "a:gv:" + sid
+			}
+			b.pend.set(chatID, &pending{kind: "ad.grp", msgID: msgID, back: "a:e:" + sid, data: data})
+			text, kb := b.newGroupPrompt(back)
 			show(text, kb)
 			return
 		}
@@ -566,7 +611,9 @@ func (b *bot) adminsCallback(ctx context.Context, cbID string, chatID, msgID int
 			return
 		}
 		group := groups[idx]
-		apply(func(d *accessDoc) error { return d.setRole(id, role{group: group}) }, edited)
+		apply(func(d *accessDoc) error { return d.setRole(id, role{group: group}) }, func() (string, [][]button) {
+			return b.afterAdminGroup(ctx, id, thenQuota)
+		})
 	case "q", "qa", "qt", "qr", "qry", "qc", "qcy":
 		b.quotaCallback(ctx, cbID, chatID, msgID, verb, id, parts)
 	case "rm":
@@ -641,7 +688,7 @@ func (b *bot) adminPending(ctx context.Context, chatID int64, p *pending, text s
 			return
 		}
 		b.syncCommandMenus(ctx)
-		t, kb := b.adminEditScreen(ctx, id)
+		t, kb := b.afterAdminGroup(ctx, id, p.data["next"] == "q")
 		finish(b.t("done")+"\n\n"+t, kb)
 	}
 }
