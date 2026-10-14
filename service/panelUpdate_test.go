@@ -83,13 +83,13 @@ func stubUpdateHost(t *testing.T, h updateHost, why string) {
 
 func TestPanelUpdateInfo(t *testing.T) {
 	var tag atomic.Value
-	tag.Store("v0.2")
+	tag.Store("v0.3")
 	calls := fakeReleases(t, &tag)
 	stubUpdateHost(t, updateHost{}, "docker")
 	s := &PanelUpdateService{}
 
 	info := s.Info(false)
-	if info.Current != config.GetVersion() || info.Latest != "v0.2" || !info.Newer ||
+	if info.Current != config.GetVersion() || info.Latest != "v0.3" || !info.Newer ||
 		info.LatestURL != "https://example.com/r" || info.Published != 1791469743 || info.Unsupported != "docker" {
 		t.Fatalf("info = %+v", info)
 	}
@@ -111,7 +111,7 @@ func TestPanelUpdateInfo(t *testing.T) {
 
 func TestStartPanelUpdate(t *testing.T) {
 	var tag atomic.Value
-	tag.Store("v0.2")
+	tag.Store("v0.3")
 	fakeReleases(t, &tag)
 	dir := t.TempDir()
 	stubUpdateHost(t, updateHost{dir: dir, init: "openrc", bash: "/bin/bash"}, "")
@@ -125,16 +125,16 @@ func TestStartPanelUpdate(t *testing.T) {
 	s := &PanelUpdateService{}
 
 	got, err := s.Start("zhHans", "admin")
-	if err != nil || got != "v0.2" {
+	if err != nil || got != "v0.3" {
 		t.Fatalf("Start = %q, %v", got, err)
 	}
 	logPath := filepath.Join(dir, updateLogName)
-	want := []string{"v0.2", logPath, updateRawBase + "/" + updateRepo + "/v0.2/install.sh", "zhcn"}
+	want := []string{"v0.3", logPath, updateRawBase + "/" + updateRepo + "/v0.3/install.sh", "zhcn"}
 	if len(launched) != 1 || !reflect.DeepEqual(launched[0], want) {
 		t.Fatalf("launched %q", launched)
 	}
 	info := s.Info(false)
-	if !info.Running || info.Target != "v0.2" || info.From != config.GetVersion() || info.Exit != nil {
+	if !info.Running || info.Target != "v0.3" || info.From != config.GetVersion() || info.Exit != nil {
 		t.Fatalf("while running: %+v", info)
 	}
 	if _, err := s.Start("en", "admin"); err == nil || !strings.Contains(err.Error(), "already running") {

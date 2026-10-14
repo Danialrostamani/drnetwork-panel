@@ -26,6 +26,8 @@ var menuItems = []menuItem{
 	{"تعرفه اشتراک ها 💵", "Plans 💵", "p:tariff"},
 	{"آموزش 📚", "Guide 📚", "p:guide"},
 	{"پشتیبانی ☎️", "Support ☎️", "p:support"},
+	{"🛍 نمای مشتری", "🛍 Customer view", "k:shop"},
+	{"🔙 پنل مدیریت", "🔙 Admin panel", "k:admin"},
 	{"🏠 خانه", "🏠 Home", "h:home"},
 	{"📋 منوی اصلی", "📋 Main menu", "m:menu"},
 	{"👥 کلاینت‌ها", "👥 Clients", "c:ls:a:0"},
@@ -78,7 +80,7 @@ func (b *bot) adminMenu() [][]string {
 	if len(rows) == 0 {
 		rows = [][]string{{"m:menu"}}
 	}
-	return rows
+	return append(rows, []string{"k:shop"})
 }
 
 func (b *bot) replyMarkup(rows [][]string) map[string]any {
@@ -109,11 +111,25 @@ type menuChat struct{}
 // menuPress runs the bottom-menu button with the given callback data. It
 // reports whether the text was a button for this person.
 func (b *bot) menuPress(ctx context.Context, chatID int64, from *fromUser, data string) bool {
-	if strings.HasPrefix(data, "p:") {
+	admin := b.isAdmin(from.ID)
+	switch {
+	case data == "k:shop" || data == "k:admin":
+		if !admin {
+			return false
+		}
+		b.pend.clear(chatID)
+		if data == "k:shop" {
+			b.sendMenu(ctx, chatID, b.customerHome(), b.customerMenu(from.ID))
+			return true
+		}
+		b.sendAdminMenu(ctx, chatID, "🔐 <b>"+b.tr("پنل مدیریت", "Admin panel")+"</b>", false)
+		text, kb := b.menuScreen()
+		b.sendKeyboard(ctx, chatID, text, kb)
+		return true
+	case strings.HasPrefix(data, "p:"):
 		b.customerPress(ctx, chatID, from, data)
 		return true
-	}
-	if !b.isAdmin(from.ID) {
+	case !admin:
 		return false
 	}
 	ctx = context.WithValue(ctx, menuChat{}, chatID)

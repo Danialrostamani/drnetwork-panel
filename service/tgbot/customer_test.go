@@ -149,3 +149,37 @@ func TestAdminStartIsStillThePanel(t *testing.T) {
 		t.Fatalf("admin /start = %+v", got())
 	}
 }
+
+func TestAdminCanOpenTheCustomerMenu(t *testing.T) {
+	if err := database.InitDB(filepath.Join(t.TempDir(), "bot.db")); err != nil {
+		t.Fatal(err)
+	}
+	b, got := fakeTelegram(t)
+	b.cfg.Lang = "fa"
+	ctx := context.Background()
+	b.handle(ctx, privateMessage(42, "/start"))
+	n := len(got())
+	b.handle(ctx, privateMessage(42, "🛍 نمای مشتری"))
+	msgs := got()[n:]
+	if len(msgs) == 0 || msgs[0].Markup == nil {
+		t.Fatalf("customer view = %+v", msgs)
+	}
+	var labels []string
+	for _, row := range msgs[0].Markup.Reply {
+		for _, cell := range row {
+			labels = append(labels, cell.Text)
+		}
+	}
+	joined := strings.Join(labels, "|")
+	for _, want := range []string{"خرید اشتراک 🔐", "تمدید سرویس ♻️", "سرویس های من 🛍️", "پشتیبانی ☎️", "🔙 پنل مدیریت"} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("customer view keyboard missing %q: %#v", want, labels)
+		}
+	}
+	n = len(got())
+	b.handle(ctx, privateMessage(42, "🔙 پنل مدیریت"))
+	back := lastText(got()[n:], "sendMessage")
+	if !strings.Contains(back, "پنل") && !strings.Contains(back, "Admin") && !strings.Contains(back, "DrNetwork") {
+		t.Fatalf("back to admin = %q", back)
+	}
+}

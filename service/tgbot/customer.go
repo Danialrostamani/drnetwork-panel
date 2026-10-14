@@ -8,13 +8,17 @@ import (
 
 // The customer bot is what anybody who is not an administrator sees when they
 // open the bot: a Telegram command menu and a two-column bottom keyboard.
-func (b *bot) customerMenu() [][]string {
-	return [][]string{
+func (b *bot) customerMenu(id int64) [][]string {
+	rows := [][]string{
 		{"p:buy", "p:renew"},
 		{"p:my", "p:wallet"},
 		{"p:trial", "p:tariff"},
 		{"p:support", "p:guide"},
 	}
+	if b.isAdmin(id) {
+		rows = append(rows, []string{"k:admin"})
+	}
+	return rows
 }
 
 func (b *bot) customerHome() string {
@@ -24,10 +28,12 @@ func (b *bot) customerHome() string {
 }
 
 func (b *bot) customerStart(ctx context.Context, chatID int64, from *fromUser) {
+	id := int64(0)
 	if from != nil {
 		b.pend.clear(chatID)
+		id = from.ID
 	}
-	b.sendMenu(ctx, chatID, b.customerHome(), b.customerMenu())
+	b.sendMenu(ctx, chatID, b.customerHome(), b.customerMenu(id))
 }
 
 func (b *bot) customerPress(ctx context.Context, chatID int64, from *fromUser, data string) {
@@ -54,13 +60,13 @@ func (b *bot) customerPress(ctx context.Context, chatID int64, from *fromUser, d
 		b.notifyAdmins(ctx, b.customerNotice(from, "test", ""))
 		b.sendMenu(ctx, chatID, b.tr(
 			"🔑 <b>اکانت تست</b>\nدرخواست شما برای پشتیبانی ارسال شد. به‌زودی پاسخ می‌گیرید.",
-			"🔑 <b>Test account</b>\nYour request was sent to support. They will reply soon."), b.customerMenu())
+			"🔑 <b>Test account</b>\nYour request was sent to support. They will reply soon."), b.customerMenu(from.ID))
 	case "p:tariff":
 		b.sendMenu(ctx, chatID, b.tr(
 			"💵 <b>تعرفه اشتراک‌ها</b>\nبرای دیدن قیمت‌ها و خرید، روی <b>خرید اشتراک</b> بزنید یا به پشتیبانی پیام دهید.",
-			"💵 <b>Plans</b>\nTo see prices and buy, tap <b>Buy a plan</b> or message support."), b.customerMenu())
+			"💵 <b>Plans</b>\nTo see prices and buy, tap <b>Buy a plan</b> or message support."), b.customerMenu(from.ID))
 	case "p:guide":
-		b.sendMenu(ctx, chatID, b.customerGuide(), b.customerMenu())
+		b.sendMenu(ctx, chatID, b.customerGuide(), b.customerMenu(from.ID))
 	case "p:support":
 		b.customerAsk(ctx, chatID, from, "support", b.tr(
 			"☎️ <b>پشتیبانی</b>\nپیام خود را بنویسید؛ برای پشتیبانی ارسال می‌شود.",
@@ -87,7 +93,7 @@ func (b *bot) customerCommand(ctx context.Context, chatID int64, from *fromUser,
 	case "usage", "sub":
 		bound := boundClients(from.ID)
 		if len(bound) == 0 {
-			b.sendMenu(ctx, chatID, b.t("usageNone"), b.customerMenu())
+			b.sendMenu(ctx, chatID, b.t("usageNone"), b.customerMenu(from.ID))
 			return
 		}
 		b.userCommand(ctx, chatID, bound, cmd)
@@ -101,7 +107,7 @@ func (b *bot) customerServices(ctx context.Context, chatID, from int64, renew bo
 	if len(bound) == 0 {
 		b.sendMenu(ctx, chatID, b.tr(
 			"🛍️ سرویسی روی این حساب نیست. از <b>خرید اشتراک</b> استفاده کنید.",
-			"🛍️ No service is on this account. Use <b>Buy a plan</b>."), b.customerMenu())
+			"🛍️ No service is on this account. Use <b>Buy a plan</b>."), b.customerMenu(from))
 		return false
 	}
 	if renew {
@@ -120,7 +126,7 @@ func (b *bot) customerServices(ctx context.Context, chatID, from int64, renew bo
 
 func (b *bot) customerAsk(ctx context.Context, chatID int64, from *fromUser, topic, text string) {
 	b.pend.set(chatID, &pending{kind: "cu.ask", chatID: chatID, data: map[string]string{"topic": topic}})
-	b.sendMenu(ctx, chatID, text, b.customerMenu())
+	b.sendMenu(ctx, chatID, text, b.customerMenu(from.ID))
 }
 
 func (b *bot) customerPending(ctx context.Context, chatID int64, from *fromUser, text string) {
@@ -133,7 +139,7 @@ func (b *bot) customerPending(ctx context.Context, chatID int64, from *fromUser,
 	b.notifyAdmins(ctx, b.customerNotice(from, topic, text))
 	b.sendMenu(ctx, chatID, b.tr(
 		"✅ پیام شما به پشتیبانی رسید.",
-		"✅ Your message was sent to support."), b.customerMenu())
+		"✅ Your message was sent to support."), b.customerMenu(from.ID))
 }
 
 func (b *bot) customerNotice(from *fromUser, topic, text string) string {
