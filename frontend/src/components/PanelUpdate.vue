@@ -49,7 +49,7 @@
                   target="_blank"
                   rel="noopener noreferrer"
                   dir="ltr"
-                >{{ info.latest }}</a>
+                >{{ versionLabel(info.latest) }}</a>
                 <v-chip
                   size="small"
                   class="ms-2"
@@ -87,9 +87,19 @@
           prepend-icon="mdi-update"
           :disabled="!canUpdate"
           :loading="phase === 'starting'"
-          @click="confirm = true"
+          @click="confirmForce = false; confirm = true"
         >
-          {{ info.newer ? $t('panelUpdate.updateTo', [info.latest]) : $t('panelUpdate.update') }}
+          {{ info.newer ? $t('panelUpdate.updateTo', [versionLabel(info.latest)]) : $t('panelUpdate.update') }}
+        </v-btn>
+        <v-btn
+          color="warning"
+          variant="tonal"
+          prepend-icon="mdi-update"
+          :disabled="!canForce"
+          :loading="phase === 'starting'"
+          @click="confirmForce = true; confirm = true"
+        >
+          {{ $t('panelUpdate.force') }}
         </v-btn>
       </div>
       <v-alert
@@ -124,9 +134,9 @@
     v-model="confirm"
     max-width="480"
   >
-    <v-card :title="$t('panelUpdate.confirmTitle')">
+    <v-card :title="confirmForce ? $t('panelUpdate.forceTitle') : $t('panelUpdate.confirmTitle')">
       <v-card-text>
-        {{ $t('panelUpdate.confirmText', [info.latest]) }}
+        {{ $t(confirmForce ? 'panelUpdate.forceText' : 'panelUpdate.confirmText', [versionLabel(info.latest)]) }}
       </v-card-text>
       <v-card-actions>
         <v-spacer />
@@ -181,6 +191,7 @@ const info = ref<PanelUpdateInfo>({
 })
 const checking = ref(false)
 const confirm = ref(false)
+const confirmForce = ref(false)
 const logBox = ref<HTMLElement | null>(null)
 
 // idle: nothing going on. starting: the server was asked to update. running:
@@ -196,6 +207,7 @@ let timer: ReturnType<typeof setTimeout> | undefined
 
 const busy = computed(() => phase.value === 'starting' || phase.value === 'running' || phase.value === 'restarting')
 const canUpdate = computed(() => info.value.newer && !info.value.unsupported && !busy.value && phase.value !== 'done')
+const canForce = computed(() => !!info.value.latest && !info.value.unsupported && !busy.value && phase.value !== 'done')
 
 const manualCommand = computed(() => {
   switch (info.value.unsupported) {
@@ -309,9 +321,12 @@ const check = async () => {
 }
 
 const start = async () => {
+  const force = confirmForce.value
   confirm.value = false
   phase.value = 'starting'
-  const msg = await HttpUtils.post<string>('api/panelUpdate', { lang: i18n.global.locale.value })
+  const body: Record<string, string> = { lang: i18n.global.locale.value }
+  if (force) body.force = '1'
+  const msg = await HttpUtils.post<string>('api/panelUpdate', body)
   if (!msg.success) {
     phase.value = 'idle'
     return

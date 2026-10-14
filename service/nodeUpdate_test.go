@@ -17,6 +17,8 @@ type updateFakeNode struct {
 	mu      sync.Mutex
 	answer  string
 	langs   []string
+	forces  []string
+	tags    []string
 	checks  []string
 	logins  []string
 	logouts int
@@ -85,6 +87,8 @@ func newUpdateFakeNode(t *testing.T, token, answer string) (*httptest.Server, *u
 		}
 		_ = r.ParseForm()
 		f.langs = append(f.langs, r.FormValue("lang"))
+		f.forces = append(f.forces, r.FormValue("force"))
+		f.tags = append(f.tags, r.FormValue("tag"))
 		_, _ = w.Write([]byte(f.answer))
 	}))
 	t.Cleanup(srv.Close)
@@ -141,6 +145,18 @@ func TestNodePanelUpdates(t *testing.T) {
 	freshF.mu.Lock()
 	if len(freshF.langs) != 1 || freshF.langs[0] != "fa" {
 		t.Fatalf("the node was asked in %v", freshF.langs)
+	}
+	if len(freshF.tags) != 1 || freshF.tags[0] == "" {
+		t.Fatalf("master version not sent: %v", freshF.tags)
+	}
+	freshF.mu.Unlock()
+	res, err = svc.NodeActionWith([]uint{fresh.Id}, "updatePanel", "admin", NodeActionOpts{Lang: "en", Force: true})
+	if err != nil || len(res) != 1 || !res[0].Ok {
+		t.Fatalf("force: %+v, %v", res, err)
+	}
+	freshF.mu.Lock()
+	if len(freshF.forces) < 2 || freshF.forces[len(freshF.forces)-1] != "1" {
+		t.Fatalf("force not sent: %v", freshF.forces)
 	}
 	freshF.mu.Unlock()
 

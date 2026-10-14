@@ -275,6 +275,13 @@ var updateLangs = map[string]string{
 // Start begins updating the panel to the latest release and returns its tag.
 // lang is the language the install script writes the log in.
 func (s *PanelUpdateService) Start(lang, by string) (string, error) {
+	return s.StartAt(lang, by, "", false)
+}
+
+// StartAt updates the panel to tag, or to the latest release when tag is
+// empty. force installs even when that release is not newer than this panel,
+// which is how the master updates a node that still thinks it is current.
+func (s *PanelUpdateService) StartAt(lang, by, tag string, force bool) (string, error) {
 	updateMu.Lock()
 	defer updateMu.Unlock()
 	h, why := updateHostCheck()
@@ -289,28 +296,35 @@ func (s *PanelUpdateService) Start(lang, by string) (string, error) {
 	if rel.err != nil {
 		rel = latestReleaseInfo(true)
 	}
-	if rel.err != nil {
-		return "", common.NewError("the latest release is unknown: ", rel.err.Error())
+	target := strings.TrimSpace(tag)
+	if target == "" {
+		if rel.err != nil {
+			return "", common.NewError("the latest release is unknown: ", rel.err.Error())
+		}
+		target = rel.tag
+	}
+	if !releaseTagRe.MatchString(target) {
+		return "", common.NewError("invalid release tag ", target)
 	}
 	current := config.GetVersion()
-	if compareVersions(rel.tag, current) <= 0 {
+	if !force && compareVersions(target, current) <= 0 {
 		return "", common.NewError("the panel is up to date: ", current)
 	}
 	scriptLang, ok := updateLangs[lang]
 	if !ok {
 		scriptLang = "en"
 	}
-	header := fmt.Sprintf("%s%d %s %s\n", updateLogHeader, time.Now().Unix(), rel.tag, current)
+	header := fmt.Sprintf("%s%d %s %s\n", updateLogHeader, time.Now().Unix(), target, current)
 	if err := os.WriteFile(logPath, []byte(header), 0o600); err != nil {
 		return "", err
 	}
-	url := fmt.Sprintf("%s/%s/%s/install.sh", updateRawBase, updateRepo, rel.tag)
-	if err := launchUpdate(h, []string{rel.tag, logPath, url, scriptLang}); err != nil {
+	url := fmt.Sprintf("%s/%s/%s/install.sh", updateRawBase, updateRepo, target)
+	if err := launchUpdate(h, []string{target, logPath, url, scriptLang}); err != nil {
 		appendUpdateLog(logPath, "The update could not be started: "+err.Error()+"\nEXIT=1\n")
 		return "", err
 	}
-	logger.Info("panel update to ", rel.tag, " started by ", by)
-	return rel.tag, nil
+	logger.Info("panel update to ", target, " started by ", by)
+	return target, nil
 }
 
 func appendUpdateLog(path, text string) {

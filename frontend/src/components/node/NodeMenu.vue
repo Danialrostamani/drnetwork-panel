@@ -66,6 +66,7 @@ const items = computed((): MenuItem[] => {
     { key: 'restartSb', icon: 'mdi-restart', title: t('node.action.restartSb'), disabled: !reachable },
     { key: 'restartApp', icon: 'mdi-power', title: t('node.action.restartApp'), disabled: !reachable },
     { key: 'updatePanel', icon: 'mdi-update', title: t('node.action.updatePanel'), disabled: !reachable },
+    { key: 'forceUpdate', icon: 'mdi-backup-restore', title: t('node.update.force'), disabled: !reachable },
     resting
       ? { key: 'maintenanceOff', icon: 'mdi-wrench-check', title: t('node.action.maintenanceOff'), disabled: !reachable }
       : { key: 'maintenanceOn', icon: 'mdi-wrench-clock', title: t('node.action.maintenanceOn'), disabled: !reachable },

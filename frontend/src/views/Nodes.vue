@@ -93,6 +93,12 @@
             :disabled="enabledIds.length === 0"
             @click="request('updatePanel', enabledIds)"
           />
+          <v-list-item
+            prepend-icon="mdi-backup-restore"
+            :title="$t('node.update.forceAll')"
+            :disabled="enabledIds.length === 0"
+            @click="request('updatePanel', enabledIds, { force: '1' })"
+          />
         </v-list>
       </v-menu>
     </v-col>
@@ -875,6 +881,7 @@ const onAction = (node: Node, key: string) => {
     case 'clone': return edit(cloneNode(node, nodes.value.map(n => n.name)))
     case 'backup': return openBackup(node.id, node.name)
     case 'del': return askDelete([node.id])
+    case 'forceUpdate': return request('updatePanel', [node.id], { force: '1' })
   }
   if ((actionKeys as string[]).includes(key)) request(key as NodeAction, [node.id])
 }
@@ -908,15 +915,21 @@ const confirmYes = async () => {
 }
 
 // The ids are copied: the selection may change while the question is open.
-const request = (action: NodeAction, picked: number[]) => {
+const request = (action: NodeAction, picked: number[], extra: Record<string, string> = {}) => {
   const ids = [...picked]
   if (ids.length === 0) return
-  if (confirmActions.includes(action) || ids.length > 1) {
-    ask(i18n.global.t('node.action.' + action), i18n.global.t('node.action.confirm', { n: ids.length }), ids,
-      confirmActions.includes(action), () => run(action, ids))
+  const force = extra.force === '1'
+  if (confirmActions.includes(action) || ids.length > 1 || force) {
+    ask(
+      i18n.global.t(force ? 'node.update.force' : 'node.action.' + action),
+      i18n.global.t(force ? 'node.update.forceText' : 'node.action.confirm', { n: ids.length }),
+      ids,
+      true,
+      () => run(action, ids, extra),
+    )
     return
   }
-  run(action, ids)
+  run(action, ids, extra)
 }
 
 const run = async (action: NodeAction, ids: number[], extra: Record<string, string> = {}): Promise<void> => {

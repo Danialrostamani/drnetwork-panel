@@ -46,8 +46,11 @@ func (a *ApiService) NodeAction(c *gin.Context, actor string) {
 		ids = []uint{id}
 	}
 	opts := service.NodeActionOpts{
-		Lang: c.PostForm("lang"),
-		User: c.PostForm("user"), Pass: c.PostForm("pass"), Code: c.PostForm("code"),
+		Lang:  c.PostForm("lang"),
+		User:  c.PostForm("user"),
+		Pass:  c.PostForm("pass"),
+		Code:  c.PostForm("code"),
+		Force: c.PostForm("force") == "1" || strings.EqualFold(c.PostForm("force"), "true"),
 	}
 	results, err := a.NodeSyncService.NodeActionWith(ids, c.PostForm("action"), actor, opts)
 	if err != nil {

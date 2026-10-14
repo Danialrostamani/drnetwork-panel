@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Danialrostamani/drnetwork-panel/database"
@@ -463,7 +464,8 @@ func (a *ApiService) GetPanelUpdate(c *gin.Context) {
 // StartPanelUpdate updates the panel to the latest release. The panel restarts
 // on the new version when it is installed.
 func (a *ApiService) StartPanelUpdate(c *gin.Context, loginUser string) {
-	tag, err := a.PanelUpdateService.Start(c.Request.FormValue("lang"), loginUser)
+	force := c.Request.FormValue("force") == "1" || strings.EqualFold(c.Request.FormValue("force"), "true")
+	tag, err := a.PanelUpdateService.StartAt(c.Request.FormValue("lang"), loginUser, c.Request.FormValue("tag"), force)
 	jsonMsgObj(c, "panelUpdate", tag, err)
 }
 

@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Danialrostamani/drnetwork-panel/config"
 	"github.com/Danialrostamani/drnetwork-panel/database"
 	"github.com/Danialrostamani/drnetwork-panel/database/model"
 	"github.com/Danialrostamani/drnetwork-panel/logger"
@@ -79,6 +80,9 @@ type NodeActionOpts struct {
 	// the API (DrNetwork 31 to 33), which update from their own Update button
 	// only. They serve this request and are never stored.
 	User, Pass, Code string
+	// Force has the node install the master's version even if the node
+	// thinks it is already current (v45 vs V.0.2, for example).
+	Force bool
 }
 
 // NodeActionWith is NodeAction with the options of a panel update.
@@ -269,8 +273,19 @@ func nodeUpdateError(err error) (string, error) {
 
 // postNodeUpdate asks a node's panel to update itself to the latest release
 // and returns the release it updates to.
-func (s *NodeSyncService) postNodeUpdate(n *model.Node, client *http.Client, lang, actor string) (string, error) {
-	obj, err := s.nodePost(n, client, "panelUpdate", url.Values{"lang": {lang}})
+func nodeUpdateForm(opts NodeActionOpts) url.Values {
+	form := url.Values{
+		"lang": {opts.Lang},
+		"tag":  {config.VersionLabel(config.GetVersion())},
+	}
+	if opts.Force {
+		form.Set("force", "1")
+	}
+	return form
+}
+
+func (s *NodeSyncService) postNodeUpdate(n *model.Node, client *http.Client, opts NodeActionOpts, actor string) (string, error) {
+	obj, err := s.nodePost(n, client, "panelUpdate", nodeUpdateForm(opts))
 	if err != nil {
 		return "", err
 	}
@@ -281,7 +296,7 @@ func (s *NodeSyncService) postNodeUpdate(n *model.Node, client *http.Client, lan
 }
 
 func (s *NodeSyncService) startNodeUpdate(n *model.Node, client *http.Client, opts NodeActionOpts, actor string) (string, error) {
-	tag, err := s.postNodeUpdate(n, client, opts.Lang, actor)
+	tag, err := s.postNodeUpdate(n, client, opts, actor)
 	if err == nil {
 		return tag, nil
 	}
@@ -376,7 +391,7 @@ func loginNodeUpdate(n *model.Node, client *http.Client, opts NodeActionOpts, ac
 			}
 		}
 	}()
-	_, obj, _, err = nodePanelPost(client, n, "panelUpdate", url.Values{"lang": {opts.Lang}}, cookies)
+	_, obj, _, err = nodePanelPost(client, n, "panelUpdate", nodeUpdateForm(opts), cookies)
 	if err != nil {
 		if strings.Contains(err.Error(), "unknown action") {
 			return "", common.NewErrorf("%s", ErrNodeNoUpdater)
