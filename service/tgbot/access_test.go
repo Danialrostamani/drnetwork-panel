@@ -852,7 +852,7 @@ func TestOwnerRemovesAnAdmin(t *testing.T) {
 	}
 	n = len(e.got())
 	e.say(clientsOnly, "/clients")
-	if msgs := e.since(n); len(msgs) != 1 || msgs[0].Text != e.b.t("denied") {
+	if msgs := e.since(n); len(msgs) != 1 || !strings.Contains(msgs[0].Text, "Welcome") {
 		t.Fatalf("a removed admin got %+v", msgs)
 	}
 	n = len(e.got())
@@ -972,7 +972,7 @@ func TestSettingsEditedInTheWebPanelReachTheRunningBot(t *testing.T) {
 	e := newAccessEnv(t)
 	n := len(e.got())
 	e.say(900, "/clients")
-	if msgs := e.since(n); len(msgs) != 1 || msgs[0].Text != e.b.t("denied") {
+	if msgs := e.since(n); len(msgs) != 1 || !strings.Contains(msgs[0].Text, "Welcome") {
 		t.Fatalf("900 before: %+v", msgs)
 	}
 	e.configure(map[string]string{"tgBotPerms": "900=clients,logs"})

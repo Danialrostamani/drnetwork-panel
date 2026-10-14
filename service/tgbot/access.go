@@ -545,7 +545,7 @@ func (b *bot) commandsFor(id int64) []commandInfo {
 		}
 		out = append(out, c)
 	}
-	return append(out, userCommands[2])
+	return append(out, idCommand)
 }
 
 func (b *bot) commandPayload(list []commandInfo) []map[string]string {

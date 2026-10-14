@@ -100,11 +100,15 @@ var adminCommands = []commandInfo{
 }
 
 var userCommands = []commandInfo{
-	{"usage", "وضعیت اشتراک من", "My subscription status"},
-	{"sub", "لینک اشتراک و QR", "Subscription link and QR"},
-	{"id", "شناسه تلگرام من", "My Telegram ID"},
-	{"start", "وضعیت اشتراک من", "My subscription status"},
+	{"start", "restart ♻️ شروع مجدد", "restart"},
+	{"buy", "خرید اشتراک 🛒", "Buy a plan"},
+	{"services", "اشتراک‌های من | تمدید 🔍", "My plans | Renew"},
+	{"wallet", "افزایش موجودی 💰", "Top up"},
+	{"help", "راهنما اتصال به سرویس‌ها ⁉️", "Connection guide"},
+	{"support", "پشتیبانی ☎️", "Support"},
 }
+
+var idCommand = commandInfo{"id", "شناسه تلگرام من", "My Telegram ID"}
 
 func (b *bot) handle(ctx context.Context, u update) {
 	if u.Callback != nil {
@@ -142,9 +146,16 @@ func (b *bot) handle(ctx context.Context, u update) {
 		return
 	}
 	cmd, arg := parseCommand(text)
+	fu := &fromUser{ID: from, FirstName: m.From.FirstName, LastName: m.From.LastName, Username: m.From.Username}
 	if cmd == "" {
-		if p := b.pend.get(chatID); p != nil && b.isAdmin(from) && text != "" {
-			b.handlePending(ctx, chatID, m.MessageID, text, p)
+		if p := b.pend.get(chatID); p != nil && text != "" {
+			if strings.HasPrefix(p.kind, "cu.") && !b.isAdmin(from) {
+				b.customerPending(ctx, chatID, fu, text)
+				return
+			}
+			if b.isAdmin(from) {
+				b.handlePending(ctx, chatID, m.MessageID, text, p)
+			}
 		}
 		return
 	}
@@ -172,12 +183,7 @@ func (b *bot) handle(ctx context.Context, u update) {
 		b.send(ctx, chatID, b.t("yourId", from))
 		return
 	}
-	bound := boundClients(from)
-	if len(bound) == 0 {
-		b.send(ctx, chatID, b.t("denied"))
-		return
-	}
-	b.userCommand(ctx, chatID, bound, cmd)
+	b.customerCommand(ctx, chatID, fu, cmd)
 }
 
 func boundClients(tgID int64) []model.Client {

@@ -18,6 +18,14 @@ type menuItem struct {
 }
 
 var menuItems = []menuItem{
+	{"خرید اشتراک 🔐", "Buy a plan 🔐", "p:buy"},
+	{"تمدید سرویس ♻️", "Renew ♻️", "p:renew"},
+	{"سرویس های من 🛍️", "My services 🛍️", "p:my"},
+	{"کیف پول + شارژ 🏦", "Wallet 🏦", "p:wallet"},
+	{"اکانت تست 🔑", "Test account 🔑", "p:trial"},
+	{"تعرفه اشتراک ها 💵", "Plans 💵", "p:tariff"},
+	{"آموزش 📚", "Guide 📚", "p:guide"},
+	{"پشتیبانی ☎️", "Support ☎️", "p:support"},
 	{"🏠 خانه", "🏠 Home", "h:home"},
 	{"📋 منوی اصلی", "📋 Main menu", "m:menu"},
 	{"👥 کلاینت‌ها", "👥 Clients", "c:ls:a:0"},
@@ -101,6 +109,10 @@ type menuChat struct{}
 // menuPress runs the bottom-menu button with the given callback data. It
 // reports whether the text was a button for this person.
 func (b *bot) menuPress(ctx context.Context, chatID int64, from *fromUser, data string) bool {
+	if strings.HasPrefix(data, "p:") {
+		b.customerPress(ctx, chatID, from, data)
+		return true
+	}
 	if !b.isAdmin(from.ID) {
 		return false
 	}

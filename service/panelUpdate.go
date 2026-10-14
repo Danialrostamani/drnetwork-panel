@@ -91,9 +91,8 @@ var (
 	latestMu     sync.Mutex
 	latestCached latestRelease
 
-	releaseTagRe    = regexp.MustCompile(`^[A-Za-z0-9._-]{1,64}$`)
-	versionNumberRe = regexp.MustCompile(`[0-9]+`)
-	ansiEscapeRe    = regexp.MustCompile(`\x1b\[[0-9;?]*[A-Za-z]`)
+	releaseTagRe = regexp.MustCompile(`^[A-Za-z0-9._-]{1,64}$`)
+	ansiEscapeRe = regexp.MustCompile(`\x1b\[[0-9;?]*[A-Za-z]`)
 )
 
 func fetchLatestRelease() latestRelease {
@@ -151,39 +150,9 @@ func latestReleaseInfo(force bool) latestRelease {
 	return latestCached
 }
 
-func versionNumbers(v string) []int {
-	var out []int
-	for _, s := range versionNumberRe.FindAllString(v, -1) {
-		n, err := strconv.Atoi(s)
-		if err != nil {
-			n = 0
-		}
-		out = append(out, n)
-	}
-	return out
-}
-
-// compareVersions orders two versions by their numbers, read left to right:
-// "v33" is newer than "32", and both are newer than "1.6.3-drnetwork.31"
-// (1 6 3 31), the numbering before DrNetwork had its own.
+// compareVersions orders two product versions; see config.CompareVersions.
 func compareVersions(a, b string) int {
-	na, nb := versionNumbers(a), versionNumbers(b)
-	for i := 0; i < len(na) || i < len(nb); i++ {
-		x, y := -1, -1
-		if i < len(na) {
-			x = na[i]
-		}
-		if i < len(nb) {
-			y = nb[i]
-		}
-		if x != y {
-			if x < y {
-				return -1
-			}
-			return 1
-		}
-	}
-	return 0
+	return config.CompareVersions(a, b)
 }
 
 // updateHost is how the update runs on this server.

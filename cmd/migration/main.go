@@ -48,13 +48,14 @@ func MigrateDb() error {
 	if err := tx.Raw("SELECT value FROM settings WHERE key = ?", "version").Find(&dbVersion).Error; err != nil {
 		return fmt.Errorf("reading database version: %w", err)
 	}
-	fmt.Println("Current version:", currentVersion, "\nDatabase version:", dbVersion)
+	fmt.Println("Current version:", config.VersionLabel(config.GetVersion()))
 
 	if currentVersion == dbVersion {
 		fmt.Println("Database is up to date, no need to migrate")
 		return nil
 	}
 
+	fmt.Println("Database version:", dbVersion)
 	fmt.Println("Start migrating database...")
 
 	// Before 1.2

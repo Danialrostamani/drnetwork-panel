@@ -34,6 +34,10 @@ func TestCompareVersions(t *testing.T) {
 		{"v33", "32", 1},
 		{"v32", "32", 0},
 		{"v99", "100", -1},
+		{"0.1", "45", 1},
+		{"v0.1", "v45", 1},
+		{"V.0.1", "0.1", 0},
+		{"45", "0.1", -1},
 	}
 	for _, c := range cases {
 		if got := compareVersions(c.a, c.b); got != c.want {
@@ -79,13 +83,13 @@ func stubUpdateHost(t *testing.T, h updateHost, why string) {
 
 func TestPanelUpdateInfo(t *testing.T) {
 	var tag atomic.Value
-	tag.Store("v99")
+	tag.Store("v0.2")
 	calls := fakeReleases(t, &tag)
 	stubUpdateHost(t, updateHost{}, "docker")
 	s := &PanelUpdateService{}
 
 	info := s.Info(false)
-	if info.Current != config.GetVersion() || info.Latest != "v99" || !info.Newer ||
+	if info.Current != config.GetVersion() || info.Latest != "v0.2" || !info.Newer ||
 		info.LatestURL != "https://example.com/r" || info.Published != 1791469743 || info.Unsupported != "docker" {
 		t.Fatalf("info = %+v", info)
 	}
@@ -107,7 +111,7 @@ func TestPanelUpdateInfo(t *testing.T) {
 
 func TestStartPanelUpdate(t *testing.T) {
 	var tag atomic.Value
-	tag.Store("v99")
+	tag.Store("v0.2")
 	fakeReleases(t, &tag)
 	dir := t.TempDir()
 	stubUpdateHost(t, updateHost{dir: dir, init: "openrc", bash: "/bin/bash"}, "")
@@ -121,16 +125,16 @@ func TestStartPanelUpdate(t *testing.T) {
 	s := &PanelUpdateService{}
 
 	got, err := s.Start("zhHans", "admin")
-	if err != nil || got != "v99" {
+	if err != nil || got != "v0.2" {
 		t.Fatalf("Start = %q, %v", got, err)
 	}
 	logPath := filepath.Join(dir, updateLogName)
-	want := []string{"v99", logPath, updateRawBase + "/" + updateRepo + "/v99/install.sh", "zhcn"}
+	want := []string{"v0.2", logPath, updateRawBase + "/" + updateRepo + "/v0.2/install.sh", "zhcn"}
 	if len(launched) != 1 || !reflect.DeepEqual(launched[0], want) {
 		t.Fatalf("launched %q", launched)
 	}
 	info := s.Info(false)
-	if !info.Running || info.Target != "v99" || info.From != config.GetVersion() || info.Exit != nil {
+	if !info.Running || info.Target != "v0.2" || info.From != config.GetVersion() || info.Exit != nil {
 		t.Fatalf("while running: %+v", info)
 	}
 	if _, err := s.Start("en", "admin"); err == nil || !strings.Contains(err.Error(), "already running") {
@@ -152,7 +156,7 @@ func TestStartPanelUpdate(t *testing.T) {
 		t.Fatalf("an older release was installed: %v", err)
 	}
 	stubUpdateHost(t, updateHost{}, "path")
-	tag.Store("v100")
+	tag.Store("v0.3")
 	s.Info(true)
 	if _, err := s.Start("en", "admin"); err == nil {
 		t.Fatal("an update started where the panel cannot update itself")

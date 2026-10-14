@@ -3,7 +3,6 @@ package service
 import (
 	"encoding/json"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -268,32 +267,9 @@ func netDelta(base nodeNetBase, haveBase bool, cur nodeNetBase) (up, down int64,
 	return up, down, true
 }
 
-// versionParts splits a version such as 32 or 1.6.3-drnetwork.21 into its
-// numbers.
-func versionParts(v string) []int {
-	var parts []int
-	for _, f := range strings.FieldsFunc(v, func(r rune) bool { return r < '0' || r > '9' }) {
-		n, err := strconv.Atoi(f)
-		if err != nil {
-			n = 0
-		}
-		parts = append(parts, n)
-	}
-	return parts
-}
-
-// versionOlder reports whether version a comes before version b. A version
-// that stops where the other goes on is the older one: 1.6.3 came before
-// 1.6.3-drnetwork.1. Every 1.6.3-drnetwork.N came before 32, the first
-// release under DrNetwork's own numbers.
+// versionOlder reports whether product version a comes before b.
 func versionOlder(a, b string) bool {
-	pa, pb := versionParts(a), versionParts(b)
-	for i := 0; i < len(pa) && i < len(pb); i++ {
-		if pa[i] != pb[i] {
-			return pa[i] < pb[i]
-		}
-	}
-	return len(pa) < len(pb)
+	return config.CompareVersions(a, b) < 0
 }
 
 // nodeVersion is the release a node runs, as precisely as it reports it.

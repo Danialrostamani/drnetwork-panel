@@ -56,7 +56,7 @@ var extra = map[string][2]string{
 	"unbound":        {"اتصال تلگرام کلاینت <b>%s</b> برداشته شد.", "Telegram binding removed from <b>%s</b>."},
 	"boundTo":        {"تلگرام", "Telegram"},
 	"usageNone":      {"هیچ کلاینتی به این حساب تلگرام وصل نیست. شناسه خود را (/id) به مدیر بدهید.", "No client is bound to this Telegram account. Give your ID (/id) to the administrator."},
-	"userHelp":       {"/usage — وضعیت اشتراک شما\n/sub — لینک اشتراک و QR\n/id — شناسه تلگرام شما", "/usage — your subscription status\n/sub — subscription link and QR\n/id — your Telegram ID"},
+	"userHelp":       {"از منوی پایین انتخاب کنید.\n/start — شروع مجدد\n/buy — خرید اشتراک\n/services — اشتراک‌های من\n/wallet — افزایش موجودی\n/help — آموزش اتصال\n/support — پشتیبانی", "Pick from the menu below.\n/start — restart\n/buy — buy a plan\n/services — my plans\n/wallet — top up\n/help — connection guide\n/support — support"},
 	"logsTitle":      {"📜 <b>آخرین لاگ‌ها</b>", "📜 <b>Latest logs</b>"},
 	"noLogs":         {"لاگی وجود ندارد.", "No logs."},
 	"maintUsage":     {"/maintenance <code>on</code> یا <code>off</code> — با on هسته متوقف می‌ماند", "/maintenance <code>on</code> or <code>off</code> — on keeps the core stopped"},

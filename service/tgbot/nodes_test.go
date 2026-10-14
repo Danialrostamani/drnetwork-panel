@@ -171,7 +171,7 @@ func TestNodeAlertsCardAndActions(t *testing.T) {
 
 	// The card shows the new details.
 	text, kb := b.objCard(kindByCode("nd"), node.Id)
-	for _, want := range []string{"🇩🇪", "🏷 germany, fast", "Disk", "Online: 2", "v" + config.GetVersion(), "Disk 96% ≥ 90%"} {
+	for _, want := range []string{"🇩🇪", "🏷 germany, fast", "Disk", "Online: 2", config.VersionLabel(config.GetVersion()), "Disk 96% ≥ 90%"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("card lacks %q:\n%s", want, text)
 		}

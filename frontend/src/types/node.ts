@@ -171,8 +171,12 @@ export const defaultNode: Node = {
 }
 
 // A fresh copy of defaultNode, sharing no object with it.
-// A panel version written the way the panel writes versions, with a v: v32.
+// A panel version written the way the panel writes versions: V.0.1, or v45
+// for the older integer line.
 export function versionLabel(v: string): string {
+  if (!v) return ''
+  const s = v.replace(/^v\.?/i, '')
+  if (/^0\./.test(s)) return `V.${s}`
   return /^\d/.test(v) ? `v${v}` : v
 }
 

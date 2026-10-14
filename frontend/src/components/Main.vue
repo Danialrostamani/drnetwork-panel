@@ -246,7 +246,7 @@
                       density="compact"
                       color="primary"
                     >
-                      v{{ tilesData.sys?.appVersion }}
+                      {{ versionLabel(tilesData.sys?.appVersion || '') }}
                     </v-chip>
                   </v-col>
                   <v-col cols="3">
@@ -428,6 +428,7 @@
 </template>
 
 <script lang="ts" setup>
+import { versionLabel } from '@/types/node'
 import HttpUtils from '@/plugins/httputil'
 import { HumanReadable } from '@/plugins/utils'
 import Data from '@/store/modules/data'
