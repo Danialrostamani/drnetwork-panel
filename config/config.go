@@ -11,9 +11,10 @@ import (
 	"unicode"
 )
 
-// release is the DrNetwork version, such as 0.1: what the panel, the bot, the
+// release is the DrNetwork version, such as 46: what the panel, the bot, the
 // nodes and the installer show. It is bumped by hand in the commit that is
-// tagged v<release>.
+// tagged v<release>. GitHub's latest release follows semver, so the product
+// line is the integer tags (v45, v46…); V.0.1 / V.0.2 sat between v45 and v46.
 //
 //go:embed release
 var release string
@@ -37,13 +38,13 @@ const (
 	Error LogLevel = "error"
 )
 
-// GetVersion returns the DrNetwork version, such as "0.1".
+// GetVersion returns the DrNetwork version, such as "46".
 func GetVersion() string {
 	return strings.TrimSpace(release)
 }
 
 // VersionLabel writes a version the way it is shown. The 0.x line is "V.0.1";
-// the older integer line stays "v45".
+// the integer line is "v46".
 func VersionLabel(v string) string {
 	v = strings.TrimSpace(v)
 	if v == "" {
@@ -63,8 +64,8 @@ func VersionLabel(v string) string {
 	return v
 }
 
-// CompareVersions orders two DrNetwork product versions. The 0.x line (0.1)
-// comes after the integer line (v45), which came after 1.6.3-drnetwork.N.
+// CompareVersions orders two DrNetwork product versions.
+// 1.6.3-drnetwork.N, then v32…v45, then V.0.1 / V.0.2, then v46….
 func CompareVersions(a, b string) int {
 	ea, eb := versionEpoch(a), versionEpoch(b)
 	if ea != eb {
@@ -96,17 +97,24 @@ func versionEpoch(v string) int {
 	if strings.Contains(strings.ToLower(v), "drnetwork") {
 		return 0
 	}
-	nums := versionNumbers(v)
-	if len(nums) <= 1 {
-		return 1
-	}
-	if nums[0] == 1 && nums[1] == 6 {
+	nums := rawVersionNumbers(v)
+	if len(nums) >= 2 && nums[0] == 1 && nums[1] == 6 {
 		return 0
 	}
-	return 2
+	return 1
 }
 
 func versionNumbers(v string) []int {
+	nums := rawVersionNumbers(v)
+	// V.0.1 sat after v45 and before v46. Mapping 0.x → 45.x keeps that
+	// order, so a panel on 0.1 still sees v46 as an update.
+	if len(nums) >= 2 && nums[0] == 0 {
+		return append([]int{45}, nums[1:]...)
+	}
+	return nums
+}
+
+func rawVersionNumbers(v string) []int {
 	var out []int
 	start := -1
 	for i, r := range v {

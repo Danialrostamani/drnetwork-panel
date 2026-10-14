@@ -38,6 +38,10 @@ func TestCompareVersions(t *testing.T) {
 		{"v0.1", "v45", 1},
 		{"V.0.1", "0.1", 0},
 		{"45", "0.1", -1},
+		{"46", "0.2", 1},
+		{"v46", "v0.1", 1},
+		{"46", "45", 1},
+		{"0.2", "46", -1},
 	}
 	for _, c := range cases {
 		if got := compareVersions(c.a, c.b); got != c.want {
@@ -83,13 +87,13 @@ func stubUpdateHost(t *testing.T, h updateHost, why string) {
 
 func TestPanelUpdateInfo(t *testing.T) {
 	var tag atomic.Value
-	tag.Store("v0.3")
+	tag.Store("v47")
 	calls := fakeReleases(t, &tag)
 	stubUpdateHost(t, updateHost{}, "docker")
 	s := &PanelUpdateService{}
 
 	info := s.Info(false)
-	if info.Current != config.GetVersion() || info.Latest != "v0.3" || !info.Newer ||
+	if info.Current != config.GetVersion() || info.Latest != "v47" || !info.Newer ||
 		info.LatestURL != "https://example.com/r" || info.Published != 1791469743 || info.Unsupported != "docker" {
 		t.Fatalf("info = %+v", info)
 	}
@@ -98,8 +102,8 @@ func TestPanelUpdateInfo(t *testing.T) {
 	if calls.Load() != 1 {
 		t.Fatalf("GitHub asked %d times", calls.Load())
 	}
-	tag.Store("v0.1")
-	if info = s.Info(true); info.Latest != "v0.1" || info.Newer || calls.Load() != 2 {
+	tag.Store("v46")
+	if info = s.Info(true); info.Latest != "v46" || info.Newer || calls.Load() != 2 {
 		t.Fatalf("after a check: %+v (%d calls)", info, calls.Load())
 	}
 	// A tag that could not be put on a command line is refused.
@@ -111,7 +115,7 @@ func TestPanelUpdateInfo(t *testing.T) {
 
 func TestStartPanelUpdate(t *testing.T) {
 	var tag atomic.Value
-	tag.Store("v0.3")
+	tag.Store("v47")
 	fakeReleases(t, &tag)
 	dir := t.TempDir()
 	stubUpdateHost(t, updateHost{dir: dir, init: "openrc", bash: "/bin/bash"}, "")
@@ -125,16 +129,16 @@ func TestStartPanelUpdate(t *testing.T) {
 	s := &PanelUpdateService{}
 
 	got, err := s.Start("zhHans", "admin")
-	if err != nil || got != "v0.3" {
+	if err != nil || got != "v47" {
 		t.Fatalf("Start = %q, %v", got, err)
 	}
 	logPath := filepath.Join(dir, updateLogName)
-	want := []string{"v0.3", logPath, updateRawBase + "/" + updateRepo + "/v0.3/install.sh", "zhcn"}
+	want := []string{"v47", logPath, updateRawBase + "/" + updateRepo + "/v47/install.sh", "zhcn"}
 	if len(launched) != 1 || !reflect.DeepEqual(launched[0], want) {
 		t.Fatalf("launched %q", launched)
 	}
 	info := s.Info(false)
-	if !info.Running || info.Target != "v0.3" || info.From != config.GetVersion() || info.Exit != nil {
+	if !info.Running || info.Target != "v47" || info.From != config.GetVersion() || info.Exit != nil {
 		t.Fatalf("while running: %+v", info)
 	}
 	if _, err := s.Start("en", "admin"); err == nil || !strings.Contains(err.Error(), "already running") {
@@ -150,13 +154,13 @@ func TestStartPanelUpdate(t *testing.T) {
 
 	// An update older than the panel, or a panel that cannot update itself,
 	// starts nothing.
-	tag.Store("v0.1")
+	tag.Store("v45")
 	s.Info(true)
 	if _, err := s.Start("en", "admin"); err == nil || !strings.Contains(err.Error(), "up to date") {
 		t.Fatalf("an older release was installed: %v", err)
 	}
 	stubUpdateHost(t, updateHost{}, "path")
-	tag.Store("v0.3")
+	tag.Store("v47")
 	s.Info(true)
 	if _, err := s.Start("en", "admin"); err == nil {
 		t.Fatal("an update started where the panel cannot update itself")

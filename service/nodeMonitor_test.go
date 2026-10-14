@@ -175,6 +175,9 @@ func TestVersionOlder(t *testing.T) {
 		{"0.1", "45", false},
 		{"0.1", "0.2", true},
 		{"1.6.3-drnetwork.31", "0.1", true},
+		{"0.2", "46", true},
+		{"45", "46", true},
+		{"46", "0.2", false},
 	} {
 		if got := versionOlder(c.a, c.b); got != c.want {
 			t.Errorf("versionOlder(%q, %q) = %v", c.a, c.b, got)
