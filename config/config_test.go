@@ -12,8 +12,8 @@ func TestVersion(t *testing.T) {
 	if !regexp.MustCompile(`^[0-9]+(\.[0-9]+)*$`).MatchString(v) {
 		t.Fatalf("version %q is not plain numbers", v)
 	}
-	if VersionLabel(v) != "v47" {
-		t.Errorf("VersionLabel(%q) = %q, want v47", v, VersionLabel(v))
+	if VersionLabel(v) != "v48.0" {
+		t.Errorf("VersionLabel(%q) = %q, want v48.0", v, VersionLabel(v))
 	}
 	for in, want := range map[string]string{
 		"0.1":                "V.0.1",
@@ -51,6 +51,11 @@ func TestCompareVersions(t *testing.T) {
 		{"v46", "v0.1", 1},
 		{"46", "45", 1},
 		{"0.2", "46", -1},
+		// Dotted 48.0 is the same line as V.0.2 on a v0.2 panel (two
+		// numbers) and newer than both 0.2 and the integer v47 tag.
+		{"48.0", "0.2", 1},
+		{"v48.0", "v47", 1},
+		{"v47", "48.0", -1},
 	}
 	for _, c := range cases {
 		if got := CompareVersions(c.a, c.b); got != c.want {

@@ -11,10 +11,11 @@ import (
 	"unicode"
 )
 
-// release is the DrNetwork version, such as 46: what the panel, the bot, the
+// release is the DrNetwork version, such as 48.0: what the panel, the bot, the
 // nodes and the installer show. It is bumped by hand in the commit that is
-// tagged v<release>. GitHub's latest release follows semver, so the product
-// line is the integer tags (v45, v46…); V.0.1 / V.0.2 sat between v45 and v46.
+// tagged v<release>. Tags stay dotted (48.0, 48.1…) so a panel still on V.0.2
+// treats them as the same line as 0.x (two numbers) and GitHub's latest is
+// newer than v47. V.0.1 / V.0.2 sat between v45 and v46.
 //
 //go:embed release
 var release string
@@ -38,13 +39,13 @@ const (
 	Error LogLevel = "error"
 )
 
-// GetVersion returns the DrNetwork version, such as "46".
+// GetVersion returns the DrNetwork version, such as "48.0".
 func GetVersion() string {
 	return strings.TrimSpace(release)
 }
 
 // VersionLabel writes a version the way it is shown. The 0.x line is "V.0.1";
-// the integer line is "v46".
+// the product line is "v48.0".
 func VersionLabel(v string) string {
 	v = strings.TrimSpace(v)
 	if v == "" {

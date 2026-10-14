@@ -322,6 +322,8 @@ describe('versions', () => {
   it('writes panel versions with a v, old and new numbering alike', () => {
     expect(versionLabel('32')).toBe('v32')
     expect(versionLabel('v32')).toBe('v32')
+    expect(versionLabel('48.0')).toBe('v48.0')
+    expect(versionLabel('v48.0')).toBe('v48.0')
     expect(versionLabel('0.1')).toBe('V.0.1')
     expect(versionLabel('v0.1')).toBe('V.0.1')
     expect(versionLabel('V.0.1')).toBe('V.0.1')
