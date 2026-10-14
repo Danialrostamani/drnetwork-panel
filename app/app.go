@@ -70,6 +70,19 @@ func (a *APP) Start() error {
 		return err
 	}
 
+	// Start the core before opening HTTP. A node that answers probes while
+	// the core is still down gets a client sync that either no-ops or live-
+	// updates a Box that has not finished starting; after a panel update that
+	// is the window where outbounds and endpoints are listed but take no
+	// traffic until the core is restarted by hand.
+	if maintenance, mErr := a.SettingService.GetMaintenance(); mErr == nil && maintenance {
+		logger.Warning("maintenance mode is on: core not started, clients cannot connect")
+	} else if err = a.configService.StartCore(); err != nil {
+		logger.Error(err)
+	} else if err = a.configService.RebuildCoreForRouting(); err != nil {
+		logger.Error(err)
+	}
+
 	err = a.cronJob.Start(loc, trafficAge, statsBucketSeconds)
 	if err != nil {
 		return err
@@ -87,17 +100,6 @@ func (a *APP) Start() error {
 
 	// Idle unless the Telegram bot is enabled in the settings.
 	tgbot.Start(a.configService)
-
-	// StartCore does nothing while maintenance is on, so say why rather than
-	// leave the operator looking at a panel that came up with no core.
-	if maintenance, mErr := a.SettingService.GetMaintenance(); mErr == nil && maintenance {
-		logger.Warning("maintenance mode is on: core not started, clients cannot connect")
-	} else {
-		err = a.configService.StartCore()
-		if err != nil {
-			logger.Error(err)
-		}
-	}
 
 	return nil
 }

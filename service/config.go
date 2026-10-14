@@ -109,6 +109,45 @@ func (s *ConfigService) GetConfig(data string) (*[]byte, error) {
 	return &rawConfig, nil
 }
 
+// configNeedsRoutingRebuild reports whether this generated config has
+// outbounds or endpoints that, after a panel update, often accept no traffic
+// until the core is rebuilt. The default seeded `direct` outbound is left
+// alone: a second start would not change anything.
+func configNeedsRoutingRebuild(cfg *SingBoxConfig) bool {
+	if cfg == nil {
+		return false
+	}
+	if len(cfg.Endpoints) > 0 {
+		return true
+	}
+	if len(cfg.Outbounds) != 1 {
+		return len(cfg.Outbounds) > 0
+	}
+	return !outboundIsDefaultDirect(cfg.Outbounds[0])
+}
+
+func outboundIsDefaultDirect(raw json.RawMessage) bool {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return false
+	}
+	var typ, tag string
+	if err := json.Unmarshal(fields["type"], &typ); err != nil || typ != "direct" {
+		return false
+	}
+	if err := json.Unmarshal(fields["tag"], &tag); err != nil || tag != "direct" {
+		return false
+	}
+	for key := range fields {
+		switch key {
+		case "type", "tag":
+		default:
+			return false
+		}
+	}
+	return true
+}
+
 // defaultHTTPClientTag names the HTTP client remote rule-sets download over
 // when the operator has not set one up.
 const defaultHTTPClientTag = "default"
@@ -293,6 +332,34 @@ func (s *ConfigService) RestartCore() error {
 		return err
 	}
 	return s.startCoreLocked(true)
+}
+
+// RebuildCoreForRouting rebuilds a core that has just been started, when the
+// generated config has outbounds or endpoints besides the seeded direct.
+// After a node panel update the first Box comes up with no start error and the
+// lists are still in the database, but traffic does not go through those
+// objects until an operator restarts the core. Doing that rebuild here, before
+// the panel accepts API calls, closes the window.
+func (s *ConfigService) RebuildCoreForRouting() error {
+	if s.inMaintenance() {
+		return nil
+	}
+	if corePtr == nil || !corePtr.IsRunning() {
+		return nil
+	}
+	rawConfig, err := s.GetConfig("")
+	if err != nil {
+		return err
+	}
+	var cfg SingBoxConfig
+	if err := json.Unmarshal(*rawConfig, &cfg); err != nil {
+		return err
+	}
+	if !configNeedsRoutingRebuild(&cfg) {
+		return nil
+	}
+	logger.Info("rebuilding core so outbounds and endpoints take effect")
+	return s.RestartCore()
 }
 
 // restartCoreWithSavedConfig restarts the core from what is stored now, after a
