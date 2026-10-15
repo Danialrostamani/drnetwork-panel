@@ -149,6 +149,11 @@ export default {
     closeSessions: "قطع اتصال کاربر",
     panelUpdate: "به‌روزرسانی پنل",
   },
+  urlTest: {
+    custom: "آدرس تست دلخواه",
+    url: "آدرس تست",
+    invalid: "باید یک آدرس http(s) باشد",
+  },
   login: {
     code: "کد دومرحله‌ای",
     title: "ورود",
@@ -241,6 +246,8 @@ export default {
     path: "مسیر پیشفرض",
     update: "زمان بروزرسانی خودکار",
     subUri: "آدرس نهایی سابسکریپشن",
+    subCustomHeaders: "هدرهای سفارشی HTTP",
+    subCustomHeadersHint: "هدرهای اضافه برای همهٔ سابسکریپشن‌ها، هر خط یک «Name: value»؛ خطوطی که با # شروع شوند نادیده گرفته می‌شوند",
     jsonSub: "سابسکریپشن JSON",
     toProxy: "هدایت به پروکسی",
     defaultRules: "قوانین پیش‌فرض",

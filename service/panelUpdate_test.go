@@ -102,8 +102,8 @@ func TestPanelUpdateInfo(t *testing.T) {
 	if calls.Load() != 1 {
 		t.Fatalf("GitHub asked %d times", calls.Load())
 	}
-	tag.Store("v48.1")
-	if info = s.Info(true); info.Latest != "v48.1" || info.Newer || calls.Load() != 2 {
+	tag.Store("v48.2")
+	if info = s.Info(true); info.Latest != "v48.2" || info.Newer || calls.Load() != 2 {
 		t.Fatalf("after a check: %+v (%d calls)", info, calls.Load())
 	}
 	// A tag that could not be put on a command line is refused.
@@ -172,7 +172,7 @@ func TestStartPanelUpdate(t *testing.T) {
 
 func TestForcePanelUpdateInstallsEvenIfNotNewer(t *testing.T) {
 	var tag atomic.Value
-	tag.Store("v48.1")
+	tag.Store("v48.2")
 	fakeReleases(t, &tag)
 	dir := t.TempDir()
 	stubUpdateHost(t, updateHost{dir: dir, init: "openrc", bash: "/bin/bash"}, "")
@@ -188,14 +188,14 @@ func TestForcePanelUpdateInstallsEvenIfNotNewer(t *testing.T) {
 		t.Fatalf("same version without force: %v", err)
 	}
 	got, err := s.StartAt("en", "admin", "", true)
-	if err != nil || got != "v48.1" {
+	if err != nil || got != "v48.2" {
 		t.Fatalf("force latest = %q, %v", got, err)
 	}
 	got, err = s.StartAt("fa", "admin", "v49.0", true)
 	if err == nil || !strings.Contains(err.Error(), "already running") {
 		t.Fatalf("second force started: %v", err)
 	}
-	if len(launched) != 1 || launched[0][0] != "v48.1" {
+	if len(launched) != 1 || launched[0][0] != "v48.2" {
 		t.Fatalf("launched %q", launched)
 	}
 }

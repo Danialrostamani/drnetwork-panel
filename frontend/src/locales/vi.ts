@@ -149,6 +149,11 @@ export default {
     closeSessions: "Ngắt kết nối người dùng",
     panelUpdate: "Cập nhật bảng điều khiển",
   },
+  urlTest: {
+    custom: "URL kiểm tra tùy chỉnh",
+    url: "URL kiểm tra",
+    invalid: "Phải là URL http(s)",
+  },
   login: {
     title: "Đăng nhập",
     username: "Tên người dùng",
@@ -206,6 +211,8 @@ export default {
     path: "Đường dẫn mặc định",
     update: "Thời gian cập nhật tự động",
     subUri: "URI đăng ký",
+    subCustomHeaders: "Tiêu đề HTTP tùy chỉnh",
+    subCustomHeadersHint: "Tiêu đề thêm cho mọi đăng ký, mỗi dòng một \"Name: value\"; dòng bắt đầu bằng # bị bỏ qua",
     jsonSub: "Đăng ký JSON",
     toProxy: "Chuyển hướng tới Proxy",
     defaultRules: "Quy tắc mặc định",

@@ -149,6 +149,11 @@ export default {
     panelUpdate: "Обновить панель",
     apply: "Применить",
   },
+  urlTest: {
+    custom: "Свой URL проверки",
+    url: "URL проверки",
+    invalid: "Нужен URL http(s)",
+  },
   login: {
     title: "Вход",
     username: "Имя пользователя",
@@ -206,6 +211,8 @@ export default {
     path: "Путь по умолчанию",
     update: "Время автоматического обновления",
     subUri: "URI подписки",
+    subCustomHeaders: "Дополнительные HTTP-заголовки",
+    subCustomHeadersHint: "Заголовки для каждой подписки, по одному «Name: value» в строке; строки с # игнорируются",
     jsonSub: "JSON подписка",
     toProxy: "Маршрутизация на Proxy",
     defaultRules: "Правила по умолчанию",

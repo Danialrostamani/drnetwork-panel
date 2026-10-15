@@ -96,6 +96,7 @@ var defaultValueMap = map[string]string{
 	"subURI":             "",
 	"subJsonExt":         "",
 	"subClashExt":        "",
+	"subCustomHeaders":   "",
 	"subClashNoDefGrp":   "false",
 	"subClashSprtAll":    "false",
 	"subClashUdp":        "false",
@@ -696,6 +697,10 @@ func (s *SettingService) GetSubJsonExt() (string, error) {
 
 func (s *SettingService) GetSubClashExt() (string, error) {
 	return s.getString("subClashExt")
+}
+
+func (s *SettingService) GetSubCustomHeaders() (string, error) {
+	return s.getString("subCustomHeaders")
 }
 
 // GetSubClashNoDefGrp reports whether the default "Proxy"/"Auto" proxy-groups

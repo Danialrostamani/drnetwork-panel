@@ -149,6 +149,11 @@ export default {
     closeSessions: "斷開該使用者",
     panelUpdate: "更新面板",
   },
+  urlTest: {
+    custom: "自訂測試 URL",
+    url: "測試 URL",
+    invalid: "必須是 http(s) URL",
+  },
   login: {
     title: "登錄",
     username: "用戶名",
@@ -206,6 +211,8 @@ export default {
     path: "默認路徑",
     update: "自動更新時間",
     subUri: "訂閱 URL",
+    subCustomHeaders: "自訂 HTTP 標頭",
+    subCustomHeadersHint: "隨每個訂閱傳送的額外標頭，每行一個 \"Name: value\"；以 # 開頭的行會被忽略",
     jsonSub: "JSON 訂閱",
     toProxy: "路由到代理",
     defaultRules: "預設規則",
