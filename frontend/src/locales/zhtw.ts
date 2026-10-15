@@ -337,7 +337,7 @@ export default {
     onlineOutbounds: "出站",
     months12: "12 個月",
     trafficOf: "該時段流量：{total}",
-    trafficHint: "伺服器網路介面傳送和接收的流量，由主控依據對節點的探測統計。",
+    trafficHint: "節點上客戶端實際上傳和下載的流量，由主控依據探測統計。",
     topClients: "使用該節點最多的用戶",
     outages: "故障",
     outageStart: "開始",

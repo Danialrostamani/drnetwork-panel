@@ -413,7 +413,7 @@ func TestPlanSyncAndReportLimits(t *testing.T) {
 func TestProbeReadsTheNewStatusFields(t *testing.T) {
 	resetNodeState(t)
 	const token = "tok"
-	nic := true
+	nic, db := true, true
 	var mu sync.Mutex
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Token") != token {
@@ -421,20 +421,25 @@ func TestProbeReadsTheNewStatusFields(t *testing.T) {
 			return
 		}
 		mu.Lock()
-		withNic := nic
+		withNic, withDb := nic, db
 		mu.Unlock()
 		switch r.URL.Path {
 		case "/apiv2/status":
-			if !strings.Contains(r.URL.Query().Get("r"), "nic") {
-				t.Errorf("status asked for %q", r.URL.Query().Get("r"))
+			req := r.URL.Query().Get("r")
+			if !strings.Contains(req, "nic") || !strings.Contains(req, "db") {
+				t.Errorf("status asked for %q", req)
 			}
-			nicJSON := ""
+			extra := ""
 			if withNic {
-				nicJSON = `"nic":{"sent":500,"recv":700,"ifs":{"eth0":[500,700]}},`
+				extra += `"nic":{"sent":500,"recv":700,"ifs":{"eth0":[500,700]}},`
+			}
+			if withDb {
+				extra += `"db":{"clientUp":120,"clientDown":800},`
 			}
 			fmt.Fprintf(w, `{"success":true,"obj":{"cpu":12.5,"mem":{"current":10,"total":20},"dsk":{"current":30,"total":100},"swp":{"current":1,"total":4},`+
-				`"net":{"sent":900,"recv":1100},%s"sys":{"appVersion":"1.6.3","appFull":"1.6.3-drnetwork.22","hostName":"de-1","cpuType":"EPYC","cpuCount":4,"ipv4":["1.2.3.4"],"ipv6":["2001:db8::1"],"bootTime":1700000000},`+
-				`"sbd":{"running":true,"version":"1.12.0","maintenance":false,"stats":{"Uptime":3600}}}}`, nicJSON)
+				`"net":{"sent":900,"recv":1100},%s`+
+				`"sys":{"appVersion":"1.6.3","appFull":"1.6.3-drnetwork.22","hostName":"de-1","cpuType":"EPYC","cpuCount":4,"ipv4":["1.2.3.4"],"ipv6":["2001:db8::1"],"bootTime":1700000000},`+
+				`"sbd":{"running":true,"version":"1.12.0","maintenance":false,"stats":{"Uptime":3600}}}}`, extra)
 		case "/apiv2/onlines":
 			_, _ = w.Write([]byte(`{"success":true,"obj":{"user":["alice","bob"],"inbound":["in"],"outbound":["direct"]}}`))
 		default:
@@ -454,8 +459,8 @@ func TestProbeReadsTheNewStatusFields(t *testing.T) {
 		st.CpuType != "EPYC" || len(st.IPv4) != 1 || len(st.IPv6) != 1 || st.BootTime != 1700000000 || st.CoreUptime != 3600 || st.Online != 2 || st.CoreVersion != "1.12.0" {
 		t.Fatalf("status: %+v", st)
 	}
-	if st.netSrc != "nic" || st.netSent != 500 || st.netIfs["eth0"] != [2]uint64{500, 700} {
-		t.Fatalf("counters: %s %d %v", st.netSrc, st.netSent, st.netIfs)
+	if st.netSrc != "cli" || st.netSent != 120 || st.netRecv != 800 {
+		t.Fatalf("counters: %s %d/%d %v", st.netSrc, st.netSent, st.netRecv, st.netIfs)
 	}
 	leaf := srv.Certificate()
 	if st.CertExpiry != leaf.NotAfter.Unix() {
@@ -464,6 +469,14 @@ func TestProbeReadsTheNewStatusFields(t *testing.T) {
 	on := svc.GetNodeOnlines(node.Id)
 	if strings.Join(on.User, ",") != "alice,bob" || len(on.Inbound) != 1 || on.CheckedAt == 0 {
 		t.Fatalf("onlines: %+v", on)
+	}
+	// Without client totals, "nic" is the server's real interfaces.
+	mu.Lock()
+	db = false
+	mu.Unlock()
+	statuses, _ = svc.ProbeNow([]uint{node.Id})
+	if st := statuses[node.Id]; st.netSrc != "nic" || st.netSent != 500 || st.netIfs["eth0"] != [2]uint64{500, 700} {
+		t.Fatalf("nic counters: %s %d %v", st.netSrc, st.netSent, st.netIfs)
 	}
 	// An older node without "nic" falls back to the sum of every interface.
 	mu.Lock()

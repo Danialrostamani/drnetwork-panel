@@ -52,8 +52,9 @@ type NodeStatus struct {
 	// When the server booted, and for how many seconds the core has run.
 	BootTime   int64 `json:"bootTime,omitempty"`
 	CoreUptime int64 `json:"coreUptime,omitempty"`
-	// Bytes per second the server's network interfaces sent and received
-	// since the probe before.
+	// Bytes per second clients uploaded and downloaded since the probe
+	// before. Older nodes that do not report client totals fall back to
+	// the server's network interfaces.
 	NetUp   int64 `json:"netUp"`
 	NetDown int64 `json:"netDown"`
 	// Users connected right now.
@@ -102,7 +103,7 @@ const (
 	nodeMaxResponseSize = 8 << 20
 	nodeIdleConnTimeout = 90 * time.Second
 	// What a probe asks a node for. A node too old to know a key leaves it out.
-	nodeStatusRequest = "cpu,mem,dsk,swp,net,nic,sys,sbd"
+	nodeStatusRequest = "cpu,mem,dsk,swp,net,nic,sys,sbd,db"
 	nodeMaxTags       = 10
 	nodeTagMaxLen     = 24
 	// How many nodes one multi-add may create.
@@ -260,6 +261,12 @@ type nodeStatusPayload struct {
 	Swp NodeMem       `json:"swp"`
 	Net *nodeCounters `json:"net"`
 	Nic *nodeCounters `json:"nic"`
+	// Client traffic totals (up+total_up, down+total_down) when the node
+	// knows the "db" status key.
+	Db *struct {
+		ClientUp   int64 `json:"clientUp"`
+		ClientDown int64 `json:"clientDown"`
+	} `json:"db"`
 	Sys struct {
 		AppVersion string   `json:"appVersion"`
 		AppFull    string   `json:"appFull"`
@@ -321,9 +328,19 @@ func (s *NodeService) probe(n *model.Node, client *http.Client) NodeStatus {
 	st.IPv4, st.IPv6 = payload.Sys.IPv4, payload.Sys.IPv6
 	st.BootTime = payload.Sys.BootTime
 	st.Maintenance = payload.Sbd.Maintenance
-	// "nic" leaves out loopback and virtual interfaces; nodes older than it
+	// Client totals are upload/download of the accounts on the node, so ↑
+	// and ↓ can differ. "nic" is the server's real interfaces; older nodes
 	// only have "net", the sum of every interface.
 	switch {
+	case payload.Db != nil:
+		up, down := payload.Db.ClientUp, payload.Db.ClientDown
+		if up < 0 {
+			up = 0
+		}
+		if down < 0 {
+			down = 0
+		}
+		st.netSent, st.netRecv, st.netSrc = uint64(up), uint64(down), "cli"
 	case payload.Nic.present():
 		st.netSent, st.netRecv, st.netIfs, st.netSrc = payload.Nic.Sent, payload.Nic.Recv, payload.Nic.Ifs, "nic"
 	case payload.Net.present():

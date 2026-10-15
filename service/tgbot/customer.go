@@ -6,21 +6,6 @@ import (
 	"strings"
 )
 
-// The customer bot is what anybody who is not an administrator sees when they
-// open the bot: a Telegram command menu and a two-column bottom keyboard.
-func (b *bot) customerMenu(id int64) [][]string {
-	rows := [][]string{
-		{"p:buy", "p:renew"},
-		{"p:my", "p:wallet"},
-		{"p:trial", "p:tariff"},
-		{"p:support", "p:guide"},
-	}
-	if b.isAdmin(id) {
-		rows = append(rows, []string{"k:admin"})
-	}
-	return rows
-}
-
 func (b *bot) customerHome() string {
 	return b.tr(
 		"👋 خوش آمدید\nاز دکمه‌های پایین استفاده کنید.",
@@ -33,40 +18,29 @@ func (b *bot) customerStart(ctx context.Context, chatID int64, from *fromUser) {
 		b.pend.clear(chatID)
 		id = from.ID
 	}
-	b.sendMenu(ctx, chatID, b.customerHome(), b.customerMenu(id))
+	b.sendMenu(ctx, chatID, b.shopHomeText(), b.customerMenu(id))
 }
 
 func (b *bot) customerPress(ctx context.Context, chatID int64, from *fromUser, data string) {
 	b.pend.clear(chatID)
 	switch data {
 	case "p:buy":
-		b.customerAsk(ctx, chatID, from, "buy", b.tr(
-			"🔐 <b>خرید اشتراک</b>\nپلن یا مدت مورد نظرتان را بنویسید (مثلا ۳۰ روز ۵۰ گیگ). پیام شما به پشتیبانی می‌رسد.",
-			"🔐 <b>Buy a plan</b>\nWrite the plan or duration you want (for example 30 days 50 GB). Your message goes to support."))
+		b.customerBuy(ctx, chatID, from, "")
 	case "p:renew":
-		if b.customerServices(ctx, chatID, from.ID, true) {
-			return
-		}
-		b.customerAsk(ctx, chatID, from, "renew", b.tr(
-			"♻️ <b>تمدید سرویس</b>\nسرویسی روی این حساب نیست. نام پلن را بنویسید تا پشتیبانی تمدید را انجام دهد.",
-			"♻️ <b>Renew</b>\nNo service is on this account. Write the plan you want and support will renew it."))
+		b.customerRenewPick(ctx, chatID, from)
 	case "p:my":
 		b.customerServices(ctx, chatID, from.ID, false)
 	case "p:wallet":
-		b.customerAsk(ctx, chatID, from, "wallet", b.tr(
-			"🏦 <b>کیف پول + شارژ</b>\nمبلغ شارژ را بنویسید. پیام شما به پشتیبانی می‌رسد.",
-			"🏦 <b>Wallet</b>\nWrite the amount to add. Your message goes to support."))
+		b.customerWallet(ctx, chatID, from)
 	case "p:trial":
 		b.notifyAdmins(ctx, b.customerNotice(from, "test", ""))
 		b.sendMenu(ctx, chatID, b.tr(
 			"🔑 <b>اکانت تست</b>\nدرخواست شما برای پشتیبانی ارسال شد. به‌زودی پاسخ می‌گیرید.",
 			"🔑 <b>Test account</b>\nYour request was sent to support. They will reply soon."), b.customerMenu(from.ID))
 	case "p:tariff":
-		b.sendMenu(ctx, chatID, b.tr(
-			"💵 <b>تعرفه اشتراک‌ها</b>\nبرای دیدن قیمت‌ها و خرید، روی <b>خرید اشتراک</b> بزنید یا به پشتیبانی پیام دهید.",
-			"💵 <b>Plans</b>\nTo see prices and buy, tap <b>Buy a plan</b> or message support."), b.customerMenu(from.ID))
+		b.customerTariff(ctx, chatID, from)
 	case "p:guide":
-		b.sendMenu(ctx, chatID, b.customerGuide(), b.customerMenu(from.ID))
+		b.sendMenu(ctx, chatID, b.shopGuideText(), b.customerMenu(from.ID))
 	case "p:support":
 		b.customerAsk(ctx, chatID, from, "support", b.tr(
 			"☎️ <b>پشتیبانی</b>\nپیام خود را بنویسید؛ برای پشتیبانی ارسال می‌شود.",
@@ -131,6 +105,17 @@ func (b *bot) customerAsk(ctx context.Context, chatID int64, from *fromUser, top
 
 func (b *bot) customerPending(ctx context.Context, chatID int64, from *fromUser, text string) {
 	p := b.pend.get(chatID)
+	if p != nil && p.kind == "cu.name" {
+		topic, planID, extra := "buy", "", ""
+		if p.data != nil {
+			topic = nonempty(p.data["topic"], "buy")
+			planID = p.data["plan"]
+			extra = p.data["extra"]
+		}
+		b.pend.clear(chatID)
+		b.finishCustomerOrder(ctx, chatID, from, topic, planID, extra, text)
+		return
+	}
 	topic := "support"
 	if p != nil && p.data != nil && p.data["topic"] != "" {
 		topic = p.data["topic"]

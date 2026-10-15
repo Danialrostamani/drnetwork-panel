@@ -337,7 +337,7 @@ export default {
     onlineOutbounds: "Đầu ra",
     months12: "12 tháng",
     trafficOf: "Lưu lượng trong kỳ: {total}",
-    trafficHint: "Những gì giao diện mạng của máy chủ đã gửi và nhận, do master đếm từ các lần kiểm tra node.",
+    trafficHint: "Lượng upload/download thật của client trên node, do master đếm từ các lần kiểm tra node.",
     topClients: "Khách hàng dùng node nhiều nhất",
     outages: "Sự cố",
     outageStart: "Bắt đầu",

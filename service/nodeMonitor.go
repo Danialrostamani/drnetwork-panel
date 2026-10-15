@@ -16,7 +16,7 @@ import (
 )
 
 // Node monitoring beyond the probe itself: the per-minute history behind the
-// charts and the uptime, the outages, the traffic a node's network interfaces
+// charts and the uptime, the outages, the traffic clients on a node
 // move, the threshold warnings and whether a node's links stay out of the
 // subscriptions. All of it is fed by the probe results, in applyProbes.
 
@@ -30,8 +30,9 @@ type NodeWarning struct {
 	Info string `json:"info,omitempty"`
 }
 
-// NodeTrafficSummary is what a node's server moved, as its network interfaces
-// count it. Up is what it sent, Down what it received.
+// NodeTrafficSummary is what clients on the node uploaded and downloaded.
+// Up is client upload, Down is client download. Older nodes that do not
+// report client totals fall back to the server's network interfaces.
 type NodeTrafficSummary struct {
 	TodayUp   int64 `json:"todayUp"`
 	TodayDown int64 `json:"todayDown"`

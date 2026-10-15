@@ -372,7 +372,7 @@ export default {
     onlineOutbounds: "Outbounds",
     months12: "12 months",
     trafficOf: "Traffic in the period: {total}",
-    trafficHint: "What the server's network interfaces sent and received, counted by the master from the node's probes.",
+    trafficHint: "What clients on the node uploaded and downloaded, counted by the master from the node's probes.",
     topClients: "Clients that used the node most",
     outages: "Outages",
     outageStart: "Start",

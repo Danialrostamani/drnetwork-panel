@@ -481,6 +481,29 @@ func (s *SettingService) GetTgBotSettings() (TgBotSettings, error) {
 	return out, nil
 }
 
+// GetTgBotShop is the JSON of the customer shop the bot owner edits. Missing
+// or empty means the built-in texts and no plans.
+func (s *SettingService) GetTgBotShop() (string, error) {
+	setting, err := s.getSetting("tgBotShop")
+	if database.IsNotFound(err) {
+		return "{}", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(setting.Value) == "" {
+		return "{}", nil
+	}
+	return setting.Value, nil
+}
+
+func (s *SettingService) SetTgBotShop(value string) error {
+	if strings.TrimSpace(value) == "" {
+		value = "{}"
+	}
+	return s.saveSetting("tgBotShop", value)
+}
+
 // GetTgBotClientSort returns the order of the bot's client list: "asc" (oldest
 // first, the order the clients were created in -- the default) or "desc"
 // (newest first).

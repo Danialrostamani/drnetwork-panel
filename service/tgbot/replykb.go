@@ -27,6 +27,7 @@ var menuItems = []menuItem{
 	{"آموزش 📚", "Guide 📚", "p:guide"},
 	{"پشتیبانی ☎️", "Support ☎️", "p:support"},
 	{"🛍 نمای مشتری", "🛍 Customer view", "k:shop"},
+	{"🛍 ویرایش فروشگاه", "🛍 Edit shop", "k:edit"},
 	{"🔙 پنل مدیریت", "🔙 Admin panel", "k:admin"},
 	{"🏠 خانه", "🏠 Home", "h:home"},
 	{"📋 منوی اصلی", "📋 Main menu", "m:menu"},
@@ -54,6 +55,12 @@ func menuData(text string) string {
 }
 
 func (b *bot) menuLabel(data string) string {
+	if strings.HasPrefix(data, "p:") {
+		it := b.loadShop().btn(data)
+		if it.Fa != "" {
+			return b.tr(it.Fa, nonempty(it.En, it.Fa))
+		}
+	}
 	for _, it := range menuItems {
 		if it.data == data {
 			return b.tr(it.fa, it.en)
@@ -80,7 +87,11 @@ func (b *bot) adminMenu() [][]string {
 	if len(rows) == 0 {
 		rows = [][]string{{"m:menu"}}
 	}
-	return append(rows, []string{"k:shop"})
+	extra := []string{"k:shop"}
+	if !b.restricted() {
+		extra = append(extra, "k:edit")
+	}
+	return append(rows, extra)
 }
 
 func (b *bot) replyMarkup(rows [][]string) map[string]any {
@@ -113,13 +124,22 @@ type menuChat struct{}
 func (b *bot) menuPress(ctx context.Context, chatID int64, from *fromUser, data string) bool {
 	admin := b.isAdmin(from.ID)
 	switch {
-	case data == "k:shop" || data == "k:admin":
+	case data == "k:shop" || data == "k:admin" || data == "k:edit":
 		if !admin {
 			return false
 		}
 		b.pend.clear(chatID)
+		bb := b.as(from.ID)
 		if data == "k:shop" {
-			b.sendMenu(ctx, chatID, b.customerHome(), b.customerMenu(from.ID))
+			b.sendMenu(ctx, chatID, bb.shopHomeText(), bb.customerMenu(from.ID))
+			return true
+		}
+		if data == "k:edit" {
+			if !bb.allowed([]string{"k", "edit"}) {
+				return false
+			}
+			text, kb := bb.shopEditHome()
+			bb.sendKeyboard(ctx, chatID, text, kb)
 			return true
 		}
 		b.sendAdminMenu(ctx, chatID, "🔐 <b>"+b.tr("پنل مدیریت", "Admin panel")+"</b>", false)

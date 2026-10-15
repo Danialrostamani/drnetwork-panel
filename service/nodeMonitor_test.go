@@ -126,6 +126,7 @@ func TestNetDelta(t *testing.T) {
 	}{
 		{"no base", nodeNetBase{}, false, nodeNetBase{Sent: 10, Src: "nic", At: 10}, 0, 0, false},
 		{"other source", nodeNetBase{Sent: 1, Src: "net"}, true, nodeNetBase{Sent: 10, Src: "nic", At: 10}, 0, 0, false},
+		{"client traffic", nodeNetBase{Sent: 100, Recv: 500, Src: "cli"}, true, nodeNetBase{Sent: 130, Recv: 900, Src: "cli", At: 10}, 30, 400, true},
 		{"sums", nodeNetBase{Sent: 100, Recv: 200, Src: "net"}, true, nodeNetBase{Sent: 150, Recv: 260, Src: "net", At: 10}, 50, 60, true},
 		{"sum went back", nodeNetBase{Sent: 1000, Recv: 1000, Src: "net"}, true, nodeNetBase{Sent: 100, Recv: 1500, Src: "net", At: 10}, 100, 500, true},
 		{"per interface", nodeNetBase{Ifs: ifs("eth0", 100, 100, "eth1", 50, 50), Src: "nic", Boot: 1000}, true,

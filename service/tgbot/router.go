@@ -128,7 +128,7 @@ func (b *bot) handle(ctx context.Context, u update) {
 	b = b.as(from)
 	text := m.Text
 	// A bottom-menu button comes first, and abandons a half-typed answer.
-	if data := menuData(text); data != "" {
+	if data := b.menuLookup(text); data != "" {
 		fu := &fromUser{ID: from, FirstName: m.From.FirstName, LastName: m.From.LastName, Username: m.From.Username}
 		if b.menuPress(ctx, chatID, fu, data) {
 			return
@@ -149,7 +149,7 @@ func (b *bot) handle(ctx context.Context, u update) {
 	fu := &fromUser{ID: from, FirstName: m.From.FirstName, LastName: m.From.LastName, Username: m.From.Username}
 	if cmd == "" {
 		if p := b.pend.get(chatID); p != nil && text != "" {
-			if strings.HasPrefix(p.kind, "cu.") && !b.isAdmin(from) {
+			if strings.HasPrefix(p.kind, "cu.") {
 				b.customerPending(ctx, chatID, fu, text)
 				return
 			}
@@ -618,7 +618,9 @@ func (b *bot) handleCallback(ctx context.Context, u update) {
 		return
 	}
 	if parts[0] == "u" {
-		b.userCallback(ctx, cb.ID, chatID, msgID, cb.From.ID, parts)
+		b.userCallback(ctx, cb.ID, chatID, msgID, &fromUser{
+			ID: cb.From.ID, FirstName: cb.From.FirstName, LastName: cb.From.LastName, Username: cb.From.Username,
+		}, parts)
 		return
 	}
 	if !b.isAdmin(cb.From.ID) {
@@ -657,6 +659,8 @@ func (b *bot) handleCallback(ctx context.Context, u update) {
 		show(b.homeText(), b.homeKeyboard())
 	case "a":
 		b.adminsCallback(ctx, cb.ID, chatID, msgID, parts)
+	case "k":
+		b.shopEditCallback(ctx, cb.ID, chatID, msgID, parts)
 	case "t":
 		text, kb := b.statsScreen(parts[1])
 		show(text, kb)
@@ -756,7 +760,16 @@ func (b *bot) menuCallback(ctx context.Context, cbID string, chatID, msgID int64
 	}
 }
 
-func (b *bot) userCallback(ctx context.Context, cbID string, chatID, msgID, from int64, parts []string) {
+func (b *bot) userCallback(ctx context.Context, cbID string, chatID, msgID int64, from *fromUser, parts []string) {
+	if len(parts) < 2 {
+		b.answer(ctx, cbID, "")
+		return
+	}
+	switch parts[1] {
+	case "buy", "wal", "nm", "ask", "ren", "rb":
+		b.customerShopCallback(ctx, cbID, chatID, msgID, from, parts)
+		return
+	}
 	if len(parts) < 3 {
 		b.answer(ctx, cbID, "")
 		return
@@ -767,7 +780,7 @@ func (b *bot) userCallback(ctx context.Context, cbID string, chatID, msgID, from
 		return
 	}
 	var client *model.Client
-	for _, c := range boundClients(from) {
+	for _, c := range boundClients(from.ID) {
 		if uint64(c.Id) == id64 {
 			c := c
 			client = &c
