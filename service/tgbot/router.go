@@ -171,7 +171,7 @@ func (b *bot) handle(ctx context.Context, u update) {
 			}
 			return
 		}
-		if text != "" && b.trySaveRef(from.ID, text) {
+		if text != "" && b.trySaveRef(from, text) {
 			b.send(ctx, chatID, b.tr("✅ معرف ثبت شد.", "✅ Introducer saved."))
 			return
 		}
