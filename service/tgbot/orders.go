@@ -147,7 +147,7 @@ func (b *bot) placeOrder(ctx context.Context, chatID int64, from *fromUser, topi
 		return
 	}
 	s := b.loadShop()
-	if s.hasPayment() && (topic == "buy" || topic == "renew" || topic == "wallet") {
+	if topic == "buy" || topic == "renew" || topic == "wallet" {
 		b.sendPayScreen(ctx, chatID, from, o, s)
 		return
 	}
@@ -155,22 +155,50 @@ func (b *bot) placeOrder(ctx context.Context, chatID int64, from *fromUser, topi
 }
 
 func (b *bot) sendPayScreen(ctx context.Context, chatID int64, from *fromUser, o *model.BotOrder, s shopConfig) {
+	b.pend.set(chatID, &pending{kind: "cu.receipt", chatID: chatID, data: map[string]string{"id": strconv.FormatUint(uint64(o.Id), 10)}})
 	lines := []string{b.tr("💳 <b>پرداخت</b>", "💳 <b>Payment</b>")}
-	if s.PayHint != "" {
-		lines = append(lines, esc(s.PayHint))
-	}
-	if s.PayCard != "" {
-		lines = append(lines, b.tr("کارت: ", "Card: ")+"<code>"+esc(s.PayCard)+"</code>")
-	}
-	if s.PayWallet != "" {
-		lines = append(lines, b.tr("کیف پول: ", "Wallet: ")+"<code>"+esc(s.PayWallet)+"</code>")
-	}
-	if o.Detail != "" {
+	if p := s.plan(o.PlanID); p != nil && (o.Topic == "buy" || o.Topic == "renew") {
+		name := p.Name
+		if name == "" {
+			name = p.label()
+		}
+		lines = append(lines, b.tr("پلن: ", "Plan: ")+"<b>"+esc(name)+"</b>")
+		if p.GB > 0 {
+			lines = append(lines, b.tr("حجم: ", "Data: ")+esc(strconv.Itoa(p.GB)+" GB"))
+		} else {
+			lines = append(lines, b.tr("حجم: نامحدود", "Data: unlimited"))
+		}
+		if p.Days > 0 {
+			lines = append(lines, b.tr("مدت: ", "Duration: ")+esc(strconv.Itoa(p.Days))+" "+b.tr("روز", "days"))
+		}
+		if strings.TrimSpace(p.Price) != "" {
+			lines = append(lines, b.tr("قیمت: ", "Price: ")+"<b>"+esc(p.Price)+"</b>")
+		}
+	} else if w := s.wallet(o.PlanID); w != nil && o.Topic == "wallet" {
+		lines = append(lines, b.tr("مبلغ شارژ: ", "Top-up: ")+"<b>"+esc(nonempty(w.Label, w.Amount))+"</b>")
+	} else if o.Detail != "" {
 		lines = append(lines, esc(o.Detail))
 	}
+	if strings.TrimSpace(s.PayHint) != "" {
+		lines = append(lines, esc(s.PayHint))
+	}
+	if strings.TrimSpace(s.PayCard) != "" {
+		lines = append(lines, b.tr("شماره کارت:", "Card number:")+"\n<code>"+esc(s.PayCard)+"</code>")
+	}
+	if strings.TrimSpace(s.PayWallet) != "" {
+		lines = append(lines, b.tr("کیف پول:", "Wallet:")+"\n<code>"+esc(s.PayWallet)+"</code>")
+	}
+	if strings.TrimSpace(s.PayCard) == "" && strings.TrimSpace(s.PayWallet) == "" {
+		lines = append(lines, b.tr("شماره کارت در فروشگاه ثبت نشده. از پشتیبانی بپرسید.", "No card number is set in the shop. Ask support."))
+	}
+	lines = append(lines, b.tr(
+		"مبلغ را واریز کنید، بعد <b>عکس رسید</b> را بفرستید.\nبعد از تأیید، لینک اشتراک برایتان ارسال می‌شود.",
+		"Pay the amount, then send a <b>photo of the receipt</b>.\nAfter approval, the subscription link is sent to you."))
 	kb := [][]button{
 		{{Text: b.tr("📤 ارسال رسید", "📤 Send receipt"), Data: fmt.Sprintf("u:pay:%d", o.Id)}},
-		{{Text: b.tr("⏭ بدون رسید", "⏭ Request without receipt"), Data: fmt.Sprintf("u:skip:%d", o.Id)}},
+	}
+	if o.Topic == "wallet" {
+		kb = append(kb, []button{{Text: b.tr("⏭ بدون رسید", "⏭ Request without receipt"), Data: fmt.Sprintf("u:skip:%d", o.Id)}})
 	}
 	b.sendKeyboard(ctx, chatID, strings.Join(lines, "\n"), kb)
 }
@@ -196,8 +224,8 @@ func (b *bot) finishPendingOrder(ctx context.Context, chatID int64, from *fromUs
 		}
 	}
 	b.sendMenu(ctx, chatID, b.tr(
-		"✅ درخواست ثبت شد. وضعیت را در «سرویس های من» ببینید.",
-		"✅ Your request was sent. You can see its status under My services."), b.customerMenu(from.ID))
+		"✅ رسید ثبت شد. بعد از تأیید، لینک اشتراک برایتان می‌آید.",
+		"✅ Receipt saved. After approval, the subscription link is sent to you."), b.customerMenu(from.ID))
 }
 
 func (b *bot) askReceipt(ctx context.Context, chatID int64, from *fromUser, orderID uint) {
