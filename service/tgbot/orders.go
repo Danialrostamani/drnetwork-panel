@@ -399,4 +399,3 @@ func (b *bot) orderStatusLines(tgID int64) string {
 	}
 	return strings.Join(lines, "\n")
 }
-
