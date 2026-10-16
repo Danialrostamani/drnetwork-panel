@@ -131,6 +131,7 @@ type BotOrder struct {
 	Status    string `json:"status" gorm:"index"`
 	ReceiptID string `json:"receiptId"`
 	ClientId  uint   `json:"clientId"`
+	AdminId   int64  `json:"adminId" gorm:"index"`
 	Ref       string `json:"ref"`
 	CreatedAt int64  `json:"createdAt" gorm:"index"`
 	UpdatedAt int64  `json:"updatedAt"`

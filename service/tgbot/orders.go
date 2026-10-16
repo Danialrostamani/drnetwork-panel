@@ -47,8 +47,34 @@ func (b *bot) canApprove() bool {
 }
 
 func (b *bot) notifyStaff(ctx context.Context, text string, kb [][]button) {
+	b.notifyIDs(ctx, b.staffIDs(), text, kb)
+}
+
+func (b *bot) notifyOrderStaff(ctx context.Context, o *model.BotOrder, text string, kb [][]button) {
+	seen := map[int64]bool{}
+	var ids []int64
+	add := func(id int64) {
+		if id == 0 || seen[id] {
+			return
+		}
+		seen[id] = true
+		ids = append(ids, id)
+	}
+	add(o.AdminId)
+	if a := b.access(); a.owner != 0 {
+		add(a.owner)
+	}
+	if len(ids) == 0 {
+		for _, id := range b.staffIDs() {
+			add(id)
+		}
+	}
+	b.notifyIDs(ctx, ids, text, kb)
+}
+
+func (b *bot) notifyIDs(ctx context.Context, ids []int64, text string, kb [][]button) {
 	staff := b.staffBot()
-	for _, id := range b.staffIDs() {
+	for _, id := range ids {
 		if id == 0 {
 			continue
 		}
@@ -140,7 +166,8 @@ func (b *bot) placeOrder(ctx context.Context, chatID int64, from *fromUser, topi
 	}
 	o := &model.BotOrder{
 		TgId: from.ID, Topic: topic, PlanID: planID, Extra: extra, Ref: ref,
-		Detail: b.orderDetail(topic, planID, extra, from), Status: orderPending,
+		AdminId: b.customerAdminID(from.ID),
+		Detail:  b.orderDetail(topic, planID, extra, from), Status: orderPending,
 	}
 	if err := b.saveOrder(o); err != nil {
 		b.sendMenu(ctx, chatID, b.tr("❌ ثبت درخواست ممکن نشد.", "❌ Could not save the request."), b.customerMenu(from.ID))
@@ -215,7 +242,7 @@ func (b *bot) finishPendingOrder(ctx context.Context, chatID int64, from *fromUs
 		{Text: b.tr("✅ تأیید", "✅ Approve"), Data: fmt.Sprintf("j:ok:%d", o.Id)},
 		{Text: b.tr("❌ رد", "❌ Reject"), Data: fmt.Sprintf("j:no:%d", o.Id)},
 	}}
-	b.notifyStaff(ctx, text, kb)
+	b.notifyOrderStaff(ctx, o, text, kb)
 	if o.ReceiptID != "" {
 		staff := b.staffBot()
 		for _, id := range b.staffIDs() {
@@ -261,7 +288,7 @@ func (b *bot) skipReceipt(ctx context.Context, chatID int64, from *fromUser, ord
 }
 
 func (b *bot) orderCallback(ctx context.Context, cbID string, chatID, msgID int64, parts []string) {
-	if len(parts) < 3 || !b.canApprove() {
+	if len(parts) < 3 {
 		b.answer(ctx, cbID, b.denied())
 		return
 	}
@@ -269,6 +296,10 @@ func (b *bot) orderCallback(ctx context.Context, cbID string, chatID, msgID int6
 	o, err := loadOrder(uint(id64))
 	if err != nil {
 		b.answer(ctx, cbID, "")
+		return
+	}
+	if !b.canApprove() && (o.AdminId == 0 || b.self != o.AdminId) {
+		b.answer(ctx, cbID, b.denied())
 		return
 	}
 	if o.Status != orderPending {
