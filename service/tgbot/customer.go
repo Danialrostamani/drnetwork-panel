@@ -8,8 +8,8 @@ import (
 
 func (b *bot) customerHome() string {
 	return b.tr(
-		"👋 خوش آمدید\nاز دکمه‌های پایین استفاده کنید.",
-		"👋 Welcome\nUse the buttons below.")
+		"👋 خوش آمدید\nاز دکمه‌های پایین استفاده کنید.\nاگر از قبل لینک اشتراک دارید، «اتصال لینک» را بزنید و لینک را بفرستید.",
+		"👋 Welcome\nUse the buttons below.\nIf you already have a subscription link, tap Connect link and send it.")
 }
 
 func (b *bot) customerStart(ctx context.Context, chatID int64, from *fromUser) {
@@ -30,13 +30,12 @@ func (b *bot) customerPress(ctx context.Context, chatID int64, from *fromUser, d
 		b.customerRenewPick(ctx, chatID, from)
 	case "p:my":
 		b.customerServices(ctx, chatID, from.ID, false)
+	case "p:link":
+		b.customerAskLink(ctx, chatID, from)
 	case "p:wallet":
 		b.customerWallet(ctx, chatID, from)
 	case "p:trial":
-		b.notifyAdmins(ctx, b.customerNotice(from, "test", ""))
-		b.sendMenu(ctx, chatID, b.tr(
-			"🔑 <b>اکانت تست</b>\nدرخواست شما برای پشتیبانی ارسال شد. به‌زودی پاسخ می‌گیرید.",
-			"🔑 <b>Test account</b>\nYour request was sent to support. They will reply soon."), b.customerMenu(from.ID))
+		b.autoTrial(ctx, chatID, from)
 	case "p:tariff":
 		b.customerTariff(ctx, chatID, from)
 	case "p:guide":
@@ -50,14 +49,19 @@ func (b *bot) customerPress(ctx context.Context, chatID int64, from *fromUser, d
 	}
 }
 
-func (b *bot) customerCommand(ctx context.Context, chatID int64, from *fromUser, cmd string) {
+func (b *bot) customerCommand(ctx context.Context, chatID int64, from *fromUser, cmd, arg string) {
 	switch cmd {
 	case "start", "menu":
+		if cmd == "start" && arg != "" && b.trySaveRef(from.ID, arg) {
+			b.send(ctx, chatID, b.tr("✅ معرف ثبت شد.", "✅ Introducer saved."))
+		}
 		b.customerStart(ctx, chatID, from)
 	case "buy":
 		b.customerPress(ctx, chatID, from, "p:buy")
 	case "services":
 		b.customerPress(ctx, chatID, from, "p:my")
+	case "link":
+		b.customerPress(ctx, chatID, from, "p:link")
 	case "wallet":
 		b.customerPress(ctx, chatID, from, "p:wallet")
 	case "help":
@@ -78,10 +82,13 @@ func (b *bot) customerCommand(ctx context.Context, chatID int64, from *fromUser,
 
 func (b *bot) customerServices(ctx context.Context, chatID, from int64, renew bool) bool {
 	bound := boundClients(from)
+	if status := b.orderStatusLines(from); status != "" {
+		b.send(ctx, chatID, status)
+	}
 	if len(bound) == 0 {
 		b.sendMenu(ctx, chatID, b.tr(
-			"🛍️ سرویسی روی این حساب نیست. از <b>خرید اشتراک</b> استفاده کنید.",
-			"🛍️ No service is on this account. Use <b>Buy a plan</b>."), b.customerMenu(from))
+			"🛍️ سرویسی روی این حساب نیست. از <b>خرید اشتراک</b> یا <b>اتصال لینک</b> استفاده کنید.",
+			"🛍️ No service is on this account. Use <b>Buy a plan</b> or <b>Connect link</b>."), b.customerMenu(from))
 		return false
 	}
 	if renew {
@@ -105,6 +112,15 @@ func (b *bot) customerAsk(ctx context.Context, chatID int64, from *fromUser, top
 
 func (b *bot) customerPending(ctx context.Context, chatID int64, from *fromUser, text string) {
 	p := b.pend.get(chatID)
+	if p != nil && p.kind == "cu.link" {
+		b.pend.clear(chatID)
+		b.customerBindLink(ctx, chatID, from, text)
+		return
+	}
+	if p != nil && p.kind == "cu.ref" {
+		b.customerAcceptRef(ctx, chatID, from, text)
+		return
+	}
 	if p != nil && p.kind == "cu.name" {
 		topic, planID, extra := "buy", "", ""
 		if p.data != nil {
@@ -113,7 +129,7 @@ func (b *bot) customerPending(ctx context.Context, chatID int64, from *fromUser,
 			extra = p.data["extra"]
 		}
 		b.pend.clear(chatID)
-		b.finishCustomerOrder(ctx, chatID, from, topic, planID, extra, text)
+		b.placeOrder(ctx, chatID, from, topic, planID, extra)
 		return
 	}
 	topic := "support"
@@ -154,11 +170,7 @@ func (b *bot) customerNotice(from *fromUser, topic, text string) string {
 }
 
 func (b *bot) notifyAdmins(ctx context.Context, text string) {
-	for _, id := range b.access().order {
-		if id != 0 {
-			b.send(ctx, id, text)
-		}
-	}
+	b.notifyStaff(ctx, text, nil)
 }
 
 func (b *bot) customerGuide() string {
