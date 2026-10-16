@@ -50,7 +50,7 @@ func (b *bot) notifyStaff(ctx context.Context, text string, kb [][]button) {
 	b.notifyIDs(ctx, b.staffIDs(), text, kb)
 }
 
-func (b *bot) notifyOrderStaff(ctx context.Context, o *model.BotOrder, text string, kb [][]button) {
+func (b *bot) orderStaffIDs(o *model.BotOrder) []int64 {
 	seen := map[int64]bool{}
 	var ids []int64
 	add := func(id int64) {
@@ -69,7 +69,19 @@ func (b *bot) notifyOrderStaff(ctx context.Context, o *model.BotOrder, text stri
 			add(id)
 		}
 	}
-	b.notifyIDs(ctx, ids, text, kb)
+	return ids
+}
+
+func (b *bot) notifyOrderStaff(ctx context.Context, o *model.BotOrder, text string, kb [][]button) {
+	b.notifyIDs(ctx, b.orderStaffIDs(o), text, kb)
+}
+
+func (b *bot) orderShop(o *model.BotOrder) shopConfig {
+	s := b.loadShopRaw()
+	if o != nil && o.AdminId != 0 {
+		return s.forAdmin(o.AdminId)
+	}
+	return s
 }
 
 func (b *bot) notifyIDs(ctx context.Context, ids []int64, text string, kb [][]button) {
@@ -242,10 +254,11 @@ func (b *bot) finishPendingOrder(ctx context.Context, chatID int64, from *fromUs
 		{Text: b.tr("✅ تأیید", "✅ Approve"), Data: fmt.Sprintf("j:ok:%d", o.Id)},
 		{Text: b.tr("❌ رد", "❌ Reject"), Data: fmt.Sprintf("j:no:%d", o.Id)},
 	}}
-	b.notifyOrderStaff(ctx, o, text, kb)
+	ids := b.orderStaffIDs(o)
+	b.notifyIDs(ctx, ids, text, kb)
 	if o.ReceiptID != "" {
 		staff := b.staffBot()
-		for _, id := range b.staffIDs() {
+		for _, id := range ids {
 			_ = staff.call(ctx, "sendPhoto", map[string]any{"chat_id": id, "photo": o.ReceiptID}, nil)
 			_ = staff.call(ctx, "sendDocument", map[string]any{"chat_id": id, "document": o.ReceiptID}, nil)
 		}
@@ -350,7 +363,7 @@ func (b *bot) notifyCustomerOrder(ctx context.Context, o *model.BotOrder, ok boo
 
 func (b *bot) approveOrder(o *model.BotOrder) error {
 	staff := b.staffBot()
-	s := b.loadShop()
+	s := b.orderShop(o)
 	switch o.Topic {
 	case "buy", "test":
 		gb, days, hours, group := 0, 0, 0, ""
@@ -439,7 +452,7 @@ func (b *bot) autoTrial(ctx context.Context, chatID int64, from *fromUser) {
 	if stored := loadBotRef(from.ID); stored != nil {
 		ref = stored.Word
 	}
-	o := &model.BotOrder{TgId: from.ID, Topic: "test", Status: orderPending, Detail: b.tr("اکانت تست", "Test account"), Ref: ref}
+	o := &model.BotOrder{TgId: from.ID, Topic: "test", Status: orderPending, Detail: b.tr("اکانت تست", "Test account"), Ref: ref, AdminId: b.customerAdminID(from.ID)}
 	if err := b.saveOrder(o); err != nil {
 		b.sendMenu(ctx, chatID, b.tr("❌ ثبت درخواست ممکن نشد.", "❌ Could not save the request."), b.customerMenu(from.ID))
 		return

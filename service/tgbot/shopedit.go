@@ -261,6 +261,13 @@ func (b *bot) shopEditCallback(ctx context.Context, cbID string, chatID, msgID i
 		b.answer(ctx, cbID, "")
 		return
 	}
+	if !b.owner && b.self > 0 {
+		switch parts[1] {
+		case "txts", "btns", "refs", "rnew", "rgrp", "rdel", "rdelY":
+			b.answer(ctx, cbID, b.denied())
+			return
+		}
+	}
 	switch parts[1] {
 	case "edit":
 		show(b.shopEditHome())
