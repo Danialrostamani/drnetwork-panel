@@ -346,7 +346,7 @@
                   density="compact"
                   style="max-width: 8rem"
                   :label="$t('setting.subNodeRouteWeight')"
-                  @update:model-value="(v: number) => setRouteWeight(idx, v)"
+                  @update:model-value="(v: string) => setRouteWeight(idx, v)"
                 />
                 <v-btn
                   icon="mdi-close"
@@ -889,7 +889,7 @@ const subNodeRoute = computed({
   },
 })
 
-const setRouteEnabled = (v: boolean) => {
+const setRouteEnabled = (v: boolean | null) => {
   const cur = subNodeRoute.value
   let entries = cur.entries
   if (v && entries.length === 0) {
@@ -900,7 +900,7 @@ const setRouteEnabled = (v: boolean) => {
   subNodeRoute.value = { enable: !!v, entries }
 }
 
-const setRouteWeight = (idx: number, v: number) => {
+const setRouteWeight = (idx: number, v: string | number) => {
   const next = subNodeRoute.value.entries.map((e, i) => i === idx
     ? { ...e, weight: Math.max(0, Math.min(10000, Math.trunc(Number(v) || 0))) }
     : e)
