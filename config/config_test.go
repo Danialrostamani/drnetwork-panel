@@ -12,8 +12,8 @@ func TestVersion(t *testing.T) {
 	if !regexp.MustCompile(`^[0-9]+(\.[0-9]+)*$`).MatchString(v) {
 		t.Fatalf("version %q is not plain numbers", v)
 	}
-	if VersionLabel(v) != "v48.5" {
-		t.Errorf("VersionLabel(%q) = %q, want v48.5", v, VersionLabel(v))
+	if VersionLabel(v) != "v48.6" {
+		t.Errorf("VersionLabel(%q) = %q, want v48.6", v, VersionLabel(v))
 	}
 	for in, want := range map[string]string{
 		"0.1":                "V.0.1",

@@ -386,7 +386,7 @@ func callbackSection(parts []string) string {
 	case "j":
 		return secDeny
 	case "k":
-		return secDeny
+		return secNone
 	case "u":
 		// A bound client's own buttons (their usage and subscription). They
 		// belong to no section: pressing one is checked against the client's
@@ -476,6 +476,9 @@ func (b *bot) allowedBy(sec string) bool {
 func (b *bot) allowed(parts []string) bool {
 	if b.scope != "" {
 		return scopedCallbackAllowed(parts)
+	}
+	if len(parts) >= 2 && parts[0] == "a" && parts[1] != "ls" && b.canManageAdmins() {
+		return true
 	}
 	return b.allowedBy(callbackSection(parts))
 }

@@ -59,6 +59,8 @@ func scopedCallbackAllowed(parts []string) bool {
 		return parts[1] == "menu" || parts[1] == "clients" || parts[1] == "online"
 	case "w", "h", "p":
 		return true
+	case "k", "j":
+		return true
 	case "x":
 		return parts[1] == "cancel"
 	}

@@ -9,9 +9,15 @@ import (
 
 func (b *bot) shopEditHome() (string, [][]button) {
 	s := b.loadShop()
-	lines := []string{"🛍 <b>" + b.tr("فروشگاه مشتری", "Customer shop") + "</b>",
-		b.tr("هر چیزی که مشتری می‌بیند از اینجا عوض می‌شود. مراحل مشتری دکمه‌ای است.",
-			"Everything the customer sees is edited here. Their steps are buttons.")}
+	title := b.tr("فروشگاه مشتری", "Customer shop")
+	hint := b.tr("هر چیزی که مشتری می‌بیند از اینجا عوض می‌شود. مراحل مشتری دکمه‌ای است.",
+		"Everything the customer sees is edited here. Their steps are buttons.")
+	if !b.owner && b.self > 0 {
+		title = b.tr("فروشگاه شما", "Your shop")
+		hint = b.tr("پلن‌ها، قیمت و شماره کارت همین ادمین. مشتری‌های گروه شما همین را می‌بینند.",
+			"Plans, price and card number for this admin. Customers in your group see this.")
+	}
+	lines := []string{"🛍 <b>" + title + "</b>", hint}
 	lines = append(lines, fmt.Sprintf("\n%s: %d · %s: %d · %s: %d · %s: %s",
 		b.tr("پلن", "Plans"), len(s.Plans),
 		b.tr("مبالغ کیف پول", "Wallet amounts"), len(s.Wallets),
@@ -19,12 +25,18 @@ func (b *bot) shopEditHome() (string, [][]button) {
 		b.tr("اکانت تست", "Trial"), onOff(s.trialOn())))
 	kb := [][]button{
 		{{Text: b.tr("📦 پلن‌ها", "📦 Plans"), Data: "k:plans"}, {Text: b.tr("🏦 کیف پول", "🏦 Wallet"), Data: "k:wals"}},
-		{{Text: b.tr("📝 متن‌ها", "📝 Texts"), Data: "k:txts"}, {Text: b.tr("🔘 دکمه‌ها", "🔘 Buttons"), Data: "k:btns"}},
-		{{Text: b.tr("👥 معرف‌ها", "👥 Introducers"), Data: "k:refs"}},
-		{{Text: b.tr("🔑 اکانت تست", "🔑 Trial") + " " + onOff(s.trialOn()), Data: "k:trial"}},
-		{{Text: b.tr("💳 پرداخت", "💳 Payment"), Data: "k:pay"}},
-		{{Text: b.tr("👁 نمای مشتری", "👁 Customer view"), Data: "k:shop"}},
 	}
+	if b.owner || b.self == 0 {
+		kb = append(kb,
+			[]button{{Text: b.tr("📝 متن‌ها", "📝 Texts"), Data: "k:txts"}, {Text: b.tr("🔘 دکمه‌ها", "🔘 Buttons"), Data: "k:btns"}},
+			[]button{{Text: b.tr("👥 معرف‌ها", "👥 Introducers"), Data: "k:refs"}},
+		)
+	}
+	kb = append(kb,
+		[]button{{Text: b.tr("🔑 اکانت تست", "🔑 Trial") + " " + onOff(s.trialOn()), Data: "k:trial"}},
+		[]button{{Text: b.tr("💳 پرداخت", "💳 Payment"), Data: "k:pay"}},
+		[]button{{Text: b.tr("👁 نمای مشتری", "👁 Customer view"), Data: "k:shop"}},
+	)
 	return strings.Join(lines, "\n"), kb
 }
 

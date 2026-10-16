@@ -89,7 +89,7 @@ func (b *bot) adminMenu() [][]string {
 		rows = [][]string{{"m:menu"}}
 	}
 	extra := []string{"k:shop"}
-	if !b.restricted() {
+	if !b.restricted() || b.isAdmin(b.self) {
 		extra = append(extra, "k:edit")
 	}
 	return append(rows, extra)

@@ -28,6 +28,22 @@ type shopConfig struct {
 	Wallets    []shopWallet   `json:"wallets,omitempty"`
 	Buttons    []shopMenuBtn  `json:"buttons,omitempty"`
 	Refs       []shopReferrer `json:"refs,omitempty"`
+	// Desks is each administrator's own plans and payment details, keyed by
+	// their Telegram ID. The owner still edits the fields above as the default.
+	Desks map[string]shopDesk `json:"desks,omitempty"`
+}
+
+// shopDesk is one administrator's plans and payment details.
+type shopDesk struct {
+	PayCard    string       `json:"payCard,omitempty"`
+	PayWallet  string       `json:"payWallet,omitempty"`
+	PayHint    string       `json:"payHint,omitempty"`
+	Plans      []shopPlan   `json:"plans,omitempty"`
+	Wallets    []shopWallet `json:"wallets,omitempty"`
+	Trial      *bool        `json:"trial,omitempty"`
+	TrialGB    int          `json:"trialGB,omitempty"`
+	TrialHours int          `json:"trialHours,omitempty"`
+	TrialGroup string       `json:"trialGroup,omitempty"`
 }
 
 func (s shopConfig) hasPayment() bool {
@@ -64,7 +80,7 @@ var shopMenuKeys = []string{
 	"p:buy", "p:renew", "p:my", "p:link", "p:wallet", "p:trial", "p:tariff", "p:support", "p:guide",
 }
 
-func (b *bot) loadShop() shopConfig {
+func (b *bot) loadShopRaw() shopConfig {
 	raw, err := (&service.SettingService{}).GetTgBotShop()
 	if err != nil || strings.TrimSpace(raw) == "" {
 		return shopConfig{}
@@ -76,7 +92,102 @@ func (b *bot) loadShop() shopConfig {
 	return s
 }
 
+func (s shopConfig) forAdmin(id int64) shopConfig {
+	out := s
+	out.Desks = nil
+	if id == 0 {
+		return out
+	}
+	d, ok := s.Desks[strconv.FormatInt(id, 10)]
+	if !ok {
+		return out
+	}
+	if strings.TrimSpace(d.PayCard) != "" {
+		out.PayCard = d.PayCard
+	}
+	if strings.TrimSpace(d.PayWallet) != "" {
+		out.PayWallet = d.PayWallet
+	}
+	if strings.TrimSpace(d.PayHint) != "" {
+		out.PayHint = d.PayHint
+	}
+	if len(d.Plans) > 0 {
+		out.Plans = d.Plans
+	}
+	if len(d.Wallets) > 0 {
+		out.Wallets = d.Wallets
+	}
+	if d.Trial != nil {
+		out.Trial = d.Trial
+	}
+	if d.TrialGB != 0 {
+		out.TrialGB = d.TrialGB
+	}
+	if d.TrialHours != 0 {
+		out.TrialHours = d.TrialHours
+	}
+	if strings.TrimSpace(d.TrialGroup) != "" {
+		out.TrialGroup = d.TrialGroup
+	}
+	return out
+}
+
+func deskFrom(s shopConfig) shopDesk {
+	return shopDesk{
+		PayCard: s.PayCard, PayWallet: s.PayWallet, PayHint: s.PayHint,
+		Plans: s.Plans, Wallets: s.Wallets,
+		Trial: s.Trial, TrialGB: s.TrialGB, TrialHours: s.TrialHours, TrialGroup: s.TrialGroup,
+	}
+}
+
+func (b *bot) customerAdminID(customerID int64) int64 {
+	a := b.access()
+	stored := loadBotRef(customerID)
+	if stored != nil {
+		s := b.loadShopRaw()
+		if r := s.findRef(stored.Word); r != nil && r.Admin != 0 {
+			return r.Admin
+		}
+		g := strings.TrimSpace(stored.Group)
+		if g != "" {
+			for _, id := range a.order {
+				if strings.EqualFold(strings.TrimSpace(a.roleOf(id).group), g) {
+					return id
+				}
+			}
+		}
+	}
+	if a.owner != 0 {
+		return a.owner
+	}
+	return 0
+}
+
+func (b *bot) loadShop() shopConfig {
+	s := b.loadShopRaw()
+	if b.self <= 0 {
+		return s
+	}
+	if b.isAdmin(b.self) && !b.owner {
+		return s.forAdmin(b.self)
+	}
+	if !b.isAdmin(b.self) {
+		return s.forAdmin(b.customerAdminID(b.self))
+	}
+	return s
+}
+
 func (b *bot) saveShop(s shopConfig) error {
+	cur := b.loadShopRaw()
+	if b.self > 0 && b.isAdmin(b.self) && !b.owner {
+		if cur.Desks == nil {
+			cur.Desks = map[string]shopDesk{}
+		}
+		cur.Desks[strconv.FormatInt(b.self, 10)] = deskFrom(s)
+		s = cur
+	} else {
+		s.Desks = cur.Desks
+	}
 	raw, err := json.Marshal(s)
 	if err != nil {
 		return err

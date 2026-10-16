@@ -32,6 +32,17 @@ var (
 	errNotOwner     = errors.New("only the owner can edit administrators")
 )
 
+// canManageAdmins is the owner, or a full administrator when no owner is set
+// yet — so the bot holder can add and edit admins from Telegram without first
+// filling Bot owner in the web panel.
+func (b *bot) canManageAdmins() bool {
+	if b.owner {
+		return true
+	}
+	a := b.access()
+	return a.owner == 0 && b.self > 0 && !b.restricted() && a.isMember(b.self)
+}
+
 // accessErrText explains the errors of this file; it is "" for any other.
 func (b *bot) accessErrText(err error) string {
 	switch {
@@ -171,11 +182,15 @@ func (d *accessDoc) settings() (map[string]string, error) {
 	for _, id := range sortedIDs(d.perms) {
 		perms = append(perms, fmt.Sprintf("%d=%s", id, strings.Join(d.perms[id].keys(), ",")))
 	}
-	return map[string]string{
+	out := map[string]string{
 		"tgBotAdmins": strings.Join(ids, ", "),
 		"tgBotScopes": strings.Join(scopes, "\n"),
 		"tgBotPerms":  strings.Join(perms, "\n"),
-	}, nil
+	}
+	if d.owner != 0 {
+		out["tgBotOwner"] = strconv.FormatInt(d.owner, 10)
+	}
+	return out, nil
 }
 
 // editAccess changes who may do what: it applies mutate to the access settings
@@ -192,10 +207,16 @@ func (b *bot) editAccess(mutate func(d *accessDoc) error) error {
 	if err != nil {
 		return err
 	}
-	if cfg.Owner == 0 || cfg.Owner != b.self || !b.owner {
+	if !b.canManageAdmins() {
+		return errNotOwner
+	}
+	if cfg.Owner != 0 && cfg.Owner != b.self {
 		return errNotOwner
 	}
 	d := docFromConfig(cfg)
+	if d.owner == 0 && b.self > 0 {
+		d.owner = b.self
+	}
 	if err := mutate(d); err != nil {
 		return err
 	}
@@ -215,6 +236,10 @@ func (b *bot) editAccess(mutate func(d *accessDoc) error) error {
 		return err
 	}
 	b.setAccess(fresh.access())
+	if fresh.Owner == b.self {
+		b.owner = true
+		b.cfg.Owner = fresh.Owner
+	}
 	return nil
 }
 
@@ -351,14 +376,16 @@ func (b *bot) adminsScreen(ctx context.Context) (string, [][]button) {
 		lines = append(lines, line)
 	}
 	switch {
+	case a.owner == 0 && b.canManageAdmins():
+		lines = append(lines, "", b.tr("ℹ️ هنوز مالک ثبت نشده. می‌توانید ادمین اضافه کنید؛ با اولین تغییر، شما مالک ربات می‌شوید.", "ℹ️ No owner is set yet. You can add admins; the first change makes you the bot owner."))
 	case a.owner == 0:
 		lines = append(lines, "", b.tr("ℹ️ برای ویرایش ادمین‌ها از داخل ربات، شناسه تلگرام مالک را در پنل وب وارد کنید (تنظیمات ← ربات تلگرام ← مالک ربات).", "ℹ️ To edit admins from this bot, set the owner's Telegram ID in the web panel (Settings → Telegram bot → Bot owner)."))
-	case !b.owner:
+	case !b.canManageAdmins():
 		lines = append(lines, "", b.tr("ℹ️ فقط مالک ربات می‌تواند ادمین‌ها را ویرایش کند.", "ℹ️ Only the bot owner can edit admins."))
 	}
 
 	var kb [][]button
-	if b.owner {
+	if b.canManageAdmins() {
 		const maxButtons = 40
 		var btns []button
 		for _, id := range a.order {
@@ -490,7 +517,7 @@ func (b *bot) adminsCallback(ctx context.Context, cbID string, chatID, msgID int
 		show(text, kb)
 		return
 	}
-	if !b.owner {
+	if !b.canManageAdmins() {
 		b.answer(ctx, cbID, b.denied())
 		return
 	}

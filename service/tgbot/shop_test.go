@@ -69,16 +69,31 @@ func TestCustomerBuyIsButtonsAndOwnerEditsPlans(t *testing.T) {
 		t.Fatalf("customer did not get plan buttons: %+v", buy)
 	}
 
+	s = b.loadShop()
+	s.PayCard = "6037991234567890"
+	if err := b.saveShop(s); err != nil {
+		t.Fatal(err)
+	}
+
 	n = len(got())
 	b.handle(ctx, callbackFrom(99, "u:buy:"+id))
-	var toAdmin string
+	var toCustomer, toAdmin string
 	for _, m := range got()[n:] {
+		if m.ChatID == 99 && m.Method == "sendMessage" {
+			toCustomer = m.Text
+		}
 		if m.ChatID == 42 {
 			toAdmin = m.Text
 		}
 	}
-	if !strings.Contains(toAdmin, "Silver") || !strings.Contains(toAdmin, "99") {
-		t.Fatalf("admin was not told of the buy: %q", toAdmin)
+	if !strings.Contains(toCustomer, "Payment") || !strings.Contains(toCustomer, "Silver") || !strings.Contains(toCustomer, "150000") || !strings.Contains(toCustomer, "6037991234567890") {
+		t.Fatalf("pay screen = %q", toCustomer)
+	}
+	if !strings.Contains(toCustomer, "90") || !strings.Contains(toCustomer, "100 GB") {
+		t.Fatalf("plan details missing: %q", toCustomer)
+	}
+	if toAdmin != "" {
+		t.Fatalf("admin should wait for the receipt, got %q", toAdmin)
 	}
 }
 
@@ -203,7 +218,24 @@ func TestNewCustomerMustSendReferrerWord(t *testing.T) {
 
 	n = len(got())
 	b.handle(ctx, callbackFrom(99, "u:buy:1"))
+	pay := lastText(got()[n:], "sendMessage")
+	if !strings.Contains(pay, "Payment") || !strings.Contains(pay, "Gold") || !strings.Contains(pay, "100") {
+		t.Fatalf("pay screen = %q", pay)
+	}
 	var toAdmin string
+	for _, m := range got()[n:] {
+		if m.ChatID == 42 {
+			toAdmin = m.Text
+		}
+	}
+	if toAdmin != "" {
+		t.Fatalf("admin should wait for the receipt, got %q", toAdmin)
+	}
+
+	n = len(got())
+	var rec update
+	_ = json.Unmarshal([]byte(`{"update_id":3,"message":{"photo":[{"file_id":"rec1"}],"chat":{"id":99,"type":"private"},"from":{"id":99}}}`), &rec)
+	b.handle(ctx, rec)
 	for _, m := range got()[n:] {
 		if m.ChatID == 42 {
 			toAdmin = m.Text
