@@ -671,7 +671,9 @@
               </v-alert>
             </v-col>
             <v-col cols="12">
-              <div class="text-subtitle-1 mb-2">{{ $t('setting.tgBotShop') }}</div>
+              <div class="text-subtitle-1 mb-2">
+                {{ $t('setting.tgBotShop') }}
+              </div>
             </v-col>
             <v-col
               cols="12"
@@ -761,8 +763,12 @@
               />
             </v-col>
             <v-col cols="12">
-              <div class="text-subtitle-2 mb-1">{{ $t('setting.tgBotShopRefs') }}</div>
-              <div class="text-caption text-medium-emphasis mb-2">{{ $t('setting.tgBotShopRefHint') }}</div>
+              <div class="text-subtitle-2 mb-1">
+                {{ $t('setting.tgBotShopRefs') }}
+              </div>
+              <div class="text-caption text-medium-emphasis mb-2">
+                {{ $t('setting.tgBotShopRefHint') }}
+              </div>
               <div
                 v-for="(r, i) in shop.refs"
                 :key="r.id"
@@ -800,7 +806,9 @@
               </v-btn>
             </v-col>
             <v-col cols="12">
-              <div class="text-subtitle-2 mb-2">{{ $t('setting.tgBotShopPlans') }}</div>
+              <div class="text-subtitle-2 mb-2">
+                {{ $t('setting.tgBotShopPlans') }}
+              </div>
               <div
                 v-for="(p, i) in shop.plans"
                 :key="p.id"
@@ -1096,7 +1104,7 @@ const parseShop = (raw: string): Shop => {
 }
 
 const writeShop = (s: Shop) => {
-  let cur: Record<string, unknown> = {}
+  let cur: Record<string, unknown>
   try { cur = JSON.parse(settings.value.tgBotShop || '{}') || {} } catch { cur = {} }
   settings.value.tgBotShop = JSON.stringify({
     ...cur,
