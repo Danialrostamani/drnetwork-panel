@@ -157,6 +157,7 @@ func (b *bot) customerNotice(from *fromUser, topic, text string) string {
 		"renew":   {"♻️ درخواست تمدید", "♻️ Renew request"},
 		"wallet":  {"🏦 درخواست شارژ کیف پول", "🏦 Wallet top-up"},
 		"test":    {"🔑 درخواست اکانت تست", "🔑 Test account request"},
+		"bind":    {"🔗 درخواست اتصال لینک", "🔗 Connect-link request"},
 		"support": {"☎️ پیام پشتیبانی", "☎️ Support message"},
 	}[topic]
 	if title[0] == "" {

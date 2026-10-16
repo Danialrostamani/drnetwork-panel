@@ -190,7 +190,7 @@ func TestClientNameFromSubLink(t *testing.T) {
 		"https://vpn.example:2096/sub/alice": "alice",
 		"https://vpn.example/sub/bob/":       "bob",
 		"http://host/sub/carol?x=1":          "carol",
-		"alice":                              "alice",
+		"alice":                              "",
 		"vless://uuid@host:443":              "",
 		"":                                   "",
 	}
@@ -198,6 +198,9 @@ func TestClientNameFromSubLink(t *testing.T) {
 		if got := clientNameFromSubLink(in); got != want {
 			t.Errorf("clientNameFromSubLink(%q) = %q, want %q", in, got, want)
 		}
+	}
+	if ownSubLink("alice") || ownSubLink("https://evil.example/alice") || !ownSubLink("https://vpn.example:2096/sub/alice") {
+		t.Fatal("ownSubLink accepted a name or a non-sub URL")
 	}
 }
 
@@ -220,11 +223,45 @@ func TestCustomerPastesExistingLinkToBind(t *testing.T) {
 	n := len(got())
 	b.handle(ctx, privateMessage(99, "https://vpn.example:2096/sub/alice"))
 	c := loadByName(t, "alice")
+	if c.TgId != 0 {
+		t.Fatalf("self-bind tg id = %d", c.TgId)
+	}
+	out := strings.Join(texts(got()[n:], "sendMessage"), "\n")
+	if !strings.Contains(out, "Connect-link") && !strings.Contains(out, "request") && !strings.Contains(out, "Approve") {
+		t.Fatalf("after paste = %q", texts(got()[n:], "sendMessage"))
+	}
+	var order model.BotOrder
+	if err := database.GetDB().Where("topic = ? AND tg_id = ?", "bind", int64(99)).First(&order).Error; err != nil {
+		t.Fatalf("bind order: %v", err)
+	}
+	b.handle(ctx, callbackFrom(42, "j:ok:"+itoa(int64(order.Id))))
+	c = loadByName(t, "alice")
 	if c.TgId != 99 {
-		t.Fatalf("tg id = %d", c.TgId)
+		t.Fatalf("after admin approve tg id = %d", c.TgId)
+	}
+}
+
+func TestCustomerCannotTakeOverBoundClient(t *testing.T) {
+	if err := database.InitDB(filepath.Join(t.TempDir(), "bot.db")); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.GetDB().Create(&model.Client{
+		Name: "alice", Enable: true, TgId: 7, Inbounds: json.RawMessage(`[]`), Links: json.RawMessage(`[]`),
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	b, got := fakeTelegram(t)
+	b.cfg.Lang = "en"
+	ctx := context.Background()
+	b.handle(ctx, privateMessage(99, "Connect link 🔗"))
+	n := len(got())
+	b.handle(ctx, privateMessage(99, "https://vpn.example:2096/sub/alice"))
+	c := loadByName(t, "alice")
+	if c.TgId != 7 {
+		t.Fatalf("takeover tg id = %d", c.TgId)
 	}
 	out := lastText(got()[n:], "sendMessage")
-	if !strings.Contains(out, "connected") && !strings.Contains(out, "My services") && !strings.Contains(out, "alice") {
-		t.Fatalf("after bind = %q", texts(got()[n:], "sendMessage"))
+	if !strings.Contains(out, "another account") {
+		t.Fatalf("takeover reply = %q", out)
 	}
 }

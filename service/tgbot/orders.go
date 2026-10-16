@@ -116,6 +116,15 @@ func (b *bot) orderDetail(topic, planID, extra string, from *fromUser) string {
 		} else {
 			detail = planID
 		}
+	case "bind":
+		if extra != "" {
+			var c model.Client
+			if database.GetDB().First(&c, extra).Error == nil {
+				detail = c.Name
+			} else {
+				detail = extra
+			}
+		}
 	}
 	return detail
 }
@@ -336,6 +345,19 @@ func (b *bot) approveOrder(o *model.BotOrder) error {
 					return err
 				}
 			}
+		}
+		o.ClientId = c.Id
+	case "bind":
+		id64, _ := strconv.ParseUint(o.Extra, 10, 32)
+		var c model.Client
+		if err := database.GetDB().First(&c, uint(id64)).Error; err != nil {
+			return fmt.Errorf("client not found")
+		}
+		if c.TgId != 0 && c.TgId != o.TgId {
+			return fmt.Errorf("already bound")
+		}
+		if err := staff.bindClient(c.Id, o.TgId); err != nil {
+			return err
 		}
 		o.ClientId = c.Id
 	}

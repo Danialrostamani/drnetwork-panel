@@ -3,26 +3,29 @@ package tgbot
 import (
 	"context"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/Danialrostamani/drnetwork-panel/database"
 	"github.com/Danialrostamani/drnetwork-panel/database/model"
+	"github.com/Danialrostamani/drnetwork-panel/service"
 )
 
 func (b *bot) customerAskLink(ctx context.Context, chatID int64, from *fromUser) {
 	b.pend.set(chatID, &pending{kind: "cu.link", chatID: chatID})
 	b.sendMenu(ctx, chatID, b.tr(
-		"🔗 <b>اتصال لینک</b>\nلینک اشتراک فعلی‌تان را بفرستید (همان آدرسی که در برنامه وارد کرده‌اید).\nاسم اشتراک هم کافی است.",
-		"🔗 <b>Connect link</b>\nSend your current subscription link (the address you added in the app).\nThe subscription name alone also works."),
+		"🔗 <b>اتصال لینک</b>\nلینک اشتراک کامل را بفرستید (همان آدرسی که در برنامه وارد کرده‌اید).\nفقط اسم اشتراک قبول نیست؛ ادمین باید اتصال را تأیید کند.",
+		"🔗 <b>Connect link</b>\nSend the full subscription link (the address you added in the app).\nThe name alone is not enough; an admin must approve the connection."),
 		b.customerMenu(from.ID))
 }
 
 func (b *bot) customerBindLink(ctx context.Context, chatID int64, from *fromUser, text string) {
-	name := clientNameFromSubLink(text)
-	if name == "" {
+	raw := strings.TrimSpace(strings.Split(strings.TrimSpace(text), "\n")[0])
+	name := clientNameFromSubLink(raw)
+	if name == "" || !ownSubLink(raw) {
 		b.sendMenu(ctx, chatID, b.tr(
-			"❌ این یک لینک اشتراک نیست.\nلینک پنل را بفرستید؛ معمولاً با http شروع می‌شود و اسم اشتراک ته آن است.",
-			"❌ That is not a subscription link.\nSend the panel link; it usually starts with http and ends with the subscription name."),
+			"❌ این لینک اشتراک این پنل نیست.\nلینک کامل را بفرستید؛ معمولاً با http شروع می‌شود و اسم اشتراک ته مسیر /sub/ است.",
+			"❌ That is not this panel's subscription link.\nSend the full link; it usually starts with http and ends with the name after /sub/."),
 			b.customerMenu(from.ID))
 		return
 	}
@@ -34,15 +37,22 @@ func (b *bot) customerBindLink(ctx context.Context, chatID int64, from *fromUser
 			b.customerMenu(from.ID))
 		return
 	}
-	if err := b.bindClient(c.Id, from.ID); err != nil {
-		b.sendMenu(ctx, chatID, b.tr("❌ اتصال انجام نشد.", "❌ Could not connect the link."), b.customerMenu(from.ID))
+	if c.TgId == from.ID {
+		b.sendMenu(ctx, chatID, b.tr(
+			"✅ این لینک از قبل به همین حساب وصل است.",
+			"✅ This link is already connected to this account."),
+			b.customerMenu(from.ID))
+		b.customerServices(ctx, chatID, from.ID, false)
 		return
 	}
-	b.sendMenu(ctx, chatID, b.tr(
-		"✅ لینک به این ربات وصل شد. از «سرویس های من» ببینیدش.",
-		"✅ The link is connected to this bot. See it under My services."),
-		b.customerMenu(from.ID))
-	b.customerServices(ctx, chatID, from.ID, false)
+	if c.TgId != 0 {
+		b.sendMenu(ctx, chatID, b.tr(
+			"❌ این اشتراک به حساب دیگری وصل است.",
+			"❌ That subscription is already connected to another account."),
+			b.customerMenu(from.ID))
+		return
+	}
+	b.placeOrder(ctx, chatID, from, "bind", "", strconv.FormatUint(uint64(c.Id), 10))
 }
 
 func clientNameFromSubLink(text string) string {
@@ -50,25 +60,44 @@ func clientNameFromSubLink(text string) string {
 	if line == "" {
 		return ""
 	}
-	if u, err := url.Parse(line); err == nil && u.Scheme != "" && u.Host != "" {
-		switch strings.ToLower(u.Scheme) {
-		case "http", "https":
-		default:
-			return ""
-		}
-		path := strings.Trim(u.Path, "/")
-		if path == "" {
-			return ""
-		}
-		parts := strings.Split(path, "/")
-		name, err := url.PathUnescape(parts[len(parts)-1])
-		if err != nil {
-			name = parts[len(parts)-1]
-		}
-		return strings.TrimSpace(name)
-	}
-	if strings.Contains(line, "://") {
+	u, err := url.Parse(line)
+	if err != nil || u.Scheme == "" || u.Host == "" {
 		return ""
 	}
-	return line
+	switch strings.ToLower(u.Scheme) {
+	case "http", "https":
+	default:
+		return ""
+	}
+	path := strings.Trim(u.Path, "/")
+	if path == "" {
+		return ""
+	}
+	parts := strings.Split(path, "/")
+	name, err := url.PathUnescape(parts[len(parts)-1])
+	if err != nil {
+		name = parts[len(parts)-1]
+	}
+	return strings.TrimSpace(name)
+}
+
+func ownSubLink(raw string) bool {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || u.Host == "" {
+		return false
+	}
+	switch strings.ToLower(u.Scheme) {
+	case "http", "https":
+	default:
+		return false
+	}
+	subPath := "/sub/"
+	if database.GetDB() != nil {
+		if p, err := (&service.SettingService{}).GetSubPath(); err == nil && strings.TrimSpace(p) != "" {
+			subPath = p
+		}
+	}
+	prefix := "/" + strings.Trim(subPath, "/")
+	path := "/" + strings.Trim(u.Path, "/")
+	return path != prefix && strings.HasPrefix(path, prefix+"/")
 }
