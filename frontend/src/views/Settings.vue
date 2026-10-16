@@ -292,7 +292,86 @@
                 v-model="subLoadOrder"
                 color="primary"
                 :label="$t('setting.subLoadOrder')"
+                :disabled="subNodeRoute.enable"
                 hide-details
+              />
+            </v-col>
+          </v-row>
+          <v-row>
+            <v-col cols="12">
+              <v-switch
+                :model-value="subNodeRoute.enable"
+                color="primary"
+                :label="$t('setting.subNodeRoute')"
+                :hint="$t('setting.subNodeRouteHint')"
+                persistent-hint
+                @update:model-value="setRouteEnabled"
+              />
+            </v-col>
+            <v-col
+              v-if="subNodeRoute.enable"
+              cols="12"
+            >
+              <div
+                v-for="(row, idx) in subNodeRoute.entries"
+                :key="row.id"
+                class="d-flex align-center ga-2 mb-2"
+              >
+                <v-btn
+                  icon="mdi-arrow-up"
+                  variant="text"
+                  size="small"
+                  :disabled="idx === 0"
+                  :aria-label="$t('setting.subNodeRouteMoveUp')"
+                  @click="moveRouteEntry(idx, -1)"
+                />
+                <v-btn
+                  icon="mdi-arrow-down"
+                  variant="text"
+                  size="small"
+                  :disabled="idx === subNodeRoute.entries.length - 1"
+                  :aria-label="$t('setting.subNodeRouteMoveDown')"
+                  @click="moveRouteEntry(idx, 1)"
+                />
+                <div class="flex-grow-1">
+                  {{ routeNodeName(row.id) }}
+                  <span class="text-medium-emphasis ml-2">{{ routeShareLabel(row) }}</span>
+                </div>
+                <v-text-field
+                  :model-value="row.weight"
+                  type="number"
+                  min="0"
+                  max="10000"
+                  hide-details
+                  density="compact"
+                  style="max-width: 8rem"
+                  :label="$t('setting.subNodeRouteWeight')"
+                  @update:model-value="(v: number) => setRouteWeight(idx, v)"
+                />
+                <v-btn
+                  icon="mdi-close"
+                  variant="text"
+                  size="small"
+                  :aria-label="$t('setting.subNodeRouteRemove')"
+                  @click="removeRouteEntry(idx)"
+                />
+              </div>
+              <div
+                v-if="subNodeRoute.entries.length === 0"
+                class="text-medium-emphasis mb-2"
+              >
+                {{ $t('setting.subNodeRouteNone') }}
+              </div>
+              <v-select
+                v-if="routeAddable.length > 0"
+                :items="routeAddable"
+                item-title="name"
+                item-value="id"
+                :label="$t('setting.subNodeRouteAdd')"
+                hide-details
+                density="compact"
+                style="max-width: 24rem"
+                @update:model-value="addRouteEntry"
               />
             </v-col>
           </v-row>
@@ -639,6 +718,7 @@ const settings = ref({
 	subShowInfo: "false",
 	subPage: "true",
 	subLoadOrder: "false",
+	subNodeRoute: "{}",
 	webDecoyDir: "",
 	subURI: "",
 	subCustomHeaders: "",
@@ -774,6 +854,101 @@ const subLoadOrder = computed({
   get: () => { return settings.value.subLoadOrder == "true" },
   set: (v:boolean) => { settings.value.subLoadOrder = v ? "true" : "false" }
 })
+
+type NodeRouteEntry = { id: number, weight: number }
+type NodeRoute = { enable: boolean, entries: NodeRouteEntry[] }
+
+const parseNodeRoute = (raw: string): NodeRoute => {
+  try {
+    const o = JSON.parse(raw || '{}')
+    const entries = Array.isArray(o.entries) ? o.entries : []
+    return {
+      enable: !!o.enable,
+      entries: entries
+        .map((e: { id?: number, weight?: number }) => ({
+          id: Number(e?.id),
+          weight: Math.max(0, Math.min(10000, Math.trunc(Number(e?.weight) || 0))),
+        }))
+        .filter((e: NodeRouteEntry) => e.id > 0),
+    }
+  } catch {
+    return { enable: false, entries: [] }
+  }
+}
+
+const subNodeRoute = computed({
+  get: () => parseNodeRoute(settings.value.subNodeRoute || '{}'),
+  set: (v: NodeRoute) => {
+    settings.value.subNodeRoute = JSON.stringify({
+      enable: v.enable,
+      entries: v.entries.map(e => ({
+        id: e.id,
+        weight: Math.max(0, Math.min(10000, Math.trunc(Number(e.weight) || 0))),
+      })),
+    })
+  },
+})
+
+const setRouteEnabled = (v: boolean) => {
+  const cur = subNodeRoute.value
+  let entries = cur.entries
+  if (v && entries.length === 0) {
+    entries = [...routeNodes.value]
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name))
+      .map(n => ({ id: n.id, weight: 100 }))
+  }
+  subNodeRoute.value = { enable: !!v, entries }
+}
+
+const setRouteWeight = (idx: number, v: number) => {
+  const next = subNodeRoute.value.entries.map((e, i) => i === idx
+    ? { ...e, weight: Math.max(0, Math.min(10000, Math.trunc(Number(v) || 0))) }
+    : e)
+  subNodeRoute.value = { ...subNodeRoute.value, entries: next }
+}
+
+const routeNodes = computed(() => Data().nodes ?? [])
+
+const routeNodeName = (id: number) => {
+  const n = routeNodes.value.find(x => x.id === id)
+  return n?.name || ('#' + id)
+}
+
+const routeShareLabel = (row: NodeRouteEntry) => {
+  const total = subNodeRoute.value.entries.reduce((s, e) => s + Math.max(0, Number(e.weight) || 0), 0)
+  if (!row.weight || total <= 0) return i18n.global.t('setting.subNodeRouteBackup')
+  const pct = Math.round((row.weight / total) * 100)
+  return i18n.global.t('setting.subNodeRouteShare', { pct })
+}
+
+const routeAddable = computed(() => {
+  const used = new Set(subNodeRoute.value.entries.map(e => e.id))
+  return routeNodes.value.filter(n => !used.has(n.id)).map(n => ({ id: n.id, name: n.name }))
+})
+
+const moveRouteEntry = (idx: number, dir: number) => {
+  const next = [...subNodeRoute.value.entries]
+  const j = idx + dir
+  if (j < 0 || j >= next.length) return
+  const tmp = next[idx]
+  next[idx] = next[j]
+  next[j] = tmp
+  subNodeRoute.value = { ...subNodeRoute.value, entries: next }
+}
+
+const removeRouteEntry = (idx: number) => {
+  const next = subNodeRoute.value.entries.filter((_, i) => i !== idx)
+  subNodeRoute.value = { ...subNodeRoute.value, entries: next }
+}
+
+const addRouteEntry = (id: number) => {
+  if (!id) return
+  if (subNodeRoute.value.entries.some(e => e.id === id)) return
+  subNodeRoute.value = {
+    ...subNodeRoute.value,
+    entries: [...subNodeRoute.value.entries, { id, weight: 100 }],
+  }
+}
 
 const subPage = computed({
   get: () => { return settings.value.subPage != "false" },

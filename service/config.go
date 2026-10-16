@@ -551,6 +551,9 @@ func (s *ConfigService) Save(obj string, act string, data json.RawMessage, initU
 		live.restart = true
 	case "settings":
 		err = s.SettingService.Save(tx, data)
+		if err == nil {
+			invalidateNodeLinkRules()
+		}
 	case "nodes":
 		err = s.NodeService.Save(tx, act, data)
 	default:

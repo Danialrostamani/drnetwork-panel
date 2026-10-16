@@ -637,3 +637,84 @@ func TestFilterNodeLinksOrdersByLoad(t *testing.T) {
 		t.Fatalf("by load: %s, want 15342", got)
 	}
 }
+
+func TestFilterNodeLinksRoutesByWeight(t *testing.T) {
+	resetNodeState(t)
+	db := database.GetDB()
+	de := model.Node{Name: "de", Enable: true, BaseUrl: "http://a", Token: "t"}
+	tr := model.Node{Name: "tr", Enable: true, BaseUrl: "http://b", Token: "t"}
+	nl := model.Node{Name: "nl", Enable: true, BaseUrl: "http://c", Token: "t"}
+	hidden := model.Node{Name: "hidden", Enable: true, BaseUrl: "http://d", Token: "t"}
+	for _, n := range []*model.Node{&de, &tr, &nl, &hidden} {
+		if err := db.Create(n).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	nodeStatusMu.Lock()
+	nodeStatuses[de.Id] = NodeStatus{State: "online"}
+	nodeStatuses[tr.Id] = NodeStatus{State: "online"}
+	nodeStatuses[nl.Id] = NodeStatus{State: "online"}
+	nodeStatuses[hidden.Id] = NodeStatus{State: "online"}
+	nodeStatusMu.Unlock()
+	route, err := json.Marshal(SubNodeRoute{Enable: true, Entries: []SubNodeRouteEntry{
+		{Id: de.Id, Weight: 50},
+		{Id: tr.Id, Weight: 50},
+		{Id: nl.Id, Weight: 0},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.Where("key = ?", "subNodeRoute").Delete(&model.Setting{})
+	db.Create(&model.Setting{Key: "subNodeRoute", Value: string(route)})
+	t.Cleanup(func() { db.Where("key = ?", "subNodeRoute").Delete(&model.Setting{}) })
+	links := json.RawMessage(`[{"type":"local","remark":"mine","uri":"L"},` +
+		`{"type":"external","remark":"[hidden] x","uri":"H"},` +
+		`{"type":"external","remark":"[nl] n","uri":"N"},` +
+		`{"type":"external","remark":"[tr] t","uri":"T"},` +
+		`{"type":"external","remark":"other","uri":"O"},` +
+		`{"type":"external","remark":"[de] d","uri":"D"}]`)
+	orderOf := func(id uint) string {
+		var ls []map[string]string
+		_ = json.Unmarshal(FilterNodeLinks(&model.Client{Id: id, Links: links}), &ls)
+		out := ""
+		for _, l := range ls {
+			out += l["uri"]
+		}
+		return out
+	}
+	invalidateNodeLinkRules()
+	// id 1 → 1%100=1 → DE (0-49). Primary DE, then TR, then NL. Hidden dropped.
+	// Non-node links stay in place, node links swap among their slots.
+	if got := orderOf(1); got != "LDTON" {
+		t.Fatalf("client 1: %s, want LDTON", got)
+	}
+	// id 50 → 50%100=50 → TR. Primary TR, then DE, NL.
+	if got := orderOf(50); got != "LTDON" {
+		t.Fatalf("client 50: %s, want LTDON", got)
+	}
+	// Weight 0 is never primary.
+	for id := uint(0); id < 100; id++ {
+		got := orderOf(id)
+		if len(got) < 2 || got[1] == 'N' {
+			t.Fatalf("client %d got NL as primary: %s", id, got)
+		}
+	}
+}
+
+func TestValidateSubNodeRoute(t *testing.T) {
+	if err := validateSubNodeRoute(""); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateSubNodeRoute(`{"enable":true,"entries":[{"id":1,"weight":10}]}`); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateSubNodeRoute(`{`); err == nil {
+		t.Fatal("bad json")
+	}
+	if err := validateSubNodeRoute(`{"enable":true,"entries":[{"id":1,"weight":10},{"id":1,"weight":1}]}`); err == nil {
+		t.Fatal("duplicate")
+	}
+	if err := validateSubNodeRoute(`{"enable":true,"entries":[{"id":1,"weight":-1}]}`); err == nil {
+		t.Fatal("negative")
+	}
+}

@@ -93,6 +93,7 @@ var defaultValueMap = map[string]string{
 	"subShowInfo":        "false",
 	"subPage":            "true",
 	"subLoadOrder":       "false",
+	"subNodeRoute":       "{}",
 	"subURI":             "",
 	"subJsonExt":         "",
 	"subClashExt":        "",
@@ -638,6 +639,11 @@ func (s *SettingService) Save(tx *gorm.DB, data json.RawMessage) error {
 		if key == "globalReset" && obj != "" && obj != "off" {
 			if _, err = CronParser.Parse(obj); err != nil {
 				return common.NewError("invalid cron spec <", obj, ">: ", err)
+			}
+		}
+		if key == "subNodeRoute" {
+			if err = validateSubNodeRoute(obj); err != nil {
+				return err
 			}
 		}
 		// The owner is a Telegram ID. Anything else would silently leave the bot

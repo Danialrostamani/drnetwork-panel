@@ -11,6 +11,7 @@ import (
 	"github.com/Danialrostamani/drnetwork-panel/database"
 	"github.com/Danialrostamani/drnetwork-panel/database/model"
 	"github.com/Danialrostamani/drnetwork-panel/logger"
+	"github.com/Danialrostamani/drnetwork-panel/util/common"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -872,6 +873,26 @@ type nodeLinkRule struct {
 	load int64
 }
 
+// SubNodeRoute is the global subscription routing rule: each client gets a
+// primary node by weight, then the remaining nodes in this order as backup.
+type SubNodeRoute struct {
+	Enable  bool               `json:"enable"`
+	Entries []SubNodeRouteEntry `json:"entries"`
+}
+
+// SubNodeRouteEntry is one node in that list. Weight 0 means backup only.
+type SubNodeRouteEntry struct {
+	Id     uint `json:"id"`
+	Weight int  `json:"weight"`
+}
+
+type nodeRoutePlan struct {
+	enable bool
+	names  []string
+	weight map[string]int
+	total  int
+}
+
 // nodeLoadScore ranks a node for the load ordering: by CPU in steps of ten
 // percent, so a small swing does not reshuffle the links, then by the users
 // online per core. A node not online goes last.
@@ -887,9 +908,10 @@ func nodeLoadScore(st NodeStatus) int64 {
 }
 
 var (
-	nodeLinkRulesMu    sync.Mutex
-	nodeLinkRulesAt    time.Time
-	nodeLinkRulesCache map[string]nodeLinkRule
+	nodeLinkRulesMu      sync.Mutex
+	nodeLinkRulesAt      time.Time
+	nodeLinkRulesCache   map[string]nodeLinkRule
+	nodeRoutePlanCached  nodeRoutePlan
 )
 
 const nodeLinkRulesTTL = 3 * time.Second
@@ -897,6 +919,7 @@ const nodeLinkRulesTTL = 3 * time.Second
 func invalidateNodeLinkRules() {
 	nodeLinkRulesMu.Lock()
 	nodeLinkRulesAt = time.Time{}
+	nodeRoutePlanCached = nodeRoutePlan{}
 	nodeLinkRulesMu.Unlock()
 }
 
@@ -915,21 +938,86 @@ func currentNodeLinkRules() map[string]nodeLinkRule {
 	}
 	var settings SettingService
 	byLoad, _ := settings.getBool("subLoadOrder")
+	routeRaw, _ := settings.getString("subNodeRoute")
+	plan := parseNodeRoutePlan(routeRaw, nodes)
 	nodeStatusMu.RLock()
 	rules := map[string]nodeLinkRule{}
 	for _, n := range nodes {
 		st := nodeStatuses[n.Id]
 		r := nodeLinkRule{hidden: st.Hidden != "", access: n.Access}
-		if byLoad {
+		if byLoad && !plan.enable {
 			r.load = nodeLoadScore(st)
 		}
-		if r.hidden || r.access.Restricted() || byLoad {
+		if r.hidden || r.access.Restricted() || (byLoad && !plan.enable) || plan.enable {
 			rules[n.Name] = r
 		}
 	}
 	nodeStatusMu.RUnlock()
-	nodeLinkRulesCache, nodeLinkRulesAt = rules, time.Now()
+	nodeLinkRulesCache, nodeRoutePlanCached, nodeLinkRulesAt = rules, plan, time.Now()
 	return rules
+}
+
+func parseNodeRoutePlan(raw string, nodes []model.Node) nodeRoutePlan {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || raw == "{}" {
+		return nodeRoutePlan{}
+	}
+	var cfg SubNodeRoute
+	if json.Unmarshal([]byte(raw), &cfg) != nil || !cfg.Enable || len(cfg.Entries) == 0 {
+		return nodeRoutePlan{}
+	}
+	byID := make(map[uint]string, len(nodes))
+	for _, n := range nodes {
+		byID[n.Id] = n.Name
+	}
+	plan := nodeRoutePlan{enable: true, weight: map[string]int{}}
+	seen := map[string]bool{}
+	for _, e := range cfg.Entries {
+		name := byID[e.Id]
+		if name == "" || seen[name] {
+			continue
+		}
+		seen[name] = true
+		w := e.Weight
+		if w < 0 {
+			w = 0
+		}
+		if w > 10000 {
+			w = 10000
+		}
+		plan.names = append(plan.names, name)
+		plan.weight[name] = w
+		plan.total += w
+	}
+	if len(plan.names) == 0 {
+		return nodeRoutePlan{}
+	}
+	return plan
+}
+
+func validateSubNodeRoute(raw string) error {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	var cfg SubNodeRoute
+	if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
+		return common.NewError("invalid node route")
+	}
+	seen := map[uint]bool{}
+	for _, e := range cfg.Entries {
+		if e.Id == 0 {
+			return common.NewError("invalid node route: missing node id")
+		}
+		if seen[e.Id] {
+			return common.NewError("invalid node route: duplicate node")
+		}
+		seen[e.Id] = true
+		if e.Weight < 0 || e.Weight > 10000 {
+			return common.NewError("invalid node route: weight must be 0 to 10000")
+		}
+	}
+	return nil
 }
 
 // FilterNodeLinks returns the client's links without those of the nodes that
@@ -940,6 +1028,9 @@ func FilterNodeLinks(client *model.Client) json.RawMessage {
 		return nil
 	}
 	rules := currentNodeLinkRules()
+	nodeLinkRulesMu.Lock()
+	plan := nodeRoutePlanCached
+	nodeLinkRulesMu.Unlock()
 	if len(rules) == 0 {
 		return client.Links
 	}
@@ -953,9 +1044,14 @@ func FilterNodeLinks(client *model.Client) json.RawMessage {
 	}
 	// Longest first, so node "a" never claims the links of node "a b".
 	sort.Slice(names, func(i, j int) bool { return len(names[i]) > len(names[j]) })
+	inPlan := map[string]bool{}
+	for _, name := range plan.names {
+		inPlan[name] = true
+	}
 	kept := make([]map[string]interface{}, 0, len(links))
 	// The load of each kept node link, by its place in kept.
 	loads := map[int]int64{}
+	linkNode := map[int]string{}
 	changed := false
 	for _, link := range links {
 		typ, _ := link["type"].(string)
@@ -966,8 +1062,14 @@ func FilterNodeLinks(client *model.Client) json.RawMessage {
 				if strings.HasPrefix(remark, nodeLinkPrefix(name)) {
 					r := rules[name]
 					drop = r.hidden || !r.access.Allows(client.Id, client.Group)
-					if !drop && r.load > 0 {
-						loads[len(kept)] = r.load
+					if !drop && plan.enable && !inPlan[name] {
+						drop = true
+					}
+					if !drop {
+						if r.load > 0 {
+							loads[len(kept)] = r.load
+						}
+						linkNode[len(kept)] = name
 					}
 					break
 				}
@@ -979,7 +1081,11 @@ func FilterNodeLinks(client *model.Client) json.RawMessage {
 		}
 		kept = append(kept, link)
 	}
-	if orderByLoad(kept, loads) {
+	if plan.enable {
+		if orderByRoute(kept, linkNode, client.Id, plan) {
+			changed = true
+		}
+	} else if orderByLoad(kept, loads) {
 		changed = true
 	}
 	if !changed {
@@ -1006,6 +1112,85 @@ func orderByLoad(links []map[string]interface{}, loads map[int]int64) bool {
 	sort.Ints(slots)
 	order := append([]int(nil), slots...)
 	sort.SliceStable(order, func(a, b int) bool { return loads[order[a]] < loads[order[b]] })
+	moved := false
+	picked := make([]map[string]interface{}, len(order))
+	for k, from := range order {
+		picked[k] = links[from]
+		if from != slots[k] {
+			moved = true
+		}
+	}
+	for k, at := range slots {
+		links[at] = picked[k]
+	}
+	return moved
+}
+
+// pickPrimary chooses the client's main node: a stable hash of the client id
+// over the positive weights, then the first still-available node in the list
+// if that one is hidden or not on this client.
+func pickPrimary(clientID uint, plan nodeRoutePlan, available map[string]bool) string {
+	chosen := ""
+	if plan.total > 0 {
+		h := int(clientID % uint(plan.total))
+		acc := 0
+		for _, name := range plan.names {
+			w := plan.weight[name]
+			if w <= 0 {
+				continue
+			}
+			acc += w
+			if h < acc {
+				chosen = name
+				break
+			}
+		}
+	}
+	if chosen != "" && available[chosen] {
+		return chosen
+	}
+	for _, name := range plan.names {
+		if available[name] {
+			return name
+		}
+	}
+	return ""
+}
+
+// orderByRoute puts the client's primary node first among node links, then
+// the rest in the operator's list order so the user can still pick another
+// location. Links that are not node links stay where they were.
+func orderByRoute(links []map[string]interface{}, names map[int]string, clientID uint, plan nodeRoutePlan) bool {
+	if len(names) < 2 {
+		return false
+	}
+	available := map[string]bool{}
+	for _, name := range names {
+		available[name] = true
+	}
+	primary := pickPrimary(clientID, plan, available)
+	indexOf := map[string]int{}
+	for i, name := range plan.names {
+		indexOf[name] = i
+	}
+	rank := func(name string, orig int) int {
+		if name != "" && name == primary {
+			return -1
+		}
+		if i, ok := indexOf[name]; ok {
+			return i
+		}
+		return 1000 + orig
+	}
+	slots := make([]int, 0, len(names))
+	for i := range names {
+		slots = append(slots, i)
+	}
+	sort.Ints(slots)
+	order := append([]int(nil), slots...)
+	sort.SliceStable(order, func(a, b int) bool {
+		return rank(names[order[a]], order[a]) < rank(names[order[b]], order[b])
+	})
 	moved := false
 	picked := make([]map[string]interface{}, len(order))
 	for k, from := range order {
