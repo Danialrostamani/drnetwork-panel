@@ -21,6 +21,7 @@ var menuItems = []menuItem{
 	{"خرید اشتراک 🔐", "Buy a plan 🔐", "p:buy"},
 	{"تمدید سرویس ♻️", "Renew ♻️", "p:renew"},
 	{"سرویس های من 🛍️", "My services 🛍️", "p:my"},
+	{"اتصال لینک 🔗", "Connect link 🔗", "p:link"},
 	{"کیف پول + شارژ 🏦", "Wallet 🏦", "p:wallet"},
 	{"اکانت تست 🔑", "Test account 🔑", "p:trial"},
 	{"تعرفه اشتراک ها 💵", "Plans 💵", "p:tariff"},
