@@ -251,6 +251,7 @@ A node is another DrNetwork panel that the master monitors and keeps in sync. Op
 - **Alerts** - per node CPU, RAM, disk, ping and certificate-expiry thresholds and an older-version warning, sent by the Telegram bot when passed for a while and again on recovery (empty = default, 0 = off).
 - **Monthly cap** - the traffic the node's server may move in a month (upload, download or both) with a reset day; the bot warns at 80%, 90% and 100%, and the node's links can leave subscriptions once it is used up.
 - **Subscriptions** - optionally leave a node's links out of subscriptions while it is down (off by default; after 3 minutes, back as soon as it answers).
+- **Assign users by weight** - **Settings → Subscription**: each user gets a default node from the weights you set; the other listed locations stay in the subscription so they can pick one themselves. Nodes not in the list are hidden. This replaces least-loaded-first.
 - **Access** - limit a node to some client groups and/or clients: only they are synced to it and get its links. Empty (the default) serves every client.
 
 Update the nodes together with the master: an older node shows less (no NIC traffic, disk, host or per-client figures).
