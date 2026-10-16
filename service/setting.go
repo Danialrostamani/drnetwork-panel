@@ -116,6 +116,7 @@ var defaultValueMap = map[string]string{
 	"tgBotNotify":        "true",
 	"tgBotReport":        "",
 	"tgBotReportBackup":  "false",
+	"tgBotShop":          "{}",
 	"tgBotClientSort":    "asc",
 	"globalReset":        "",
 	"globalResetLast":    "0",

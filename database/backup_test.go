@@ -36,6 +36,8 @@ func seedEveryTable(t *testing.T) {
 		&model.Changes{DateTime: 1, Actor: "admin", Key: "clients", Action: "new", Obj: json.RawMessage(`"someone"`)},
 		&model.BotQuota{TgId: 42, Total: 500 << 30, Banked: 120 << 30, Adopted: true},
 		&model.BotQuotaClient{ClientId: 1, TgId: 42, Base: 7 << 20},
+		&model.BotOrder{TgId: 99, Topic: "buy", Status: "pending"},
+		&model.BotRef{TgId: 99, Word: "ali", Group: "tehran"},
 		&model.NodeMetric{NodeId: 1, DateTime: 60, Probes: 12, Up: 12, Latency: 30, Cpu: 5, Mem: 40, Disk: 20, Online: 3, Sent: 1000, Recv: 2000},
 		&model.NodeOutage{NodeId: 1, Start: 100, End: 200, State: "offline", Reason: "timeout", Checked: 190},
 		&model.NodeTraffic{NodeId: 1, DateTime: 3600, Up: 1 << 20, Down: 2 << 20},

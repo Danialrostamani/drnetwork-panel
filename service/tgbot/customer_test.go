@@ -17,7 +17,7 @@ func TestCustomerCommandMenuMatchesTheShopBots(t *testing.T) {
 		names = append(names, c.name)
 	}
 	got := strings.Join(names, " ")
-	if got != "start buy services wallet help support" {
+	if got != "start buy services link wallet help support" {
 		t.Fatalf("customer commands = %s", got)
 	}
 	if userCommands[0].fa != "restart ♻️ شروع مجدد" || userCommands[1].fa != "خرید اشتراک 🛒" {
@@ -38,8 +38,8 @@ func TestCustomerStartShowsTheBottomMenu(t *testing.T) {
 		t.Fatalf("/start = %+v", msgs)
 	}
 	var labels []string
-	for _, row := range msgs[0].Markup.Reply {
-		if len(row) != 2 {
+	for i, row := range msgs[0].Markup.Reply {
+		if i < len(msgs[0].Markup.Reply)-1 && len(row) != 2 {
 			t.Fatalf("row %#v is not two columns", row)
 		}
 		for _, cell := range row {
@@ -48,9 +48,10 @@ func TestCustomerStartShowsTheBottomMenu(t *testing.T) {
 	}
 	want := []string{
 		"خرید اشتراک 🔐", "تمدید سرویس ♻️",
-		"سرویس های من 🛍️", "کیف پول + شارژ 🏦",
-		"اکانت تست 🔑", "تعرفه اشتراک ها 💵",
-		"پشتیبانی ☎️", "آموزش 📚",
+		"سرویس های من 🛍️", "اتصال لینک 🔗",
+		"کیف پول + شارژ 🏦", "اکانت تست 🔑",
+		"تعرفه اشتراک ها 💵", "پشتیبانی ☎️",
+		"آموزش 📚",
 	}
 	if strings.Join(labels, "|") != strings.Join(want, "|") {
 		t.Fatalf("keyboard = %#v", labels)
@@ -181,5 +182,86 @@ func TestAdminCanOpenTheCustomerMenu(t *testing.T) {
 	back := lastText(got()[n:], "sendMessage")
 	if !strings.Contains(back, "پنل") && !strings.Contains(back, "Admin") && !strings.Contains(back, "DrNetwork") {
 		t.Fatalf("back to admin = %q", back)
+	}
+}
+
+func TestClientNameFromSubLink(t *testing.T) {
+	cases := map[string]string{
+		"https://vpn.example:2096/sub/alice": "alice",
+		"https://vpn.example/sub/bob/":       "bob",
+		"http://host/sub/carol?x=1":          "carol",
+		"alice":                              "",
+		"vless://uuid@host:443":              "",
+		"":                                   "",
+	}
+	for in, want := range cases {
+		if got := clientNameFromSubLink(in); got != want {
+			t.Errorf("clientNameFromSubLink(%q) = %q, want %q", in, got, want)
+		}
+	}
+	if ownSubLink("alice") || ownSubLink("https://evil.example/alice") || !ownSubLink("https://vpn.example:2096/sub/alice") {
+		t.Fatal("ownSubLink accepted a name or a non-sub URL")
+	}
+}
+
+func TestCustomerPastesExistingLinkToBind(t *testing.T) {
+	if err := database.InitDB(filepath.Join(t.TempDir(), "bot.db")); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.GetDB().Create(&model.Client{
+		Name: "alice", Enable: true, Inbounds: json.RawMessage(`[]`), Links: json.RawMessage(`[]`),
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	b, got := fakeTelegram(t)
+	b.cfg.Lang = "en"
+	ctx := context.Background()
+	b.handle(ctx, privateMessage(99, "Connect link 🔗"))
+	if text := lastText(got(), "sendMessage"); !strings.Contains(text, "Connect link") {
+		t.Fatalf("ask = %q", text)
+	}
+	n := len(got())
+	b.handle(ctx, privateMessage(99, "https://vpn.example:2096/sub/alice"))
+	c := loadByName(t, "alice")
+	if c.TgId != 0 {
+		t.Fatalf("self-bind tg id = %d", c.TgId)
+	}
+	out := strings.Join(texts(got()[n:], "sendMessage"), "\n")
+	if !strings.Contains(out, "Connect-link") && !strings.Contains(out, "request") && !strings.Contains(out, "Approve") {
+		t.Fatalf("after paste = %q", texts(got()[n:], "sendMessage"))
+	}
+	var order model.BotOrder
+	if err := database.GetDB().Where("topic = ? AND tg_id = ?", "bind", int64(99)).First(&order).Error; err != nil {
+		t.Fatalf("bind order: %v", err)
+	}
+	b.handle(ctx, callbackFrom(42, "j:ok:"+itoa(int64(order.Id))))
+	c = loadByName(t, "alice")
+	if c.TgId != 99 {
+		t.Fatalf("after admin approve tg id = %d", c.TgId)
+	}
+}
+
+func TestCustomerCannotTakeOverBoundClient(t *testing.T) {
+	if err := database.InitDB(filepath.Join(t.TempDir(), "bot.db")); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.GetDB().Create(&model.Client{
+		Name: "alice", Enable: true, TgId: 7, Inbounds: json.RawMessage(`[]`), Links: json.RawMessage(`[]`),
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	b, got := fakeTelegram(t)
+	b.cfg.Lang = "en"
+	ctx := context.Background()
+	b.handle(ctx, privateMessage(99, "Connect link 🔗"))
+	n := len(got())
+	b.handle(ctx, privateMessage(99, "https://vpn.example:2096/sub/alice"))
+	c := loadByName(t, "alice")
+	if c.TgId != 7 {
+		t.Fatalf("takeover tg id = %d", c.TgId)
+	}
+	out := lastText(got()[n:], "sendMessage")
+	if !strings.Contains(out, "another account") {
+		t.Fatalf("takeover reply = %q", out)
 	}
 }

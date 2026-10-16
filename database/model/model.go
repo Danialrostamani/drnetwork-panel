@@ -119,6 +119,35 @@ type BotQuotaClient struct {
 // TableName pins the name, for the same reason as BotQuota's.
 func (BotQuotaClient) TableName() string { return "bot_quota_clients" }
 
+// BotOrder is a customer shop request: buy, renew, wallet or trial. The owner
+// approves or rejects it from Telegram; the customer sees the status.
+type BotOrder struct {
+	Id        uint   `json:"id" gorm:"primaryKey;autoIncrement"`
+	TgId      int64  `json:"tgId" gorm:"index;not null"`
+	Topic     string `json:"topic" gorm:"index"`
+	PlanID    string `json:"planId"`
+	Extra     string `json:"extra"`
+	Detail    string `json:"detail"`
+	Status    string `json:"status" gorm:"index"`
+	ReceiptID string `json:"receiptId"`
+	ClientId  uint   `json:"clientId"`
+	Ref       string `json:"ref"`
+	CreatedAt int64  `json:"createdAt" gorm:"index"`
+	UpdatedAt int64  `json:"updatedAt"`
+}
+
+func (BotOrder) TableName() string { return "bot_orders" }
+
+// BotRef is the introducer word a customer sent, so they do not type it again
+// and new clients go into that introducer's group.
+type BotRef struct {
+	TgId  int64  `json:"tgId" gorm:"primaryKey;autoIncrement:false"`
+	Word  string `json:"word" gorm:"not null"`
+	Group string `json:"group"`
+}
+
+func (BotRef) TableName() string { return "bot_refs" }
+
 type Tokens struct {
 	Id     uint   `json:"id" form:"id" gorm:"primaryKey;autoIncrement"`
 	Desc   string `json:"desc" form:"desc"`

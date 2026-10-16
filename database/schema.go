@@ -34,6 +34,8 @@ func schema() []table {
 		{"changes", &model.Changes{}, copyRows[model.Changes]},
 		{"bot_quotas", &model.BotQuota{}, copyRows[model.BotQuota]},
 		{"bot_quota_clients", &model.BotQuotaClient{}, copyRows[model.BotQuotaClient]},
+		{"bot_orders", &model.BotOrder{}, copyRows[model.BotOrder]},
+		{"bot_refs", &model.BotRef{}, copyRows[model.BotRef]},
 		{"node_metrics", &model.NodeMetric{}, copyRows[model.NodeMetric]},
 		{"node_outages", &model.NodeOutage{}, copyRows[model.NodeOutage]},
 		{"node_traffic", &model.NodeTraffic{}, copyRows[model.NodeTraffic]},

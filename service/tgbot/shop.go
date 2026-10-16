@@ -13,14 +13,25 @@ import (
 // shopConfig is what the owner edits: the plans, wallet amounts and texts
 // the customer sees. Empty fields keep the built-in wording.
 type shopConfig struct {
-	WelcomeFa string        `json:"welcomeFa,omitempty"`
-	WelcomeEn string        `json:"welcomeEn,omitempty"`
-	GuideFa   string        `json:"guideFa,omitempty"`
-	GuideEn   string        `json:"guideEn,omitempty"`
-	Trial     *bool         `json:"trial,omitempty"`
-	Plans     []shopPlan    `json:"plans,omitempty"`
-	Wallets   []shopWallet  `json:"wallets,omitempty"`
-	Buttons   []shopMenuBtn `json:"buttons,omitempty"`
+	WelcomeFa  string         `json:"welcomeFa,omitempty"`
+	WelcomeEn  string         `json:"welcomeEn,omitempty"`
+	GuideFa    string         `json:"guideFa,omitempty"`
+	GuideEn    string         `json:"guideEn,omitempty"`
+	Trial      *bool          `json:"trial,omitempty"`
+	TrialGB    int            `json:"trialGB,omitempty"`
+	TrialHours int            `json:"trialHours,omitempty"`
+	TrialGroup string         `json:"trialGroup,omitempty"`
+	PayCard    string         `json:"payCard,omitempty"`
+	PayWallet  string         `json:"payWallet,omitempty"`
+	PayHint    string         `json:"payHint,omitempty"`
+	Plans      []shopPlan     `json:"plans,omitempty"`
+	Wallets    []shopWallet   `json:"wallets,omitempty"`
+	Buttons    []shopMenuBtn  `json:"buttons,omitempty"`
+	Refs       []shopReferrer `json:"refs,omitempty"`
+}
+
+func (s shopConfig) hasPayment() bool {
+	return strings.TrimSpace(s.PayCard) != "" || strings.TrimSpace(s.PayWallet) != "" || strings.TrimSpace(s.PayHint) != ""
 }
 
 func (s shopConfig) trialOn() bool {
@@ -33,6 +44,7 @@ type shopPlan struct {
 	Days  int    `json:"days"`
 	GB    int    `json:"gb"` // 0 = unlimited
 	Price string `json:"price"`
+	Group string `json:"group,omitempty"`
 }
 
 type shopWallet struct {
@@ -49,7 +61,7 @@ type shopMenuBtn struct {
 }
 
 var shopMenuKeys = []string{
-	"p:buy", "p:renew", "p:my", "p:wallet", "p:trial", "p:tariff", "p:support", "p:guide",
+	"p:buy", "p:renew", "p:my", "p:link", "p:wallet", "p:trial", "p:tariff", "p:support", "p:guide",
 }
 
 func (b *bot) loadShop() shopConfig {
@@ -213,6 +225,10 @@ func (b *bot) shopPlanButtons(prefix string) [][]button {
 }
 
 func (b *bot) customerBuy(ctx context.Context, chatID int64, from *fromUser, renewID string) {
+	if renewID == "" && b.customerNeedsRef(from.ID) {
+		b.customerAskRef(ctx, chatID, from, "buy")
+		return
+	}
 	s := b.loadShop()
 	if len(s.Plans) == 0 {
 		b.sendKeyboard(ctx, chatID, b.tr(
@@ -270,47 +286,6 @@ func (b *bot) customerTariff(ctx context.Context, chatID int64, from *fromUser) 
 	b.sendKeyboard(ctx, chatID, strings.Join(lines, "\n"), b.shopPlanButtons("u:buy:"))
 }
 
-func (b *bot) askCustomName(ctx context.Context, chatID int64, from *fromUser, topic, planID, extra string) {
-	b.pend.set(chatID, &pending{kind: "cu.name", chatID: chatID, data: map[string]string{
-		"topic": topic, "plan": planID, "extra": extra,
-	}})
-	b.sendKeyboard(ctx, chatID, b.tr(
-		"✏️ اگر اسم دلخواه می‌خواهید همان را بفرستید؛ وگرنه رد شوید.",
-		"✏️ Send a custom name if you want one; otherwise skip."),
-		[][]button{{{Text: b.tr("⏭ بدون اسم دلخواه", "⏭ No custom name"), Data: "u:nm:" + topic + ":" + planID + ":" + extra}}})
-}
-
-func (b *bot) finishCustomerOrder(ctx context.Context, chatID int64, from *fromUser, topic, planID, extra, name string) {
-	s := b.loadShop()
-	detail := ""
-	switch topic {
-	case "buy", "renew":
-		if p := s.plan(planID); p != nil {
-			detail = p.label()
-		} else if planID != "" {
-			detail = planID
-		}
-		if extra != "" {
-			if c := clientByIDForUser(from.ID, extra); c != nil {
-				detail = strings.TrimSpace(c.Name + " → " + detail)
-			}
-		}
-	case "wallet":
-		if w := s.wallet(planID); w != nil {
-			detail = nonempty(w.Label, w.Amount)
-		} else {
-			detail = planID
-		}
-	}
-	if name != "" {
-		detail = strings.TrimSpace(detail + "\n" + b.tr("اسم دلخواه: ", "Custom name: ") + name)
-	}
-	b.notifyAdmins(ctx, b.customerNotice(from, topic, detail))
-	b.sendMenu(ctx, chatID, b.tr(
-		"✅ درخواست شما به پشتیبانی رسید.",
-		"✅ Your request was sent to support."), b.customerMenu(from.ID))
-}
-
 func clientByIDForUser(from int64, id string) *model.Client {
 	want, err := strconv.ParseUint(id, 10, 32)
 	if err != nil {
@@ -336,17 +311,29 @@ func (b *bot) customerShopCallback(ctx context.Context, cbID string, chatID, msg
 		if len(parts) < 3 {
 			return
 		}
-		b.askCustomName(ctx, chatID, fu, "buy", parts[2], "")
+		b.placeOrder(ctx, chatID, fu, "buy", parts[2], "")
 	case "rb":
 		if len(parts) < 4 {
 			return
 		}
-		b.askCustomName(ctx, chatID, fu, "renew", parts[3], parts[2])
+		b.placeOrder(ctx, chatID, fu, "renew", parts[3], parts[2])
 	case "wal":
 		if len(parts) < 3 {
 			return
 		}
-		b.finishCustomerOrder(ctx, chatID, fu, "wallet", parts[2], "", "")
+		b.placeOrder(ctx, chatID, fu, "wallet", parts[2], "")
+	case "pay":
+		if len(parts) < 3 {
+			return
+		}
+		id, _ := strconv.ParseUint(parts[2], 10, 32)
+		b.askReceipt(ctx, chatID, fu, uint(id))
+	case "skip":
+		if len(parts) < 3 {
+			return
+		}
+		id, _ := strconv.ParseUint(parts[2], 10, 32)
+		b.skipReceipt(ctx, chatID, fu, uint(id))
 	case "nm":
 		if len(parts) < 3 {
 			return
@@ -359,13 +346,13 @@ func (b *bot) customerShopCallback(ctx context.Context, cbID string, chatID, msg
 			extra = parts[4]
 		}
 		b.pend.clear(chatID)
-		b.finishCustomerOrder(ctx, chatID, fu, topic, planID, extra, "")
+		b.placeOrder(ctx, chatID, fu, topic, planID, extra)
 	case "ask":
 		topic := "buy"
 		if len(parts) > 2 {
 			topic = parts[2]
 		}
-		b.finishCustomerOrder(ctx, chatID, fu, topic, "", "", "")
+		b.placeOrder(ctx, chatID, fu, topic, "", "")
 	case "ren":
 		if len(parts) < 3 {
 			return

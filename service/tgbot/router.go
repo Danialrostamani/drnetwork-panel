@@ -103,6 +103,7 @@ var userCommands = []commandInfo{
 	{"start", "restart ♻️ شروع مجدد", "restart"},
 	{"buy", "خرید اشتراک 🛒", "Buy a plan"},
 	{"services", "اشتراک‌های من | تمدید 🔍", "My plans | Renew"},
+	{"link", "اتصال لینک اشتراک 🔗", "Connect a subscription link"},
 	{"wallet", "افزایش موجودی 💰", "Top up"},
 	{"help", "راهنما اتصال به سرویس‌ها ⁉️", "Connection guide"},
 	{"support", "پشتیبانی ☎️", "Support"},
@@ -134,6 +135,19 @@ func (b *bot) handle(ctx context.Context, u update) {
 			return
 		}
 	}
+	fu := &fromUser{ID: from, FirstName: m.From.FirstName, LastName: m.From.LastName, Username: m.From.Username}
+	if p := b.pend.get(chatID); p != nil && p.kind == "cu.receipt" {
+		fileID := ""
+		if m.Document != nil {
+			fileID = m.Document.FileID
+		} else if len(m.Photo) > 0 {
+			fileID = m.Photo[len(m.Photo)-1].FileID
+		}
+		if fileID != "" {
+			b.customerReceipt(ctx, chatID, fu, fileID)
+			return
+		}
+	}
 	if text == "" && m.Document != nil && b.isAdmin(from) {
 		if p := b.pend.get(chatID); p != nil {
 			data, err := b.download(ctx, m.Document.FileID)
@@ -146,7 +160,6 @@ func (b *bot) handle(ctx context.Context, u update) {
 		return
 	}
 	cmd, arg := parseCommand(text)
-	fu := &fromUser{ID: from, FirstName: m.From.FirstName, LastName: m.From.LastName, Username: m.From.Username}
 	if cmd == "" {
 		if p := b.pend.get(chatID); p != nil && text != "" {
 			if strings.HasPrefix(p.kind, "cu.") {
@@ -156,6 +169,11 @@ func (b *bot) handle(ctx context.Context, u update) {
 			if b.isAdmin(from) {
 				b.handlePending(ctx, chatID, m.MessageID, text, p)
 			}
+			return
+		}
+		if text != "" && b.trySaveRef(from, text) {
+			b.send(ctx, chatID, b.tr("✅ معرف ثبت شد.", "✅ Introducer saved."))
+			return
 		}
 		return
 	}
@@ -183,7 +201,7 @@ func (b *bot) handle(ctx context.Context, u update) {
 		b.send(ctx, chatID, b.t("yourId", from))
 		return
 	}
-	b.customerCommand(ctx, chatID, fu, cmd)
+	b.customerCommand(ctx, chatID, fu, cmd, arg)
 }
 
 func boundClients(tgID int64) []model.Client {
@@ -661,6 +679,8 @@ func (b *bot) handleCallback(ctx context.Context, u update) {
 		b.adminsCallback(ctx, cb.ID, chatID, msgID, parts)
 	case "k":
 		b.shopEditCallback(ctx, cb.ID, chatID, msgID, parts)
+	case "j":
+		b.orderCallback(ctx, cb.ID, chatID, msgID, parts)
 	case "t":
 		text, kb := b.statsScreen(parts[1])
 		show(text, kb)
