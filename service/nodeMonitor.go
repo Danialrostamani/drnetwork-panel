@@ -876,7 +876,7 @@ type nodeLinkRule struct {
 // SubNodeRoute is the global subscription routing rule: each client gets a
 // primary node by weight, then the remaining nodes in this order as backup.
 type SubNodeRoute struct {
-	Enable  bool               `json:"enable"`
+	Enable  bool                `json:"enable"`
 	Entries []SubNodeRouteEntry `json:"entries"`
 }
 
@@ -908,10 +908,10 @@ func nodeLoadScore(st NodeStatus) int64 {
 }
 
 var (
-	nodeLinkRulesMu      sync.Mutex
-	nodeLinkRulesAt      time.Time
-	nodeLinkRulesCache   map[string]nodeLinkRule
-	nodeRoutePlanCached  nodeRoutePlan
+	nodeLinkRulesMu     sync.Mutex
+	nodeLinkRulesAt     time.Time
+	nodeLinkRulesCache  map[string]nodeLinkRule
+	nodeRoutePlanCached nodeRoutePlan
 )
 
 const nodeLinkRulesTTL = 3 * time.Second
