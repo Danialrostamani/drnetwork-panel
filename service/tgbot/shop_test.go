@@ -71,7 +71,6 @@ func TestCustomerBuyIsButtonsAndOwnerEditsPlans(t *testing.T) {
 
 	n = len(got())
 	b.handle(ctx, callbackFrom(99, "u:buy:"+id))
-	b.handle(ctx, callbackFrom(99, "u:nm:buy:"+id))
 	var toAdmin string
 	for _, m := range got()[n:] {
 		if m.ChatID == 42 {
@@ -122,4 +121,95 @@ func TestShopWelcomeAndHiddenTrial(t *testing.T) {
 func jsonShop(s shopConfig) (string, error) {
 	b, err := json.Marshal(s)
 	return string(b), err
+}
+
+func TestFindRefWordIsCaseInsensitive(t *testing.T) {
+	s := shopConfig{Refs: []shopReferrer{
+		{ID: "1", Word: "Ali", Group: "tehran"},
+		{ID: "2", Word: "reza", Group: "mashhad"},
+	}}
+	if s.findRef("ALI") == nil || s.findRef(" ali ").Group != "tehran" {
+		t.Fatalf("ali = %+v", s.findRef("ALI"))
+	}
+	if s.findRef("Reza").Group != "mashhad" {
+		t.Fatalf("reza = %+v", s.findRef("Reza"))
+	}
+	if s.findRef("nope") != nil || s.findRef("") != nil {
+		t.Fatal("unknown word matched")
+	}
+}
+
+func TestNewCustomerMustSendReferrerWord(t *testing.T) {
+	if err := database.InitDB(filepath.Join(t.TempDir(), "bot.db")); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := jsonShop(shopConfig{
+		Plans: []shopPlan{{ID: "1", Name: "Gold", Days: 30, GB: 50, Price: "100"}},
+		Refs:  []shopReferrer{{ID: "1", Word: "Ali", Group: "tehran"}},
+	})
+	if err := (&service.SettingService{}).SetTgBotShop(raw); err != nil {
+		t.Fatal(err)
+	}
+	b, got := fakeTelegram(t)
+	b.cfg.Lang = "en"
+	ctx := context.Background()
+
+	b.handle(ctx, privateMessage(99, "Buy a plan 🔐"))
+	ask := lastText(got(), "sendMessage")
+	if !strings.Contains(ask, "Introducer") {
+		t.Fatalf("ask ref = %q", ask)
+	}
+	for _, m := range got() {
+		if m.Markup == nil {
+			continue
+		}
+		for _, row := range m.Markup.Keyboard {
+			for _, cell := range row {
+				if strings.Contains(cell.Text, "Gold") {
+					t.Fatalf("plan shown before introducer: %+v", m)
+				}
+			}
+		}
+	}
+
+	n := len(got())
+	b.handle(ctx, privateMessage(99, "nope"))
+	if text := lastText(got()[n:], "sendMessage"); !strings.Contains(text, "not valid") {
+		t.Fatalf("bad word = %q", text)
+	}
+
+	n = len(got())
+	b.handle(ctx, privateMessage(99, "ALI"))
+	found := false
+	for _, m := range got()[n:] {
+		if m.Markup == nil {
+			continue
+		}
+		for _, row := range m.Markup.Keyboard {
+			for _, cell := range row {
+				if strings.Contains(cell.Text, "Gold") && strings.Contains(cell.Data, "u:buy:") {
+					found = true
+				}
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("after introducer = %+v", got()[n:])
+	}
+	stored := loadBotRef(99)
+	if stored == nil || stored.Word != "Ali" || stored.Group != "tehran" {
+		t.Fatalf("stored = %+v", stored)
+	}
+
+	n = len(got())
+	b.handle(ctx, callbackFrom(99, "u:buy:1"))
+	var toAdmin string
+	for _, m := range got()[n:] {
+		if m.ChatID == 42 {
+			toAdmin = m.Text
+		}
+	}
+	if !strings.Contains(toAdmin, "Gold") || !strings.Contains(toAdmin, "Ali") {
+		t.Fatalf("admin notice = %q", toAdmin)
+	}
 }
