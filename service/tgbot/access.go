@@ -383,6 +383,10 @@ func callbackSection(parts []string) string {
 			return "admins"
 		}
 		return secOwner
+	case "j":
+		return secDeny
+	case "k":
+		return secDeny
 	case "u":
 		// A bound client's own buttons (their usage and subscription). They
 		// belong to no section: pressing one is checked against the client's
