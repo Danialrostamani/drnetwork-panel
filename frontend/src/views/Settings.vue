@@ -661,6 +661,200 @@
                 hide-details
               />
             </v-col>
+            <v-col cols="12">
+              <v-alert
+                type="info"
+                variant="tonal"
+                density="compact"
+              >
+                {{ $t('setting.tgBotShopHint') }}
+              </v-alert>
+            </v-col>
+            <v-col cols="12">
+              <div class="text-subtitle-1 mb-2">{{ $t('setting.tgBotShop') }}</div>
+            </v-col>
+            <v-col
+              cols="12"
+              md="6"
+            >
+              <v-textarea
+                :model-value="shop.welcomeFa"
+                :label="$t('setting.tgBotShopWelcome')"
+                rows="2"
+                auto-grow
+                hide-details
+                @update:model-value="(v: string) => patchShop({ welcomeFa: v })"
+              />
+            </v-col>
+            <v-col
+              cols="12"
+              md="6"
+            >
+              <v-textarea
+                :model-value="shop.guideFa"
+                :label="$t('setting.tgBotShopGuide')"
+                rows="2"
+                auto-grow
+                hide-details
+                @update:model-value="(v: string) => patchShop({ guideFa: v })"
+              />
+            </v-col>
+            <v-col
+              cols="12"
+              sm="6"
+              md="4"
+            >
+              <v-text-field
+                :model-value="shop.payCard"
+                :label="$t('setting.tgBotShopPayCard')"
+                hide-details
+                @update:model-value="(v: string) => patchShop({ payCard: v })"
+              />
+            </v-col>
+            <v-col
+              cols="12"
+              sm="6"
+              md="4"
+            >
+              <v-text-field
+                :model-value="shop.payWallet"
+                :label="$t('setting.tgBotShopPayWallet')"
+                hide-details
+                @update:model-value="(v: string) => patchShop({ payWallet: v })"
+              />
+            </v-col>
+            <v-col
+              cols="12"
+              md="4"
+            >
+              <v-text-field
+                :model-value="shop.payHint"
+                :label="$t('setting.tgBotShopPayHint')"
+                hide-details
+                @update:model-value="(v: string) => patchShop({ payHint: v })"
+              />
+            </v-col>
+            <v-col
+              cols="6"
+              md="3"
+            >
+              <v-text-field
+                :model-value="String(shop.trialGB)"
+                type="number"
+                min="0"
+                :label="$t('setting.tgBotShopTrialGB')"
+                hide-details
+                @update:model-value="(v: string) => patchShop({ trialGB: Number(v) || 0 })"
+              />
+            </v-col>
+            <v-col
+              cols="6"
+              md="3"
+            >
+              <v-text-field
+                :model-value="String(shop.trialHours)"
+                type="number"
+                min="0"
+                :label="$t('setting.tgBotShopTrialHours')"
+                hide-details
+                @update:model-value="(v: string) => patchShop({ trialHours: Number(v) || 0 })"
+              />
+            </v-col>
+            <v-col cols="12">
+              <div class="text-subtitle-2 mb-1">{{ $t('setting.tgBotShopRefs') }}</div>
+              <div class="text-caption text-medium-emphasis mb-2">{{ $t('setting.tgBotShopRefHint') }}</div>
+              <div
+                v-for="(r, i) in shop.refs"
+                :key="r.id"
+                class="d-flex flex-wrap ga-2 mb-2"
+              >
+                <v-text-field
+                  :model-value="r.word"
+                  density="compact"
+                  hide-details
+                  :label="$t('setting.tgBotShopRefWord')"
+                  style="min-width: 8rem"
+                  @update:model-value="(v: string) => patchShopRef(i, { word: v })"
+                />
+                <v-text-field
+                  :model-value="r.group"
+                  density="compact"
+                  hide-details
+                  :label="$t('setting.tgBotShopRefGroup')"
+                  style="min-width: 8rem"
+                  @update:model-value="(v: string) => patchShopRef(i, { group: v })"
+                />
+                <v-btn
+                  icon="mdi-close"
+                  variant="text"
+                  size="small"
+                  @click="removeShopRef(i)"
+                />
+              </div>
+              <v-btn
+                variant="tonal"
+                size="small"
+                @click="addShopRef"
+              >
+                {{ $t('setting.tgBotShopAddRef') }}
+              </v-btn>
+            </v-col>
+            <v-col cols="12">
+              <div class="text-subtitle-2 mb-2">{{ $t('setting.tgBotShopPlans') }}</div>
+              <div
+                v-for="(p, i) in shop.plans"
+                :key="p.id"
+                class="d-flex flex-wrap ga-2 mb-2"
+              >
+                <v-text-field
+                  :model-value="p.name"
+                  density="compact"
+                  hide-details
+                  :label="$t('setting.tgBotShopPlanName')"
+                  style="min-width: 8rem"
+                  @update:model-value="(v: string) => patchShopPlan(i, { name: v })"
+                />
+                <v-text-field
+                  :model-value="String(p.days)"
+                  type="number"
+                  density="compact"
+                  hide-details
+                  :label="$t('setting.tgBotShopPlanDays')"
+                  style="max-width: 6rem"
+                  @update:model-value="(v: string) => patchShopPlan(i, { days: Number(v) || 0 })"
+                />
+                <v-text-field
+                  :model-value="String(p.gb)"
+                  type="number"
+                  density="compact"
+                  hide-details
+                  :label="$t('setting.tgBotShopPlanGB')"
+                  style="max-width: 8rem"
+                  @update:model-value="(v: string) => patchShopPlan(i, { gb: Number(v) || 0 })"
+                />
+                <v-text-field
+                  :model-value="p.price"
+                  density="compact"
+                  hide-details
+                  :label="$t('setting.tgBotShopPlanPrice')"
+                  style="max-width: 8rem"
+                  @update:model-value="(v: string) => patchShopPlan(i, { price: v })"
+                />
+                <v-btn
+                  icon="mdi-close"
+                  variant="text"
+                  size="small"
+                  @click="removeShopPlan(i)"
+                />
+              </div>
+              <v-btn
+                variant="tonal"
+                size="small"
+                @click="addShopPlan"
+              >
+                {{ $t('setting.tgBotShopAddPlan') }}
+              </v-btn>
+            </v-col>
           </v-row>
         </v-window-item>
         <!-- eager: it looks for a new release as soon as the page opens, so the tab
@@ -740,6 +934,7 @@ const settings = ref({
   tgBotNotify: "true",
   tgBotReport: "",
   tgBotReportBackup: "false",
+  tgBotShop: "{}",
 })
 
 // The panel settings, exactly as the block above spells them out.
@@ -849,6 +1044,105 @@ const tgBotNotify = computed({
   get: () => { return settings.value.tgBotNotify == "true" },
   set: (v:boolean) => { settings.value.tgBotNotify = v ? "true" : "false" }
 })
+
+type ShopPlan = { id: string, name: string, days: number, gb: number, price: string }
+type ShopRef = { id: string, word: string, group: string }
+type Shop = {
+  welcomeFa: string
+  guideFa: string
+  payCard: string
+  payWallet: string
+  payHint: string
+  trialGB: number
+  trialHours: number
+  plans: ShopPlan[]
+  refs: ShopRef[]
+}
+
+const emptyShop = (): Shop => ({
+  welcomeFa: '', guideFa: '', payCard: '', payWallet: '', payHint: '',
+  trialGB: 0, trialHours: 0, plans: [], refs: [],
+})
+
+const parseShop = (raw: string): Shop => {
+  try {
+    const o = JSON.parse(raw || '{}')
+    const plans = Array.isArray(o.plans) ? o.plans : []
+    const refs = Array.isArray(o.refs) ? o.refs : []
+    return {
+      welcomeFa: String(o.welcomeFa || ''),
+      guideFa: String(o.guideFa || ''),
+      payCard: String(o.payCard || ''),
+      payWallet: String(o.payWallet || ''),
+      payHint: String(o.payHint || ''),
+      trialGB: Math.max(0, Math.trunc(Number(o.trialGB) || 0)),
+      trialHours: Math.max(0, Math.trunc(Number(o.trialHours) || 0)),
+      plans: plans.map((p: { id?: string, name?: string, days?: number, gb?: number, price?: string }, i: number) => ({
+        id: String(p?.id || String(i + 1)),
+        name: String(p?.name || ''),
+        days: Math.max(0, Math.trunc(Number(p?.days) || 0)),
+        gb: Math.max(0, Math.trunc(Number(p?.gb) || 0)),
+        price: String(p?.price || ''),
+      })),
+      refs: refs.map((r: { id?: string, word?: string, group?: string }, i: number) => ({
+        id: String(r?.id || String(i + 1)),
+        word: String(r?.word || ''),
+        group: String(r?.group || ''),
+      })),
+    }
+  } catch {
+    return emptyShop()
+  }
+}
+
+const writeShop = (s: Shop) => {
+  let cur: Record<string, unknown> = {}
+  try { cur = JSON.parse(settings.value.tgBotShop || '{}') || {} } catch { cur = {} }
+  settings.value.tgBotShop = JSON.stringify({
+    ...cur,
+    welcomeFa: s.welcomeFa, guideFa: s.guideFa,
+    payCard: s.payCard, payWallet: s.payWallet, payHint: s.payHint,
+    trialGB: s.trialGB, trialHours: s.trialHours,
+    plans: s.plans,
+    refs: s.refs,
+  })
+}
+
+const shop = computed(() => parseShop(settings.value.tgBotShop || '{}'))
+
+const patchShop = (partial: Partial<Shop>) => {
+  writeShop({ ...shop.value, ...partial })
+}
+
+const patchShopPlan = (i: number, partial: Partial<ShopPlan>) => {
+  const plans = shop.value.plans.map((p, idx) => idx === i ? { ...p, ...partial } : p)
+  writeShop({ ...shop.value, plans })
+}
+
+const addShopPlan = () => {
+  const s = shop.value
+  const id = String((s.plans.reduce((m, p) => Math.max(m, Number(p.id) || 0), 0) || 0) + 1)
+  writeShop({ ...s, plans: [...s.plans, { id, name: '', days: 30, gb: 50, price: '' }] })
+}
+
+const removeShopPlan = (i: number) => {
+  writeShop({ ...shop.value, plans: shop.value.plans.filter((_, idx) => idx !== i) })
+}
+
+const patchShopRef = (i: number, partial: Partial<ShopRef>) => {
+  const refs = shop.value.refs.map((r, idx) => idx === i ? { ...r, ...partial } : r)
+  writeShop({ ...shop.value, refs })
+}
+
+const addShopRef = () => {
+  const s = shop.value
+  const id = String((s.refs.reduce((m, r) => Math.max(m, Number(r.id) || 0), 0) || 0) + 1)
+  writeShop({ ...s, refs: [...s.refs, { id, word: '', group: '' }] })
+}
+
+const removeShopRef = (i: number) => {
+  writeShop({ ...shop.value, refs: shop.value.refs.filter((_, idx) => idx !== i) })
+}
 
 const subLoadOrder = computed({
   get: () => { return settings.value.subLoadOrder == "true" },
