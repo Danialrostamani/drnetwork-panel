@@ -13,14 +13,14 @@ import (
 // shopConfig is what the owner edits: the plans, wallet amounts and texts
 // the customer sees. Empty fields keep the built-in wording.
 type shopConfig struct {
-	WelcomeFa string        `json:"welcomeFa,omitempty"`
-	WelcomeEn string        `json:"welcomeEn,omitempty"`
-	GuideFa   string        `json:"guideFa,omitempty"`
-	GuideEn   string        `json:"guideEn,omitempty"`
-	Trial      *bool         `json:"trial,omitempty"`
-	TrialGB    int           `json:"trialGB,omitempty"`
-	TrialHours int           `json:"trialHours,omitempty"`
-	TrialGroup string        `json:"trialGroup,omitempty"`
+	WelcomeFa  string         `json:"welcomeFa,omitempty"`
+	WelcomeEn  string         `json:"welcomeEn,omitempty"`
+	GuideFa    string         `json:"guideFa,omitempty"`
+	GuideEn    string         `json:"guideEn,omitempty"`
+	Trial      *bool          `json:"trial,omitempty"`
+	TrialGB    int            `json:"trialGB,omitempty"`
+	TrialHours int            `json:"trialHours,omitempty"`
+	TrialGroup string         `json:"trialGroup,omitempty"`
 	PayCard    string         `json:"payCard,omitempty"`
 	PayWallet  string         `json:"payWallet,omitempty"`
 	PayHint    string         `json:"payHint,omitempty"`
