@@ -786,7 +786,7 @@ func (b *bot) userCallback(ctx context.Context, cbID string, chatID, msgID int64
 		return
 	}
 	switch parts[1] {
-	case "buy", "wal", "nm", "ask", "ren", "rb":
+	case "buy", "wal", "nm", "ask", "ren", "rb", "pay", "skip", "cx":
 		b.customerShopCallback(ctx, cbID, chatID, msgID, from, parts)
 		return
 	}

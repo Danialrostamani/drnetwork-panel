@@ -504,6 +504,24 @@
         </v-window-item>
 
         <v-window-item value="t5">
+          <v-tabs
+            v-model="tgTab"
+            color="primary"
+            density="compact"
+            class="mb-3"
+          >
+            <v-tab value="bot">
+              {{ $t('setting.tgBotTabBot') }}
+            </v-tab>
+            <v-tab value="shop">
+              {{ $t('setting.tgBotTabShop') }}
+            </v-tab>
+            <v-tab value="desks">
+              {{ $t('setting.tgBotTabDesks') }}
+            </v-tab>
+          </v-tabs>
+          <v-window v-model="tgTab">
+            <v-window-item value="bot">
           <v-row>
             <v-col cols="12">
               <v-alert
@@ -642,6 +660,21 @@
               cols="12"
               md="6"
             >
+              <v-combobox
+                v-model="tgBotOutbound"
+                :items="outboundChoices"
+                item-title="title"
+                item-value="value"
+                :label="$t('setting.tgBotOutbound')"
+                :hint="$t('setting.tgBotOutboundHint')"
+                persistent-hint
+                clearable
+              />
+            </v-col>
+            <v-col
+              cols="12"
+              md="6"
+            >
               <v-text-field
                 v-model="settings.tgBotReport"
                 :label="$t('setting.tgBotReport')"
@@ -661,6 +694,10 @@
                 hide-details
               />
             </v-col>
+          </v-row>
+            </v-window-item>
+            <v-window-item value="shop">
+          <v-row>
             <v-col cols="12">
               <v-alert
                 type="info"
@@ -871,6 +908,10 @@
                 {{ $t('setting.tgBotShopAddPlan') }}
               </v-btn>
             </v-col>
+          </v-row>
+            </v-window-item>
+            <v-window-item value="desks">
+          <v-row>
             <v-col cols="12">
               <div class="text-subtitle-2 mb-1">
                 {{ $t('setting.tgBotShopDesks') }}
@@ -999,6 +1040,8 @@
               </div>
             </v-col>
           </v-row>
+            </v-window-item>
+          </v-window>
         </v-window-item>
         <!-- eager: it looks for a new release as soon as the page opens, so the tab
            can show that one is out. -->
@@ -1027,6 +1070,7 @@ import Data from '@/store/modules/data'
 // done, and marks that it wants to be open again.
 const tab = ref(sessionStorage.getItem('panelUpdate.reopen') ? 't7' : 't1')
 sessionStorage.removeItem('panelUpdate.reopen')
+const tgTab = ref('bot')
 // A release newer than this panel is out (the Update tab shows a dot).
 const updateAvailable = ref(false)
 const loading:Ref = inject('loading')?? ref(false)
@@ -1072,6 +1116,7 @@ const settings = ref({
   tgBotScopes: "",
   tgBotPerms: "",
   tgBotProxy: "",
+  tgBotOutbound: "",
   tgBotLang: "fa",
   tgBotSkin: "colorful",
   tgBotNotify: "true",
@@ -1085,7 +1130,7 @@ type PanelSettings = typeof settings.value
 
 onMounted(async () => {
   loading.value = true
-  await loadData()
+  await Promise.all([loadData(), Data().loadData()])
   loading.value = false
 })
 
@@ -1186,6 +1231,33 @@ const tgBotReportBackup = computed({
 const tgBotNotify = computed({
   get: () => { return settings.value.tgBotNotify == "true" },
   set: (v:boolean) => { settings.value.tgBotNotify = v ? "true" : "false" }
+})
+
+type OutboundChoice = { title: string, value: string }
+const outboundChoices = computed((): OutboundChoice[] => {
+  const none: OutboundChoice = { title: i18n.global.t('setting.tgBotOutboundNone'), value: '' }
+  const seen = new Set<string>()
+  const items: OutboundChoice[] = [none]
+  for (const o of (Data().outbounds ?? [])) {
+    const tag = String((o as { tag?: string }).tag || '').trim()
+    if (!tag || seen.has(tag)) continue
+    seen.add(tag)
+    const typ = String((o as { type?: string }).type || '')
+    items.push({ title: typ ? `${tag} (${typ})` : tag, value: tag })
+  }
+  const cur = String(settings.value.tgBotOutbound || '').trim()
+  if (cur && !seen.has(cur)) items.push({ title: cur, value: cur })
+  return items
+})
+const tgBotOutbound = computed({
+  get: () => settings.value.tgBotOutbound || '',
+  set: (v: unknown) => {
+    if (v && typeof v === 'object' && v !== null && 'value' in v) {
+      settings.value.tgBotOutbound = String((v as { value: string }).value || '')
+      return
+    }
+    settings.value.tgBotOutbound = String(v || '')
+  }
 })
 
 type ShopPlan = { id: string, name: string, days: number, gb: number, price: string }

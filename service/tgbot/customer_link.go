@@ -42,7 +42,7 @@ func (b *bot) customerBindLink(ctx context.Context, chatID int64, from *fromUser
 			"✅ این لینک از قبل به همین حساب وصل است.",
 			"✅ This link is already connected to this account."),
 			b.customerMenu(from.ID))
-		b.customerServices(ctx, chatID, from.ID, false)
+		b.customerServices(ctx, chatID, from.ID)
 		return
 	}
 	if c.TgId != 0 {

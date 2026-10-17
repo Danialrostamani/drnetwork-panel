@@ -35,6 +35,7 @@ func (b *bot) shopEditHome() (string, [][]button) {
 	kb = append(kb,
 		[]button{{Text: b.tr("🔑 اکانت تست", "🔑 Trial") + " " + onOff(s.trialOn()), Data: "k:trial"}},
 		[]button{{Text: b.tr("💳 پرداخت", "💳 Payment"), Data: "k:pay"}},
+		[]button{{Text: b.tr("📋 سفارش‌ها", "📋 Orders"), Data: "k:ordsP"}, {Text: b.tr("📊 گزارش فروش", "📊 Sales report"), Data: "k:sales"}},
 		[]button{{Text: b.tr("👁 نمای مشتری", "👁 Customer view"), Data: "k:shop"}},
 	)
 	return strings.Join(lines, "\n"), kb
@@ -271,6 +272,12 @@ func (b *bot) shopEditCallback(ctx context.Context, cbID string, chatID, msgID i
 	switch parts[1] {
 	case "edit":
 		show(b.shopEditHome())
+	case "ords":
+		show(b.orderQueueScreen(false))
+	case "ordsP":
+		show(b.orderQueueScreen(true))
+	case "sales":
+		show(b.salesReportScreen())
 	case "plans":
 		show(b.shopPlansScreen())
 	case "wals":

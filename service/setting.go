@@ -111,6 +111,7 @@ var defaultValueMap = map[string]string{
 	"tgBotOwner":         "",
 	"tgBotPerms":         "",
 	"tgBotProxy":         "",
+	"tgBotOutbound":      "",
 	"tgBotLang":          "fa",
 	"tgBotSkin":          "colorful",
 	"tgBotNotify":        "true",
@@ -443,10 +444,13 @@ type TgBotSettings struct {
 	Owner string
 	// Perms holds one "TelegramID=section,section" line per administrator whose
 	// access is limited to some sections of the bot.
-	Perms  string
-	Proxy  string
-	Lang   string
-	Notify bool
+	Perms string
+	Proxy string
+	// Outbound is the tag of a panel outbound used to reach Telegram when
+	// api.telegram.org is blocked. Empty means connect directly or via Proxy.
+	Outbound string
+	Lang     string
+	Notify   bool
 	// Skin is the look of the bot: "colorful" or "classic".
 	Skin string
 	// Report is a cron spec for the scheduled summary; empty disables it.
@@ -479,6 +483,9 @@ func (s *SettingService) GetTgBotSettings() (TgBotSettings, error) {
 		return out, err
 	}
 	if out.Proxy, err = s.getString("tgBotProxy"); err != nil {
+		return out, err
+	}
+	if out.Outbound, err = s.getString("tgBotOutbound"); err != nil {
 		return out, err
 	}
 	if out.Lang, err = s.getString("tgBotLang"); err != nil {

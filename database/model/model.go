@@ -100,6 +100,10 @@ type BotQuota struct {
 	// Sold is volume given out when this admin's shop sales are approved
 	// (plan GB). It counts against the limit immediately, not as traffic.
 	Sold int64 `json:"sold" gorm:"default:0;not null"`
+	// Warn80 is set after the owner has been told this admin reached 80% of
+	// their limit, so the same crossing is not announced again until usage
+	// drops back below 80%.
+	Warn80 bool `json:"warn80" gorm:"default:false;not null"`
 	// Adopted is set once the clients the administrator created through the
 	// bot before the limit existed have been looked up in the change history.
 	Adopted bool `json:"adopted" gorm:"default:false;not null"`
@@ -136,6 +140,9 @@ type BotOrder struct {
 	ClientId  uint   `json:"clientId"`
 	AdminId   int64  `json:"adminId" gorm:"index"`
 	Ref       string `json:"ref"`
+	// Hint is a readable client name taken from the customer's Telegram
+	// username (or a sanitized first name) when the order is placed.
+	Hint      string `json:"hint"`
 	CreatedAt int64  `json:"createdAt" gorm:"index"`
 	UpdatedAt int64  `json:"updatedAt"`
 }

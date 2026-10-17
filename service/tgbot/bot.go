@@ -1,6 +1,7 @@
 // Package tgbot is the panel's Telegram bot: read-only management commands for
 // the configured administrators plus node and client alerts. It talks to the
-// Bot API over plain HTTPS long polling, optionally through a proxy, so it
+// Bot API over plain HTTPS long polling, optionally through a proxy or a
+// panel outbound, so it
 // needs no extra dependency and no inbound port.
 package tgbot
 
@@ -13,6 +14,7 @@ import (
 	"html"
 	"io"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -178,9 +180,11 @@ type botConfig struct {
 	// they are administrators without any access until it is fixed.
 	Locked []int64
 	Proxy  string
-	Lang   string
-	Notify bool
-	Skin   string
+	// Outbound is a panel outbound tag used to reach api.telegram.org.
+	Outbound string
+	Lang     string
+	Notify   bool
+	Skin     string
 
 	Report       string
 	ReportBackup bool
@@ -190,7 +194,7 @@ type botConfig struct {
 // may do what is not among them: accessKey covers it, and a change there is
 // applied to the running bot.
 func (c botConfig) fingerprint() string {
-	return fmt.Sprint(c.Enable, "|", c.Token, "|", c.Proxy, "|", c.Lang, "|", c.Skin, "|", c.Notify, "|", c.Report, "|", c.ReportBackup)
+	return fmt.Sprint(c.Enable, "|", c.Token, "|", c.Proxy, "|", c.Outbound, "|", c.Lang, "|", c.Skin, "|", c.Notify, "|", c.Report, "|", c.ReportBackup)
 }
 
 // accessKey identifies the settings that say who may do what. fmt prints maps
@@ -308,17 +312,18 @@ func loadConfig() (botConfig, error) {
 	scopes, badScopes := parseScopes(s.Scopes)
 	perms, badPerms := parsePerms(s.Perms)
 	return botConfig{
-		Enable: s.Enable,
-		Token:  strings.TrimSpace(s.Token),
-		Owner:  parseOwner(s.Owner),
-		Admins: parseAdmins(s.Admins),
-		Scopes: scopes,
-		Perms:  perms,
-		Locked: mergeIDs(badScopes, badPerms),
-		Proxy:  strings.TrimSpace(s.Proxy),
-		Lang:   lang,
-		Notify: s.Notify,
-		Skin:   normSkin(s.Skin),
+		Enable:   s.Enable,
+		Token:    strings.TrimSpace(s.Token),
+		Owner:    parseOwner(s.Owner),
+		Admins:   parseAdmins(s.Admins),
+		Scopes:   scopes,
+		Perms:    perms,
+		Locked:   mergeIDs(badScopes, badPerms),
+		Proxy:    strings.TrimSpace(s.Proxy),
+		Outbound: strings.TrimSpace(s.Outbound),
+		Lang:     lang,
+		Notify:   s.Notify,
+		Skin:     normSkin(s.Skin),
 
 		Report:       strings.TrimSpace(s.Report),
 		ReportBackup: s.ReportBackup,
@@ -352,7 +357,13 @@ type bot struct {
 
 func newBot(cfg botConfig) *bot {
 	transport := &http.Transport{Proxy: http.ProxyFromEnvironment, IdleConnTimeout: 60 * time.Second}
-	if cfg.Proxy != "" {
+	if cfg.Outbound != "" {
+		tag := cfg.Outbound
+		transport.Proxy = nil
+		transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return service.DialOutbound(ctx, tag, network, addr)
+		}
+	} else if cfg.Proxy != "" {
 		if u, err := url.Parse(cfg.Proxy); err == nil && u.Host != "" {
 			transport.Proxy = http.ProxyURL(u)
 		} else {

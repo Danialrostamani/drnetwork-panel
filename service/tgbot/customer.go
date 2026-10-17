@@ -29,7 +29,7 @@ func (b *bot) customerPress(ctx context.Context, chatID int64, from *fromUser, d
 	case "p:renew":
 		b.customerRenewPick(ctx, chatID, from)
 	case "p:my":
-		b.customerServices(ctx, chatID, from.ID, false)
+		b.customerServices(ctx, chatID, from.ID)
 	case "p:link":
 		b.customerAskLink(ctx, chatID, from)
 	case "p:wallet":
@@ -80,7 +80,7 @@ func (b *bot) customerCommand(ctx context.Context, chatID int64, from *fromUser,
 	}
 }
 
-func (b *bot) customerServices(ctx context.Context, chatID, from int64, renew bool) bool {
+func (b *bot) customerServices(ctx context.Context, chatID, from int64) bool {
 	bound := boundClients(from)
 	if status := b.orderStatusLines(from); status != "" {
 		b.send(ctx, chatID, status)
@@ -91,13 +91,7 @@ func (b *bot) customerServices(ctx context.Context, chatID, from int64, renew bo
 			"🛍️ No service is on this account. Use <b>Buy a plan</b> or <b>Connect link</b>."), b.customerMenu(from))
 		return false
 	}
-	if renew {
-		b.send(ctx, chatID, b.tr(
-			"♻️ برای تمدید، روی پشتیبانی بزنید و نام سرویس را بنویسید.",
-			"♻️ To renew, tap Support and write the service name."))
-	} else {
-		b.send(ctx, chatID, b.tr("🛍️ <b>سرویس‌های من</b>", "🛍️ <b>My services</b>"))
-	}
+	b.send(ctx, chatID, b.tr("🛍️ <b>سرویس‌های من</b>", "🛍️ <b>My services</b>"))
 	for _, c := range bound {
 		text, kb := b.userView(c)
 		b.sendKeyboard(ctx, chatID, text, kb)

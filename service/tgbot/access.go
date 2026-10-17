@@ -384,7 +384,9 @@ func callbackSection(parts []string) string {
 		}
 		return secOwner
 	case "j":
-		return secDeny
+		// Approve/reject and the order queue. orderCallback still checks that
+		// this administrator owns the order or is the owner.
+		return secNone
 	case "k":
 		return secNone
 	case "u":

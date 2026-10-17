@@ -2,6 +2,7 @@ package tgbot
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -12,9 +13,10 @@ import (
 )
 
 const (
-	orderPending  = "pending"
-	orderApproved = "approved"
-	orderRejected = "rejected"
+	orderPending   = "pending"
+	orderApproved  = "approved"
+	orderRejected  = "rejected"
+	orderCancelled = "cancelled"
 )
 
 func (b *bot) staffIDs() []int64 {
@@ -79,19 +81,6 @@ func (b *bot) notifyIDs(ctx context.Context, ids []int64, text string, kb [][]bu
 			continue
 		}
 		staff.sendKeyboard(ctx, id, text, kb)
-	}
-}
-
-func (b *bot) uniqueClientName(tgID int64) string {
-	base := "u" + strconv.FormatInt(tgID, 10)
-	name := base
-	for i := 2; ; i++ {
-		var n int64
-		database.GetDB().Model(&model.Client{}).Where("name = ?", name).Count(&n)
-		if n == 0 {
-			return name
-		}
-		name = base + "_" + strconv.Itoa(i)
 	}
 }
 
@@ -166,8 +155,8 @@ func (b *bot) placeOrder(ctx context.Context, chatID int64, from *fromUser, topi
 	}
 	o := &model.BotOrder{
 		TgId: from.ID, Topic: topic, PlanID: planID, Extra: extra, Ref: ref,
-		AdminId: b.customerAdminID(from.ID),
-		Detail:  b.orderDetail(topic, planID, extra, from), Status: orderPending,
+		AdminId: b.customerAdminID(from.ID), Hint: clientNameHint(from),
+		Detail: b.orderDetail(topic, planID, extra, from), Status: orderPending,
 	}
 	if err := b.saveOrder(o); err != nil {
 		b.sendMenu(ctx, chatID, b.tr("❌ ثبت درخواست ممکن نشد.", "❌ Could not save the request."), b.customerMenu(from.ID))
@@ -223,6 +212,7 @@ func (b *bot) sendPayScreen(ctx context.Context, chatID int64, from *fromUser, o
 		"Pay the amount, then send a <b>photo of the receipt</b>.\nAfter approval, the subscription link is sent to you."))
 	kb := [][]button{
 		{{Text: b.tr("📤 ارسال رسید", "📤 Send receipt"), Data: fmt.Sprintf("u:pay:%d", o.Id)}},
+		{{Text: b.tr("❌ لغو سفارش", "❌ Cancel order"), Data: fmt.Sprintf("u:cx:%d", o.Id)}},
 	}
 	if o.Topic == "wallet" {
 		kb = append(kb, []button{{Text: b.tr("⏭ بدون رسید", "⏭ Request without receipt"), Data: fmt.Sprintf("u:skip:%d", o.Id)}})
@@ -266,9 +256,10 @@ func (b *bot) finishPendingOrder(ctx context.Context, chatID int64, from *fromUs
 			_ = staff.call(ctx, "sendDocument", map[string]any{"chat_id": id, "document": o.ReceiptID}, nil)
 		}
 	}
-	b.sendMenu(ctx, chatID, b.tr(
-		"✅ رسید ثبت شد. بعد از تأیید، لینک اشتراک برایتان می‌آید.",
-		"✅ Receipt saved. After approval, the subscription link is sent to you."), b.customerMenu(from.ID))
+	b.sendKeyboard(ctx, chatID, b.tr(
+		"✅ رسید ثبت شد. بعد از تأیید، لینک اشتراک برایتان می‌آید.\nتا وقتی تأیید نشده می‌توانید سفارش را لغو کنید.",
+		"✅ Receipt saved. After approval, the subscription link is sent to you.\nYou can cancel the order until it is approved."),
+		[][]button{{{Text: b.tr("❌ لغو سفارش", "❌ Cancel order"), Data: fmt.Sprintf("u:cx:%d", o.Id)}}})
 }
 
 func (b *bot) askReceipt(ctx context.Context, chatID int64, from *fromUser, orderID uint) {
@@ -333,6 +324,7 @@ func (b *bot) orderCallback(ctx context.Context, cbID string, chatID, msgID int6
 		b.answer(ctx, cbID, "")
 		b.edit(ctx, chatID, msgID, b.tr("✅ تأیید شد.", "✅ Approved.")+"\n"+esc(o.Detail), nil)
 		b.notifyCustomerOrder(ctx, o, true)
+		b.maybeQuotaWarn(ctx, o.AdminId)
 	case "no":
 		o.Status = orderRejected
 		_ = b.saveOrder(o)
@@ -355,7 +347,7 @@ func (b *bot) notifyCustomerOrder(ctx context.Context, o *model.BotOrder, ok boo
 				}
 			}
 			b.sendMenu(ctx, o.TgId, msg, b.customerMenu(o.TgId))
-			b.customerServices(ctx, o.TgId, o.TgId, false)
+			b.customerServices(ctx, o.TgId, o.TgId)
 			return
 		}
 		b.sendMenu(ctx, o.TgId, msg, b.customerMenu(o.TgId))
@@ -392,7 +384,7 @@ func (b *bot) approveOrder(o *model.BotOrder) error {
 		if g := s.refGroup(o.Ref); g != "" {
 			group = g
 		}
-		name := staff.uniqueClientName(o.TgId)
+		name := staff.uniqueClientName(o.TgId, o.Hint)
 		vol := int64(0)
 		if gb > 0 {
 			vol = int64(gb) * gib
@@ -466,6 +458,12 @@ func (b *bot) autoTrial(ctx context.Context, chatID int64, from *fromUser) {
 		b.customerAskRef(ctx, chatID, from, "trial")
 		return
 	}
+	if hasUsedTrial(from.ID) {
+		b.sendMenu(ctx, chatID, b.tr(
+			"🔑 اکانت تست فقط یک‌بار داده می‌شود. از «خرید اشتراک» استفاده کنید یا به پشتیبانی پیام دهید.",
+			"🔑 A test account is given only once. Use Buy a plan or message support."), b.customerMenu(from.ID))
+		return
+	}
 	if len(boundClients(from.ID)) > 0 {
 		b.sendMenu(ctx, chatID, b.tr(
 			"🛍️ همین حالا سرویس دارید. از «سرویس های من» ببینید.",
@@ -476,7 +474,7 @@ func (b *bot) autoTrial(ctx context.Context, chatID int64, from *fromUser) {
 	if stored := loadBotRef(from.ID); stored != nil {
 		ref = stored.Word
 	}
-	o := &model.BotOrder{TgId: from.ID, Topic: "test", Status: orderPending, Detail: b.tr("اکانت تست", "Test account"), Ref: ref, AdminId: b.customerAdminID(from.ID)}
+	o := &model.BotOrder{TgId: from.ID, Topic: "test", Status: orderPending, Detail: b.tr("اکانت تست", "Test account"), Ref: ref, AdminId: b.customerAdminID(from.ID), Hint: clientNameHint(from)}
 	if err := b.saveOrder(o); err != nil {
 		b.sendMenu(ctx, chatID, b.tr("❌ ثبت درخواست ممکن نشد.", "❌ Could not save the request."), b.customerMenu(from.ID))
 		return
@@ -484,10 +482,18 @@ func (b *bot) autoTrial(ctx context.Context, chatID int64, from *fromUser) {
 	if err := b.approveOrder(o); err != nil {
 		o.Status = orderRejected
 		_ = b.saveOrder(o)
-		b.sendMenu(ctx, chatID, b.tr("❌ ساخت اکانت تست ممکن نشد.", "❌ Could not create a test account.")+"\n"+esc(err.Error()), b.customerMenu(from.ID))
+		msg := b.tr("❌ ساخت اکانت تست ممکن نشد.", "❌ Could not create a test account.")
+		var qe *quotaError
+		if errors.As(err, &qe) {
+			msg = b.tr(
+				"❌ سهمیه فروشنده تمام است؛ الان اکانت تست داده نمی‌شود. کمی بعد دوباره تلاش کنید یا به پشتیبانی پیام دهید.",
+				"❌ The seller's volume quota is used up, so a test account cannot be created now. Try again later or message support.")
+		}
+		b.sendMenu(ctx, chatID, msg, b.customerMenu(from.ID))
 		return
 	}
 	b.notifyCustomerOrder(ctx, o, true)
+	b.maybeQuotaWarn(ctx, o.AdminId)
 }
 
 func (b *bot) orderStatusLines(tgID int64) string {
@@ -508,6 +514,8 @@ func (b *bot) orderStatusLines(tgID int64) string {
 			st = b.tr("تأیید شد", "approved")
 		case orderRejected:
 			st = b.tr("رد شد", "rejected")
+		case orderCancelled:
+			st = b.tr("لغو شد", "cancelled")
 		}
 		line := "• " + st
 		if o.Detail != "" {

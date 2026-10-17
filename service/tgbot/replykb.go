@@ -29,6 +29,8 @@ var menuItems = []menuItem{
 	{"پشتیبانی ☎️", "Support ☎️", "p:support"},
 	{"🛍 نمای مشتری", "🛍 Customer view", "k:shop"},
 	{"🛍 ویرایش فروشگاه", "🛍 Edit shop", "k:edit"},
+	{"📋 سفارش‌ها", "📋 Orders", "k:ordsP"},
+	{"📊 گزارش فروش", "📊 Sales report", "k:sales"},
 	{"🔙 پنل مدیریت", "🔙 Admin panel", "k:admin"},
 	{"🏠 خانه", "🏠 Home", "h:home"},
 	{"📋 منوی اصلی", "📋 Main menu", "m:menu"},
@@ -90,7 +92,7 @@ func (b *bot) adminMenu() [][]string {
 	}
 	extra := []string{"k:shop"}
 	if !b.restricted() || b.isAdmin(b.self) {
-		extra = append(extra, "k:edit")
+		extra = append(extra, "k:edit", "k:ordsP", "k:sales")
 	}
 	return append(rows, extra)
 }
@@ -125,7 +127,7 @@ type menuChat struct{}
 func (b *bot) menuPress(ctx context.Context, chatID int64, from *fromUser, data string) bool {
 	admin := b.isAdmin(from.ID)
 	switch {
-	case data == "k:shop" || data == "k:admin" || data == "k:edit":
+	case data == "k:shop" || data == "k:admin" || data == "k:edit" || data == "k:ords" || data == "k:ordsP" || data == "k:sales":
 		if !admin {
 			return false
 		}
@@ -140,6 +142,23 @@ func (b *bot) menuPress(ctx context.Context, chatID int64, from *fromUser, data 
 				return false
 			}
 			text, kb := bb.shopEditHome()
+			bb.sendKeyboard(ctx, chatID, text, kb)
+			return true
+		}
+		if data == "k:ords" || data == "k:ordsP" || data == "k:sales" {
+			if !bb.allowed([]string{"k", "edit"}) {
+				return false
+			}
+			var text string
+			var kb [][]button
+			switch data {
+			case "k:ords":
+				text, kb = bb.orderQueueScreen(false)
+			case "k:ordsP":
+				text, kb = bb.orderQueueScreen(true)
+			default:
+				text, kb = bb.salesReportScreen()
+			}
 			bb.sendKeyboard(ctx, chatID, text, kb)
 			return true
 		}

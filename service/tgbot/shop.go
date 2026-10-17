@@ -445,6 +445,12 @@ func (b *bot) customerShopCallback(ctx context.Context, cbID string, chatID, msg
 		}
 		id, _ := strconv.ParseUint(parts[2], 10, 32)
 		b.skipReceipt(ctx, chatID, fu, uint(id))
+	case "cx":
+		if len(parts) < 3 {
+			return
+		}
+		id, _ := strconv.ParseUint(parts[2], 10, 32)
+		b.customerCancel(ctx, chatID, fu, uint(id))
 	case "nm":
 		if len(parts) < 3 {
 			return
