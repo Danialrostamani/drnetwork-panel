@@ -87,13 +87,13 @@ func stubUpdateHost(t *testing.T, h updateHost, why string) {
 
 func TestPanelUpdateInfo(t *testing.T) {
 	var tag atomic.Value
-	tag.Store("v49.0")
+	tag.Store("v99")
 	calls := fakeReleases(t, &tag)
 	stubUpdateHost(t, updateHost{}, "docker")
 	s := &PanelUpdateService{}
 
 	info := s.Info(false)
-	if info.Current != config.GetVersion() || info.Latest != "v49.0" || !info.Newer ||
+	if info.Current != config.GetVersion() || info.Latest != "v99" || !info.Newer ||
 		info.LatestURL != "https://example.com/r" || info.Published != 1791469743 || info.Unsupported != "docker" {
 		t.Fatalf("info = %+v", info)
 	}
@@ -115,7 +115,7 @@ func TestPanelUpdateInfo(t *testing.T) {
 
 func TestStartPanelUpdate(t *testing.T) {
 	var tag atomic.Value
-	tag.Store("v49.0")
+	tag.Store("v99")
 	fakeReleases(t, &tag)
 	dir := t.TempDir()
 	stubUpdateHost(t, updateHost{dir: dir, init: "openrc", bash: "/bin/bash"}, "")
@@ -129,16 +129,16 @@ func TestStartPanelUpdate(t *testing.T) {
 	s := &PanelUpdateService{}
 
 	got, err := s.Start("zhHans", "admin")
-	if err != nil || got != "v49.0" {
+	if err != nil || got != "v99" {
 		t.Fatalf("Start = %q, %v", got, err)
 	}
 	logPath := filepath.Join(dir, updateLogName)
-	want := []string{"v49.0", logPath, updateRawBase + "/" + updateRepo + "/v49.0/install.sh", "zhcn"}
+	want := []string{"v99", logPath, updateRawBase + "/" + updateRepo + "/v99/install.sh", "zhcn"}
 	if len(launched) != 1 || !reflect.DeepEqual(launched[0], want) {
 		t.Fatalf("launched %q", launched)
 	}
 	info := s.Info(false)
-	if !info.Running || info.Target != "v49.0" || info.From != config.GetVersion() || info.Exit != nil {
+	if !info.Running || info.Target != "v99" || info.From != config.GetVersion() || info.Exit != nil {
 		t.Fatalf("while running: %+v", info)
 	}
 	if _, err := s.Start("en", "admin"); err == nil || !strings.Contains(err.Error(), "already running") {
@@ -160,7 +160,7 @@ func TestStartPanelUpdate(t *testing.T) {
 		t.Fatalf("an older release was installed: %v", err)
 	}
 	stubUpdateHost(t, updateHost{}, "path")
-	tag.Store("v49.0")
+	tag.Store("v99")
 	s.Info(true)
 	if _, err := s.Start("en", "admin"); err == nil {
 		t.Fatal("an update started where the panel cannot update itself")
@@ -191,7 +191,7 @@ func TestForcePanelUpdateInstallsEvenIfNotNewer(t *testing.T) {
 	if err != nil || got != "v48.2" {
 		t.Fatalf("force latest = %q, %v", got, err)
 	}
-	got, err = s.StartAt("fa", "admin", "v49.0", true)
+	got, err = s.StartAt("fa", "admin", "v99", true)
 	if err == nil || !strings.Contains(err.Error(), "already running") {
 		t.Fatalf("second force started: %v", err)
 	}
