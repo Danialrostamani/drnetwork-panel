@@ -806,3 +806,26 @@ func TestJSONCannotWipeWhatWasUsed(t *testing.T) {
 		t.Fatalf("usage after a new JSON client: %+v", q)
 	}
 }
+
+func TestShopSaleDeductsAdminQuota(t *testing.T) {
+	e := newAccessEnv(t)
+	giveQuota(t, fullAdmin, 100)
+	if err := e.b.consumeSaleQuota(fullAdmin, 40*gib); err != nil {
+		t.Fatal(err)
+	}
+	if q := e.quota(fullAdmin); q.Sold != 40*gib || q.Left() != 60*gib {
+		t.Fatalf("after sale sold=%d left=%d used=%d", q.Sold, q.Left(), q.Used)
+	}
+	if err := e.b.consumeSaleQuota(fullAdmin, 70*gib); err == nil {
+		t.Fatal("sold past the limit")
+	}
+	if err := e.b.consumeSaleQuota(fullAdmin, 0); err == nil {
+		t.Fatal("unlimited sale with a limit")
+	}
+	if err := e.b.consumeSaleQuota(ownerID, 1000*gib); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.b.consumeSaleQuota(salesAdmin, 10*gib); err != nil {
+		t.Fatal(err)
+	}
+}

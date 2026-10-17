@@ -50,7 +50,7 @@ func (b *bot) notifyStaff(ctx context.Context, text string, kb [][]button) {
 	b.notifyIDs(ctx, b.staffIDs(), text, kb)
 }
 
-func (b *bot) orderStaffIDs(o *model.BotOrder) []int64 {
+func (b *bot) notifyOrderStaff(ctx context.Context, o *model.BotOrder, text string, kb [][]button) {
 	seen := map[int64]bool{}
 	var ids []int64
 	add := func(id int64) {
@@ -69,19 +69,7 @@ func (b *bot) orderStaffIDs(o *model.BotOrder) []int64 {
 			add(id)
 		}
 	}
-	return ids
-}
-
-func (b *bot) notifyOrderStaff(ctx context.Context, o *model.BotOrder, text string, kb [][]button) {
-	b.notifyIDs(ctx, b.orderStaffIDs(o), text, kb)
-}
-
-func (b *bot) orderShop(o *model.BotOrder) shopConfig {
-	s := b.loadShopRaw()
-	if o != nil && o.AdminId != 0 {
-		return s.forAdmin(o.AdminId)
-	}
-	return s
+	b.notifyIDs(ctx, ids, text, kb)
 }
 
 func (b *bot) notifyIDs(ctx context.Context, ids []int64, text string, kb [][]button) {
@@ -254,7 +242,22 @@ func (b *bot) finishPendingOrder(ctx context.Context, chatID int64, from *fromUs
 		{Text: b.tr("✅ تأیید", "✅ Approve"), Data: fmt.Sprintf("j:ok:%d", o.Id)},
 		{Text: b.tr("❌ رد", "❌ Reject"), Data: fmt.Sprintf("j:no:%d", o.Id)},
 	}}
-	ids := b.orderStaffIDs(o)
+	ids := []int64{}
+	seen := map[int64]bool{}
+	add := func(id int64) {
+		if id == 0 || seen[id] {
+			return
+		}
+		seen[id] = true
+		ids = append(ids, id)
+	}
+	add(o.AdminId)
+	if a := b.access(); a.owner != 0 {
+		add(a.owner)
+	}
+	if len(ids) == 0 {
+		ids = b.staffIDs()
+	}
 	b.notifyIDs(ctx, ids, text, kb)
 	if o.ReceiptID != "" {
 		staff := b.staffBot()
@@ -361,6 +364,14 @@ func (b *bot) notifyCustomerOrder(ctx context.Context, o *model.BotOrder, ok boo
 	b.sendMenu(ctx, o.TgId, b.tr("❌ درخواست شما رد شد.", "❌ Your request was rejected."), b.customerMenu(o.TgId))
 }
 
+func (b *bot) orderShop(o *model.BotOrder) shopConfig {
+	s := b.loadShopRaw()
+	if o != nil && o.AdminId != 0 {
+		return s.forAdmin(o.AdminId)
+	}
+	return s
+}
+
 func (b *bot) approveOrder(o *model.BotOrder) error {
 	staff := b.staffBot()
 	s := b.orderShop(o)
@@ -386,7 +397,11 @@ func (b *bot) approveOrder(o *model.BotOrder) error {
 		if gb > 0 {
 			vol = int64(gb) * gib
 		}
+		if err := b.consumeSaleQuota(o.AdminId, vol); err != nil {
+			return err
+		}
 		if err := staff.createClient(name, group, vol, days, 0); err != nil {
+			_ = addQuotaSold(o.AdminId, -vol)
 			return err
 		}
 		var c model.Client
@@ -407,13 +422,22 @@ func (b *bot) approveOrder(o *model.BotOrder) error {
 			return fmt.Errorf("client not found")
 		}
 		if p := s.plan(o.PlanID); p != nil {
+			need := int64(0)
+			if p.GB > 0 {
+				need = int64(p.GB) * gib
+			}
+			if err := b.consumeSaleQuota(o.AdminId, need); err != nil {
+				return err
+			}
 			if p.Days > 0 {
 				if err := staff.addDays(c.Id, p.Days); err != nil {
+					_ = addQuotaSold(o.AdminId, -need)
 					return err
 				}
 			}
 			if p.GB > 0 {
-				if err := staff.addVolume(c.Id, int64(p.GB)*gib); err != nil {
+				if err := staff.addVolume(c.Id, need); err != nil {
+					_ = addQuotaSold(o.AdminId, -need)
 					return err
 				}
 			}

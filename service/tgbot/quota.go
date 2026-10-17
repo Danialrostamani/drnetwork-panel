@@ -17,13 +17,10 @@ import (
 // Volume limits of the bot's administrators.
 //
 // The owner can give an administrator a volume limit (Admins → ✏️ → 📦 Volume
-// limit): the most traffic the clients that count as theirs may consume. What
-// is deducted is the traffic the clients really use, not the volume that was
-// handed out: creating a client, or giving one more volume, costs nothing, and
-// the limit goes down as the traffic of those clients goes up. A traffic reset
-// does not give anything back, and neither does deleting a client: what it had
-// used stays counted. A client that replaces a deleted one counts from its own
-// first byte.
+// limit). Shop sales deduct the plan's GB from that limit as soon as the
+// sale is approved. Traffic those clients really use is also counted. A
+// traffic reset does not give anything back, and neither does deleting a
+// client: what it had used stays counted.
 //
 // A client counts for an administrator when they created it through the bot
 // while they had a limit and, for an administrator limited to a group, when it
@@ -152,7 +149,51 @@ func (b *bot) quotaOf(id int64) (q quotaState, ok bool, err error) {
 	if err != nil {
 		return quotaState{}, false, err
 	}
-	return quotaState{BotQuota: row, Used: used, Clients: live}, true, nil
+	return quotaState{BotQuota: row, Used: saturatingAdd(used, row.Sold), Clients: live}, true, nil
+}
+
+// addQuotaSold records plan volume given out on an approved shop sale.
+func addQuotaSold(id, bytes int64) error {
+	if id == 0 || bytes == 0 {
+		return nil
+	}
+	res := database.GetDB().Model(&model.BotQuota{}).Where("tg_id = ?", id).
+		Update("sold", gorm.Expr("MIN(MAX(sold + ?, 0), ?)", bytes, quotaCap))
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return nil
+	}
+	return nil
+}
+
+// consumeSaleQuota takes plan volume from an administrator's limit when their
+// customer shop sale is approved. The owner, and admins with no limit, are
+// not charged. An unlimited plan (0 bytes) cannot be sold by a limited admin.
+func (b *bot) consumeSaleQuota(adminID, bytes int64) error {
+	if adminID == 0 {
+		return nil
+	}
+	if b.access().isOwner(adminID) {
+		return nil
+	}
+	q, ok, err := b.quotaOf(adminID)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return nil
+	}
+	if bytes <= 0 {
+		return &quotaError{b.tr(
+			"این ادمین محدودیت حجم دارد؛ پلن نامحدود برای فروش مجاز نیست.",
+			"This admin has a volume limit; an unlimited plan cannot be sold.")}
+	}
+	if q.Left() < bytes {
+		return b.errQuotaUsedUp(q)
+	}
+	return addQuotaSold(adminID, bytes)
 }
 
 // quotaCatchUp makes sure the clients that count for an administrator are all

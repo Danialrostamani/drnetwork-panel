@@ -97,6 +97,9 @@ type BotQuota struct {
 	Total int64 `json:"total" gorm:"default:0;not null"`
 	// Banked is the traffic of counted clients that were deleted.
 	Banked int64 `json:"banked" gorm:"default:0;not null"`
+	// Sold is volume given out when this admin's shop sales are approved
+	// (plan GB). It counts against the limit immediately, not as traffic.
+	Sold int64 `json:"sold" gorm:"default:0;not null"`
 	// Adopted is set once the clients the administrator created through the
 	// bot before the limit existed have been looked up in the change history.
 	Adopted bool `json:"adopted" gorm:"default:false;not null"`

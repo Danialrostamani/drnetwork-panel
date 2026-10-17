@@ -330,7 +330,7 @@ func TestVolumeLimitScreenInPersian(t *testing.T) {
 	mustContain(t, out, "محدودیت حجم", "بدون محدودیت")
 	e.runPress(ownerID, "a:qa:42:50")
 	out = e.runPress(ownerID, "a:q:42")
-	mustContain(t, out, "کل:", "مصرف‌شده:", "باقی‌مانده:", "کلاینت‌های حساب‌شده:", "هنگام ساخت کلاینت یا تعیین حجم چیزی کم نمی‌شود")
+	mustContain(t, out, "کل:", "مصرف‌شده:", "باقی‌مانده:", "کلاینت‌های حساب‌شده:", "وقتی فروش این ادمین تأیید شود")
 	mustContain(t, e.runPress(ownerID, "a:qr:42"), "«مصرف‌شده» این ادمین صفر شود")
 	mustContain(t, e.runPress(ownerID, "a:e:42"), "📦 باقی‌مانده 50.00 GiB از 50.00 GiB")
 }

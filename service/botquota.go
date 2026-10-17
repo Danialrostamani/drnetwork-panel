@@ -246,7 +246,7 @@ func BotQuotaRestart(db *gorm.DB, tg int64) error {
 			WHERE tg_id = ?`, tg).Error; err != nil {
 			return err
 		}
-		return tx.Exec(`UPDATE bot_quotas SET banked = 0 WHERE tg_id = ?`, tg).Error
+		return tx.Exec(`UPDATE bot_quotas SET banked = 0, sold = 0 WHERE tg_id = ?`, tg).Error
 	})
 }
 

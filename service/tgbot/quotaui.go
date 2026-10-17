@@ -233,8 +233,8 @@ func (b *bot) adminQuotaScreen(ctx context.Context, id int64) (string, [][]butto
 		kb = append(kb, start, []button{{Text: b.tr("✏️ مقدار دلخواه", "✏️ Custom"), Data: "a:qt:" + sid}})
 	}
 	lines = append(lines, "", b.tr(
-		"ℹ️ هنگام ساخت کلاینت یا تعیین حجم چیزی کم نمی‌شود؛ «کل» به اندازهٔ ترافیکی که کلاینت‌های این ادمین واقعاً مصرف می‌کنند کم می‌شود. ریست ترافیک یا حذف کلاینت چیزی برنمی‌گرداند و کلاینتِ جایگزین از مصرف خودش حساب می‌شود. کلاینتی حساب می‌شود که او با ربات و پس از تعیین محدودیت ساخته باشد؛ برای ادمینِ گروهی همهٔ کلاینت‌های گروهش. مصرفِ پیش از آن هرگز محاسبه نمی‌شود. وقتی چیزی نماند نمی‌تواند کلاینت جدید بسازد یا حجم بیشتری بدهد؛ کلاینت‌های موجود قطع نمی‌شوند.",
-		"ℹ️ Nothing is deducted when this admin creates a client or sets its volume; the total goes down as the clients that count for them really use traffic. A traffic reset or deleting a client gives nothing back, and a replacement client counts from its own usage. A client counts when they created it through the bot after the limit was set; for a group-limited admin, every client of the group. What a client used before that is never charged. When nothing is left they cannot create clients or give more volume; existing clients are not cut off."))
+		"ℹ️ وقتی فروش این ادمین تأیید شود، حجم پلن (گیگ) همان لحظه از سهمیه‌اش کم می‌شود. ترافیک واقعی کلاینت‌های حساب‌شده هم شمرده می‌شود. ریست ترافیک یا حذف کلاینت چیزی برنمی‌گرداند. وقتی چیزی نماند نمی‌تواند بفروشد یا کلاینت جدید بسازد؛ کلاینت‌های موجود قطع نمی‌شوند.",
+		"ℹ️ When this admin's shop sale is approved, the plan's GB is deducted from their quota at once. Traffic of counted clients is also counted. A traffic reset or deleting a client gives nothing back. When nothing is left they cannot sell or create clients; existing clients are not cut off."))
 	kb = append(kb, b.navRow("a:e:"+sid))
 	return strings.Join(lines, "\n"), kb
 }
