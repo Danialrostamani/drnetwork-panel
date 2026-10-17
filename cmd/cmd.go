@@ -25,6 +25,9 @@ func ParseCmd() {
 	var path string
 	var subPort int
 	var subPath string
+	var subDomain string
+	var subCert string
+	var subKey string
 	var reset bool
 	var assumeYes bool
 	var show bool
@@ -42,6 +45,9 @@ func ParseCmd() {
 	settingCmd.StringVar(&path, "path", "", "set panel path")
 	settingCmd.IntVar(&subPort, "subPort", 0, "set sub port")
 	settingCmd.StringVar(&subPath, "subPath", "", "set sub path")
+	settingCmd.StringVar(&subDomain, "subDomain", "", "set sub domain")
+	settingCmd.StringVar(&subCert, "subCert", "", "set sub TLS certificate file")
+	settingCmd.StringVar(&subKey, "subKey", "", "set sub TLS private key file")
 
 	adminCmd.BoolVar(&show, "show", false, "show first admin credentials")
 	adminCmd.BoolVar(&reset, "reset", false, "reset first admin credentials")
@@ -127,7 +133,7 @@ func ParseCmd() {
 		case reset:
 			resetSetting()
 		default:
-			updateSetting(port, path, subPort, subPath)
+			updateSetting(port, path, subPort, subPath, subDomain, subCert, subKey)
 			showSetting()
 		}
 

@@ -37,17 +37,26 @@ func TestBrowsersGetTheAccountPage(t *testing.T) {
 	}
 	w := get("Mozilla/5.0 (Linux; Android 14)", "text/html,application/xhtml+xml", "fa-IR,fa;q=0.9")
 	body := w.Body.String()
-	if w.Code != 200 || !strings.Contains(body, "alice") || !strings.Contains(body, "حجم تمام شده") || !strings.Contains(body, "v2rayng://install-config?url=") || strings.Contains(body, "ZgotmplZ") {
-		t.Fatalf("page %d:\n%s", w.Code, body)
+	if w.Code != 200 || !strings.Contains(body, "وضعیت اشتراک") || !strings.Contains(body, "subscription-userinfo") || strings.Contains(body, "__CF$cv$params") || strings.Contains(body, "ZgotmplZ") {
+		t.Fatalf("page %d (%d bytes)", w.Code, len(body))
+	}
+	if w.Header().Get("Content-Type") != "text/html; charset=utf-8" {
+		t.Fatal("not html")
+	}
+	// The page then fetches the same URL with Accept */*; that must stay the
+	// subscription, not another copy of the HTML.
+	if w := get("Mozilla/5.0", "*/*", ""); strings.Contains(w.Header().Get("Content-Type"), "text/html") {
+		t.Fatal("fetch got html")
 	}
 	// An app gets what it always got: a disabled client has no links.
 	if w := get("v2rayNG/1.9", "*/*", ""); w.Code != 400 {
 		t.Fatalf("app got %d", w.Code)
 	}
-	if w := get("Mozilla/5.0", "text/html", ""); !strings.Contains(w.Body.String(), "Out of volume") {
-		t.Fatal("english page missing")
-	}
-	if w := get("Mozilla/5.0", "text/html", ""); w.Header().Get("Content-Type") != "text/html; charset=utf-8" {
-		t.Fatal("not html")
+	head := httptest.NewRequest(http.MethodHead, "/sub/alice", nil)
+	head.Header.Set("User-Agent", "Mozilla/5.0")
+	hw := httptest.NewRecorder()
+	r.ServeHTTP(hw, head)
+	if strings.Contains(hw.Header().Get("Content-Type"), "text/html") {
+		t.Fatal("head got html")
 	}
 }

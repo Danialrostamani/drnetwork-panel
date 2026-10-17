@@ -55,8 +55,12 @@ d en finished_modify "Install/update finished! For security it's recommended to 
 d en ask_modify "Do you want to continue with the modification [y/n]? "
 d en enter_port "Enter the panel port (leave blank for existing/default value):"
 d en enter_path "Enter the panel path (leave blank for existing/default value):"
-d en enter_subport "Enter the subscription port (leave blank for existing/default value):"
-d en enter_subpath "Enter the subscription path (leave blank for existing/default value):"
+d en enter_subport "Enter the subscription port (blank = 443 if you set a domain, otherwise existing/default):"
+d en enter_subpath "Enter the subscription path (blank = / if you set a domain, otherwise existing/default):"
+d en enter_subdomain "Subscription domain clients open (e.g. sub.example.com). Leave blank to skip:"
+d en enter_subcert "Subscription certificate file (e.g. /root/cert.crt). Leave blank to skip HTTPS:"
+d en enter_subkey "Subscription private key file (e.g. /root/private.key). Leave blank to skip HTTPS:"
+d en sub_https_applied "Subscription will use HTTPS on port 443 at /. Nginx is not needed."
 d en initializing "Initializing, please wait..."
 d en ask_admin "Do you want to change admin credentials [y/n]? "
 d en set_user "Please set up your username: "
@@ -105,8 +109,12 @@ d fa finished_modify "نصب/به روزرسانی به پایان رسید! ب�
 d fa ask_modify "آیا می خواهید تنظیمات را تغییر دهید [y/n]؟ "
 d fa enter_port "پورت پنل را وارد کنید (برای مقدار فعلی/پیش فرض خالی بگذارید):"
 d fa enter_path "مسیر پنل را وارد کنید (برای مقدار فعلی/پیش فرض خالی بگذارید):"
-d fa enter_subport "پورت اشتراک (subscription) را وارد کنید (برای مقدار فعلی/پیش فرض خالی بگذارید):"
-d fa enter_subpath "مسیر اشتراک (subscription) را وارد کنید (برای مقدار فعلی/پیش فرض خالی بگذارید):"
+d fa enter_subport "پورت اشتراک را وارد کنید (اگر دامنه دادید خالی = 443، وگرنه مقدار فعلی/پیش‌فرض):"
+d fa enter_subpath "مسیر اشتراک را وارد کنید (اگر دامنه دادید خالی = /، وگرنه مقدار فعلی/پیش‌فرض):"
+d fa enter_subdomain "دامنه اشتراک که مشتری باز می‌کند (مثلا sub.example.com). برای رد شدن خالی بگذارید:"
+d fa enter_subcert "مسیر فایل گواهی SSL اشتراک (مثلا /root/cert.crt). برای رد شدن خالی بگذارید:"
+d fa enter_subkey "مسیر کلید خصوصی SSL اشتراک (مثلا /root/private.key). برای رد شدن خالی بگذارید:"
+d fa sub_https_applied "اشتراک با HTTPS روی پورت 443 و مسیر / بالا می‌آید. nginx لازم نیست."
 d fa initializing "در حال آماده سازی، لطفاً صبر کنید..."
 d fa ask_admin "آیا می خواهید نام کاربری و رمز ادمین را تغییر دهید [y/n]؟ "
 d fa set_user "نام کاربری خود را وارد کنید: "
@@ -155,8 +163,12 @@ d ru finished_modify "Установка/обновление завершено
 d ru ask_modify "Хотите изменить настройки [y/n]? "
 d ru enter_port "Введите порт панели (оставьте пустым для текущего/значения по умолчанию):"
 d ru enter_path "Введите путь панели (оставьте пустым для текущего/значения по умолчанию):"
-d ru enter_subport "Введите порт подписки (оставьте пустым для текущего/значения по умолчанию):"
-d ru enter_subpath "Введите путь подписки (оставьте пустым для текущего/значения по умолчанию):"
+d ru enter_subport "Введите порт подписки (пусто = 443, если задан домен, иначе текущее/значение по умолчанию):"
+d ru enter_subpath "Введите путь подписки (пусто = /, если задан домен, иначе текущее/значение по умолчанию):"
+d ru enter_subdomain "Домен подписки, который открывают клиенты (например sub.example.com). Пусто — пропустить:"
+d ru enter_subcert "Файл сертификата подписки (например /root/cert.crt). Пусто — без HTTPS:"
+d ru enter_subkey "Файл ключа подписки (например /root/private.key). Пусто — без HTTPS:"
+d ru sub_https_applied "Подписка будет на HTTPS, порт 443, путь /. Nginx не нужен."
 d ru initializing "Инициализация, пожалуйста, подождите..."
 d ru ask_admin "Хотите изменить учётные данные администратора [y/n]? "
 d ru set_user "Задайте имя пользователя: "
@@ -205,8 +217,12 @@ d vi finished_modify "Cài đặt/cập nhật hoàn tất! Vì bảo mật, b�
 d vi ask_modify "Bạn có muốn tiếp tục chỉnh sửa [y/n]? "
 d vi enter_port "Nhập cổng bảng điều khiển (để trống để giữ giá trị hiện tại/mặc định):"
 d vi enter_path "Nhập đường dẫn bảng điều khiển (để trống để giữ giá trị hiện tại/mặc định):"
-d vi enter_subport "Nhập cổng subscription (để trống để giữ giá trị hiện tại/mặc định):"
-d vi enter_subpath "Nhập đường dẫn subscription (để trống để giữ giá trị hiện tại/mặc định):"
+d vi enter_subport "Nhập cổng subscription (trống = 443 nếu có tên miền, nếu không giữ hiện tại/mặc định):"
+d vi enter_subpath "Nhập đường dẫn subscription (trống = / nếu có tên miền, nếu không giữ hiện tại/mặc định):"
+d vi enter_subdomain "Tên miền subscription khách mở (ví dụ sub.example.com). Để trống để bỏ qua:"
+d vi enter_subcert "File chứng chỉ subscription (ví dụ /root/cert.crt). Để trống để bỏ HTTPS:"
+d vi enter_subkey "File khóa subscription (ví dụ /root/private.key). Để trống để bỏ HTTPS:"
+d vi sub_https_applied "Subscription dùng HTTPS, cổng 443, đường dẫn /. Không cần nginx."
 d vi initializing "Đang khởi tạo, vui lòng đợi..."
 d vi ask_admin "Bạn có muốn thay đổi thông tin đăng nhập quản trị [y/n]? "
 d vi set_user "Vui lòng đặt tên người dùng: "
@@ -255,8 +271,12 @@ d zhcn finished_modify "安装/更新完成！为了安全，建议修改面板�
 d zhcn ask_modify "是否继续修改设置 [y/n]？ "
 d zhcn enter_port "请输入面板端口（留空则使用现有/默认值）："
 d zhcn enter_path "请输入面板路径（留空则使用现有/默认值）："
-d zhcn enter_subport "请输入订阅端口（留空则使用现有/默认值）："
-d zhcn enter_subpath "请输入订阅路径（留空则使用现有/默认值）："
+d zhcn enter_subport "请输入订阅端口（若已填域名则留空为 443，否则为现有/默认值）："
+d zhcn enter_subpath "请输入订阅路径（若已填域名则留空为 /，否则为现有/默认值）："
+d zhcn enter_subdomain "客户打开的订阅域名（例如 sub.example.com）。留空跳过："
+d zhcn enter_subcert "订阅证书文件（例如 /root/cert.crt）。留空则不启用 HTTPS："
+d zhcn enter_subkey "订阅私钥文件（例如 /root/private.key）。留空则不启用 HTTPS："
+d zhcn sub_https_applied "订阅将使用 HTTPS、端口 443、路径 /。不需要 nginx。"
 d zhcn initializing "正在初始化，请稍候..."
 d zhcn ask_admin "是否修改管理员账号密码 [y/n]？ "
 d zhcn set_user "请设置您的用户名： "
@@ -305,8 +325,12 @@ d zhtw finished_modify "安裝/更新完成！為了安全，建議修改面板�
 d zhtw ask_modify "是否繼續修改設定 [y/n]？ "
 d zhtw enter_port "請輸入面板連接埠（留空則使用現有/預設值）："
 d zhtw enter_path "請輸入面板路徑（留空則使用現有/預設值）："
-d zhtw enter_subport "請輸入訂閱連接埠（留空則使用現有/預設值）："
-d zhtw enter_subpath "請輸入訂閱路徑（留空則使用現有/預設值）："
+d zhtw enter_subport "請輸入訂閱連接埠（若已填域名則留空為 443，否則為現有/預設值）："
+d zhtw enter_subpath "請輸入訂閱路徑（若已填域名則留空為 /，否則為現有/預設值）："
+d zhtw enter_subdomain "客戶開啟的訂閱網域（例如 sub.example.com）。留空跳過："
+d zhtw enter_subcert "訂閱憑證檔（例如 /root/cert.crt）。留空則不啟用 HTTPS："
+d zhtw enter_subkey "訂閱私鑰檔（例如 /root/private.key）。留空則不啟用 HTTPS："
+d zhtw sub_https_applied "訂閱將使用 HTTPS、連接埠 443、路徑 /。不需要 nginx。"
 d zhtw initializing "正在初始化，請稍候..."
 d zhtw ask_admin "是否修改管理員帳號密碼 [y/n]？ "
 d zhtw set_user "請設定您的使用者名稱： "
@@ -522,11 +546,23 @@ config_after_install() {
         echo -e "${yellow}$(t enter_path)${plain}"
         read -r config_path
 
-        # Sub configuration
+        echo -e "${yellow}$(t enter_subdomain)${plain}"
+        read -r config_subDomain
+        echo -e "${yellow}$(t enter_subcert)${plain}"
+        read -r config_subCert
+        echo -e "${yellow}$(t enter_subkey)${plain}"
+        read -r config_subKey
+
         echo -e "${yellow}$(t enter_subport)${plain}"
         read -r config_subPort
         echo -e "${yellow}$(t enter_subpath)${plain}"
         read -r config_subPath
+
+        if [[ -n "$config_subDomain" && -n "$config_subCert" && -n "$config_subKey" ]]; then
+            [ -n "$config_subPort" ] || config_subPort=443
+            [ -n "$config_subPath" ] || config_subPath=/
+            echo -e "${green}$(t sub_https_applied)${plain}"
+        fi
 
         # Set configs
         echo -e "${yellow}$(t initializing)${plain}"
@@ -535,6 +571,9 @@ config_after_install() {
         [ -z "$config_path" ] || params+=(-path "$config_path")
         [ -z "$config_subPort" ] || params+=(-subPort "$config_subPort")
         [ -z "$config_subPath" ] || params+=(-subPath "$config_subPath")
+        [ -z "$config_subDomain" ] || params+=(-subDomain "$config_subDomain")
+        [ -z "$config_subCert" ] || params+=(-subCert "$config_subCert")
+        [ -z "$config_subKey" ] || params+=(-subKey "$config_subKey")
         /usr/local/s-ui/sui setting "${params[@]}"
 
         read -r -p "$(t ask_admin)" admin_confirm

@@ -1,68 +1,2593 @@
-<!doctype html>
-<html lang="{{.Lang}}" dir="{{if .RTL}}rtl{{else}}ltr{{end}}">
+<!DOCTYPE html>
+<!--
+  ─────────────────────────────────────────────────────────────
+  صفحه وضعیت اشتراک برای پنل s-ui
+  ─────────────────────────────────────────────────────────────
+  • این صفحه اطلاعات کاربر را از «سرویس اشتراک» پنل s-ui می‌خواند
+    (پیش‌فرض: پورت 2096 و مسیر /sub/) و نیازی به API ادمین یا توکن ندارد.
+  • برای شخصی‌سازی، بخش CONFIG در ابتدای <script> پایین صفحه را ویرایش کنید.
+  • پنل همین فایل را روی لینک اشتراک سرو می‌کند؛ nginx لازم نیست.
+    اپ‌ها همچنان لینک خام را می‌گیرند؛ فقط مرورگر این صفحه را می‌بیند.
+  • نسخه v38 علاوه بر وضعیت مصرف، این‌ها را دارد: سه تب لینک اشتراک / لینک Sing-Box
+    (دامنه/نام‌کاربر?format=json) / لینک Clash (دامنه/نام‌کاربر?format=clash) با کد QR
+    جداگانه، دانلود اپ‌ها (Sing-Box برای اپ استور/گوگل پلی/ویندوز و Clash Mi از اپ
+    استور فقط برای آیفون)، مصرف روزانه بر اساس مصرف واقعی کاربر (ریست ۱۲ شب به
+    وقت ایران؛ با فعال‌بودن addons/bridge.py از آمار واقعی سرور)، تست نشتی DNS با
+    BrowserLeaks، تست مسدودسازی تبلیغات (adblock.turtlecute.org) — هر دو فقط با کلیک
+    روی خودِ تیتر باز می‌شوند —، تمدید اشتراک (کنار کارت‌های دانلود/آپلود/اعتبار
+    زمانی، با متن آماده‌ی درخواست در خود لینک)، تاریخ ایجاد اشتراک (از جدول clients پنل
+    با addons/bridge.py؛ اگر پنل این ستون را نداشته باشد از اولین ترافیک تخمین زده
+    می‌شود) در کارت حجم مصرفی، راهنمای گام‌به‌گام برای Sing-Box، تم
+    روشن/تاریک و دو زبان (فارسی/انگلیسی).
+  • تاریخچه‌ی کوتاه: v30 حذف کارت اشتراک‌گذاری و هم‌عرض‌کردن کارت‌های آمار ·
+    v31 گسترش فهرست تست‌ها · v32 تاشو شدن فهرست · v33 حذف ردیف کنترل ·
+    v34 اندازه‌گیری چندنمونه‌ای و پایش زنده · v35 مصرف فقط امروز + متن تازه‌ی
+    «شروع کار» + حالت‌های تست · v36 حذف کامل تست پینگ سرویس‌ها، حذف جمله‌ی
+    Sing-Box و Clash کاهش یافت.
+  • تغییرات v37: تخمین اتمام حجم («با این مصرف ≈ N روز دیگر»)، هشدار ۸۰٪ حجم و
+    ۳ روز مانده (بنر + اعلان مرورگر)، شمارش معکوس دقیق اعتبار، حالت آفلاین
+    («آفلاین — دادهٔ ذخیره‌شده») با Service Worker، و رفع باگ راهنمای دکمهٔ تم
+    به‌همراه پاک‌سازی کدهای مرده.
+  • تغییرات v43: کارت «مصرف امروز» حذف شد؛ QR مستقیم Sing-Box و نمایش شفاف حجم حفظ شدند.
+-->
+<html lang="fa" dir="rtl" style="-webkit-text-size-adjust:100%;text-size-adjust:100%">
 <head>
-<meta charset="utf-8">
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <meta name="robots" content="noindex">
-<title>{{.Name}} · {{.T.title}}</title>
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#FFFFFF">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#191919">
+<title data-i18n="doc.title">وضعیت اشتراک</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="وضعیت اشتراک">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="format-detection" content="telephone=no">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%232783DE'/%3E%3Cpath d='M6.5 15.5a7 7 0 0 1 11 0M9 12.2a4.2 4.2 0 0 1 6 0' stroke='white' stroke-width='1.8' stroke-linecap='round' fill='none'/%3E%3Ccircle cx='12' cy='17.5' r='1.4' fill='white'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css">
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js" defer></script>
 <style>
-:root{--bg:#0f172a;--card:#1e293b;--text:#e2e8f0;--muted:#94a3b8;--accent:#38bdf8;--ok:#22c55e;--bad:#ef4444}
-@media (prefers-color-scheme: light){:root{--bg:#f1f5f9;--card:#fff;--text:#0f172a;--muted:#64748b;--accent:#0284c7}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Vazirmatn,Tahoma,system-ui,sans-serif;line-height:1.6}
-.wrap{max-width:560px;margin:0 auto;padding:16px}.card{background:var(--card);border-radius:16px;padding:18px;margin-bottom:14px;box-shadow:0 4px 18px #0002}
-h1{font-size:1.3rem;margin:0 0 4px}.muted{color:var(--muted);font-size:.9rem}
-.badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:.85rem;color:#fff}.ok{background:var(--ok)}.bad{background:var(--bad)}
-.on{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--ok);margin-inline-start:6px}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.grid div{background:#0001;border-radius:12px;padding:10px}
-.grid b{display:block;font-size:1.05rem}.bar{height:10px;border-radius:6px;background:#0003;overflow:hidden;margin-top:12px}
-.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),#818cf8)}
-.link{direction:ltr;word-break:break-all;background:#0002;border-radius:10px;padding:10px;font-family:monospace;font-size:.85rem}
-.btn{display:inline-block;border:0;border-radius:10px;padding:9px 14px;background:var(--accent);color:#fff;text-decoration:none;cursor:pointer;font:inherit;margin:4px 0}
-.btn.alt{background:transparent;color:var(--accent);border:1px solid var(--accent)}
-.qr{text-align:center}.qr img{width:220px;max-width:100%;border-radius:12px;background:#fff;padding:8px}
-.app{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid #8882}.app:last-child{border:0}
-.app small{display:block;color:var(--muted)}.app .acts{display:flex;gap:6px;flex-wrap:wrap}
-.announce{white-space:pre-line;border-inline-start:4px solid var(--accent)}
+:root{
+  --canvas:#F7F7F8; --surface:#FFFFFF; --surface2:#F1F1F3; --border:#E5E5E8;
+  --text:#17171B; --text2:#72727C;
+  --accent:#0C96B2; --accent2:#2CC1D6; --accent-soft:rgba(18,158,187,.10);
+  --green:#0E9F6E; --green-soft:rgba(14,159,110,.11);
+  --orange:#D98324; --orange-soft:rgba(217,131,36,.13);
+  --red:#E14D5A; --red-soft:rgba(225,77,90,.10);
+  --shadow:0 1px 2px rgba(23,23,27,.04),0 12px 32px -16px rgba(23,23,27,.14);
+  --shadow-lift:0 2px 4px rgba(23,23,27,.05),0 16px 40px -16px rgba(23,23,27,.2);
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --canvas:#0B0B0D; --surface:#151518; --surface2:#212126; --border:rgba(255,255,255,.09);
+    --text:#F7F7F8; --text2:rgba(255,255,255,.6);
+    --accent:#3BC5DA; --accent2:#6ADBEB; --accent-soft:rgba(59,197,218,.13);
+    --green:#3DD68C; --green-soft:rgba(61,214,140,.13);
+    --orange:#F5A64B; --orange-soft:rgba(245,166,75,.13);
+    --red:#F5707B; --red-soft:rgba(245,112,123,.12);
+    --shadow:none; --shadow-lift:none;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:radial-gradient(1100px 420px at 50% -160px,var(--accent-soft),transparent 70%) no-repeat,var(--canvas);
+  color:var(--text);
+  font-family:"Vazirmatn","Noto Sans Arabic","Segoe UI",Tahoma,system-ui,sans-serif;
+  font-size:16px; line-height:1.6; -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:920px;margin:0 auto;padding:20px 20px 48px}
+.muted{color:var(--text2)} .small{font-size:13px}
+svg{display:block}
+button{font-family:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:8px}
+
+/* ── header ── */
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:20px;min-height:56px}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}
+.logo{width:42px;height:42px;border-radius:12px;background:#101622;color:#fff;display:grid;place-items:center;flex:none;overflow:hidden;box-shadow:0 0 0 1px var(--border),var(--shadow)}
+.logo img{width:100%;height:100%;object-fit:cover;display:block}
+.brand-text{min-width:0;display:flex;flex-direction:column;line-height:1.35}
+.brand-text strong{font-size:16px;letter-spacing:-.01em}
+.brand-text .sub{font-size:12.5px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.top-actions{display:flex;align-items:center;gap:8px;flex:none}
+
+/* ── chips / banners ── */
+.chip{display:inline-flex;align-items:center;gap:7px;padding:6px 13px;border-radius:999px;font-size:13px;font-weight:600;box-shadow:inset 0 0 0 1px var(--border)}
+.chip .dot{width:8px;height:8px;border-radius:50%;background:currentColor;animation:dotPulse 2.4s ease-in-out infinite}
+@keyframes dotPulse{50%{opacity:.4}}
+.tone-green{background:var(--green-soft);color:var(--green);box-shadow:none}
+.tone-orange{background:var(--orange-soft);color:var(--orange);box-shadow:none}
+.tone-red{background:var(--red-soft);color:var(--red);box-shadow:none}
+.banner{padding:10px 14px;border-radius:10px;font-size:13.5px;font-weight:600;margin-bottom:16px}
+.banner.demo{background:var(--accent-soft);color:var(--accent)}
+.banner.warn{background:var(--orange-soft);color:var(--orange)}
+.banner.danger{background:var(--red-soft);color:var(--red)}
+.banner.take{display:flex;align-items:flex-start;gap:10px;justify-content:space-between}
+.banner.take .bxa{background:none;border:0;color:inherit;font:inherit;font-weight:700;text-decoration:underline;cursor:pointer;padding:0}
+.banner.take .bxx{background:none;border:0;color:inherit;opacity:.7;font-size:17px;line-height:1;cursor:pointer;padding:0 2px}
+.banner.take .bxx:hover{opacity:1}
+
+/* ── cards ── */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;box-shadow:var(--shadow);transition:border-color .2s ease,box-shadow .2s ease,transform .2s ease}
+.card-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+.card-head h2{font-size:13px;font-weight:600;color:var(--text2);margin:0;letter-spacing:.02em}
+.grid2{display:grid;grid-template-columns:1fr;gap:16px;margin-bottom:16px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:16px}
+/* ردیف آمار مصرف: سه کارت آمار + کارت «درخواست تمدید» کنارشان */
+#statsGrid{grid-template-columns:repeat(3,1fr) minmax(215px,.92fr)}
+/* min-width:0 تا عرض min-content محتوای هر کارت، کفِ ستون را تعیین نکند (سرریز موبایل) */
+#statsGrid > *{min-width:0}
+a.stat.renewcard{text-decoration:none;color:inherit;cursor:pointer;border-color:var(--accent);background:var(--accent-soft)}
+a.stat.renewcard .stat-ico.renew{background:var(--surface);color:var(--accent)}
+a.stat.renewcard .stat-val{color:var(--accent);white-space:normal;line-height:1.45}
+a.stat.renewcard:hover{border-color:var(--accent)}
+@media (max-width:1020px){#statsGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.big{font-size:36px;font-weight:800;line-height:1.25;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.big .unit{font-size:16px;font-weight:600;color:var(--text2);margin-inline-start:6px;letter-spacing:0}
+.big-label{display:block;font-size:13px;font-weight:400;color:var(--text2);letter-spacing:0}
+.usage-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:14px}
+.usage-metric{min-width:0;padding:14px 16px;border:1px solid var(--border);border-radius:12px;background:var(--surface2)}
+.usage-metric.primary{background:var(--accent-soft);border-color:rgba(12,150,178,.28)}
+.usage-metric .metric-label{display:block;margin-bottom:5px;color:var(--text2);font-size:12.5px;font-weight:600}
+.usage-metric .metric-value{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:21px;line-height:1.4;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.usage-metric.primary .metric-value{color:var(--accent)}
+@media (max-width:560px){
+  .usage-metrics{grid-template-columns:1fr;gap:8px}
+  .usage-metric{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px}
+  .usage-metric .metric-label{margin:0}
+  .usage-metric .metric-value{font-size:18px;line-height:1.4;text-align:left;direction:ltr}
+  #subUrlBox{white-space:normal;overflow-wrap:anywhere;line-height:1.6}
+}
+
+/* usage bar */
+.bar{height:10px;background:var(--surface2);border-radius:999px;overflow:hidden;margin:16px 0 10px;box-shadow:inset 0 0 0 1px var(--border)}
+.bar i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .8s cubic-bezier(.22,1,.36,1)}
+.bar i.lvl-warn{background:linear-gradient(90deg,var(--orange),#F0B429)}
+.bar i.lvl-full{background:linear-gradient(90deg,var(--red),#F97583)}
+.bar i.lvl-free{background:linear-gradient(90deg,var(--green),#4ADE80)}
+.bar-caption{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+
+/* stats */
+.stat{display:flex;align-items:center;gap:12px;padding:14px 16px}
+.stat-ico{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;flex:none;background:var(--accent-soft);color:var(--accent)}
+.stat-ico.up{background:var(--green-soft);color:var(--green)}
+.stat-ico.tm{background:var(--surface2);color:var(--text2)}
+.stat-ico.time{background:var(--orange-soft);color:var(--orange)}
+.stat .unit{font-size:12.5px;font-weight:600;color:var(--text2);margin-inline-start:4px}
+.stat div{min-width:0}
+.stat-val{font-weight:700;font-size:15.5px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+a.stat{text-decoration:none;color:inherit}
+a.stat:hover{transform:translateY(-2px);box-shadow:var(--shadow-lift);border-color:var(--accent)}
+/* موبایل باریک (≤۵۶۰px): کارت‌های فشرده‌تر و مقدارهای چندخطی تا اندازه‌ها هم‌عرض و بی‌بُرش بماند */
+@media (max-width:560px){
+  #statsGrid{gap:12px}
+  .stat{padding:12px;gap:10px}
+  .stat-ico{width:34px;height:34px;border-radius:10px}
+  .stat-val{font-size:13.5px;white-space:normal;overflow:visible;text-overflow:clip;line-height:1.4;overflow-wrap:break-word}
+  .stat .unit{font-size:11.5px;margin-inline-start:3px}
+}
+
+/* sub link + configs */
+.block{margin-bottom:16px}
+.urltxt{display:block;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-family:Menlo,Consolas,monospace;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:ltr;text-align:left;color:var(--text2)}
+.row-actions{display:flex;gap:8px;flex:none}
+.iconbtn{width:44px;height:44px;border-radius:12px;border:1px solid var(--border);background:var(--surface);color:var(--text2);display:grid;place-items:center;cursor:pointer;padding:0;transition:background .18s ease,color .18s ease,transform .15s ease,box-shadow .18s ease,border-color .18s ease}
+.iconbtn:hover{background:var(--surface2);color:var(--text);transform:translateY(-1px);box-shadow:var(--shadow)}
+.iconbtn:active{transform:scale(.94)}
+a.iconbtn{text-decoration:none}
+.cfg-list{list-style:none;margin:6px 0 0;padding:0}
+.cfg-row{display:flex;align-items:center;gap:12px;padding:11px 2px;border-top:1px solid var(--border)}
+.cfg-row:first-child{border-top:none}
+.badge{flex:none;font-size:11px;font-weight:700;letter-spacing:.4px;padding:4px 9px;border-radius:7px;direction:ltr}
+.cfg-mid{min-width:0;flex:1}
+.cfg-name{font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cfg-host{display:block;font-size:12px;color:var(--text2);direction:ltr;text-align:right;font-family:Menlo,Consolas,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.count{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 6px;border-radius:999px;background:var(--surface2);color:var(--text2);font-size:12px;font-weight:700}
+
+/* apps */
+.apps{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:10px}
+.app-link{display:flex;flex:0 1 190px;width:min(100%,190px);flex-direction:column;gap:1px;justify-content:center;min-height:52px;padding:10px 14px;border:1px solid var(--border);border-radius:12px;background:var(--surface);text-decoration:none;color:var(--text);font-weight:600;font-size:14px;transition:border-color .18s ease,transform .18s ease,box-shadow .18s ease}
+.app-link span{font-weight:400;font-size:12px;color:var(--text2)}
+.app-link:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:var(--shadow)}
+#appsBox{text-align:center}
+#appsBox .app-link{align-items:center;text-align:center}
+.app-link-primary{flex:0 0 100%;max-width:680px;min-height:72px;margin-bottom:10px;border-color:transparent;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font-size:16px;box-shadow:0 10px 28px -14px rgba(12,150,178,.75)}
+.app-link-primary span{color:rgba(255,255,255,.86);font-size:13px}
+.app-link-primary:hover{border-color:transparent;filter:brightness(1.07);box-shadow:0 14px 34px -14px rgba(12,150,178,.9)}
+.json-qr{display:flex;flex-direction:column;align-items:center;gap:10px;margin-top:18px;padding-top:18px;border-top:1px solid var(--border)}
+.json-qr span{max-width:620px}
+.qr-pair{display:flex;justify-content:center;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)}
+.qr-item{display:flex;width:min(100%,480px);min-width:0;flex-direction:column;align-items:center;gap:9px;padding:16px;border:1px solid var(--border);border-radius:14px;background:var(--surface2);text-align:center}
+.qr-item strong{font-size:14px}
+.qr-item canvas{width:min(200px,100%);height:auto;image-rendering:pixelated;border:8px solid #fff;border-radius:12px;background:#fff;box-shadow:0 0 0 1px var(--border)}
+.qr-item .urltxt{width:100%;margin-top:2px}
+@media (max-width:620px){.qr-item canvas{width:min(220px,72vw)}}
+#inlineQrCanvas{width:min(200px,100%);height:auto}
+.contact-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.contact-grid .stat{margin:0}
+@media (max-width:620px){.contact-grid{grid-template-columns:1fr}}
+
+/* setup */
+.setup{max-width:600px;margin:5vh auto 20px;text-align:center;padding:36px 28px;animation:popIn .45s cubic-bezier(.16,1,.3,1) both}
+.setup-icon{width:64px;height:64px;border-radius:20px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;margin:0 auto 4px}
+.setup h1{font-size:23px;margin:14px 0 6px;letter-spacing:-.01em}
+.setup .lead{margin:0 auto 22px;max-width:44ch}
+.setup form{display:flex;gap:10px}
+.setup input{flex:1;min-width:0;height:46px;border:1px solid var(--border);border-radius:12px;background:var(--canvas);color:var(--text);padding:0 14px;font-family:Menlo,Consolas,monospace;font-size:13.5px;transition:border-color .18s ease,box-shadow .18s ease}
+.setup input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.setup input::placeholder{color:var(--text2);opacity:.8}
+.btn{min-height:46px;padding:0 22px;text-decoration:none;border-radius:12px;background:linear-gradient(180deg,var(--accent2),var(--accent));color:#fff;font-weight:700;font-size:15px;border:none;cursor:pointer;box-shadow:var(--shadow);transition:filter .15s ease,transform .15s ease,box-shadow .18s ease}
+.btn:hover{filter:brightness(1.07);transform:translateY(-1px);box-shadow:var(--shadow-lift)}
+.btn:active{transform:scale(.98)}
+.btn[disabled]{opacity:.6;cursor:default;transform:none}
+.setup-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:20px;text-align:right}
+.setup-foot .note{display:flex;align-items:center;gap:7px}
+.linklike{background:none;border:none;color:var(--accent);cursor:pointer;font:inherit;font-size:13px;font-weight:600;padding:10px 2px}
+
+/* error */
+.error{background:var(--red-soft);border:1px solid rgba(225,77,90,.25);border-radius:12px;padding:14px 16px;margin-top:16px;text-align:right;font-size:14px;animation:shake .45s cubic-bezier(.36,.07,.19,.97) both}
+.error strong{color:var(--red)}
+.error p{margin:6px 0 0}
+.error ul{margin:8px 16px 0 0;padding:0;color:var(--text2);font-size:13px}
+@keyframes shake{10%,90%{transform:translateX(-1px)}20%,80%{transform:translateX(2px)}30%,50%,70%{transform:translateX(-4px)}40%,60%{transform:translateX(4px)}}
+
+/* legacy admin/pre */
+details.admin{padding:16px 20px;margin-bottom:16px}
+details.admin summary{cursor:pointer;font-weight:600;font-size:14px;color:var(--text2)}
+pre{direction:ltr;text-align:left;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;font-size:12.5px;line-height:1.7;overflow:auto;font-family:Menlo,Consolas,monospace}
+
+/* modal */
+.modal{position:fixed;inset:0;display:grid;place-items:center;z-index:50;padding:16px}
+.modal-backdrop{position:absolute;inset:0;background:rgba(10,10,12,.5);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);animation:fadeIn .2s ease both}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.modal-card{position:relative;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:18px;box-shadow:var(--shadow-lift);width:min(92vw,340px);text-align:center;animation:popIn .28s cubic-bezier(.16,1,.3,1) both}
+@keyframes popIn{from{opacity:0;transform:scale(.94) translateY(8px)}to{opacity:1;transform:none}}
+.modal-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px}
+.modal-head h3{font-size:14.5px;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#qrCanvas{width:100%;max-width:264px;margin:0 auto;image-rendering:pixelated;border:1px solid var(--border);border-radius:10px;background:#fff}
+.modal-card .urltxt{margin-top:12px}
+
+/* toast */
+#toasts{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:8px;z-index:60;pointer-events:none}
+.toast{display:inline-flex;align-items:center;gap:8px;background:var(--text);color:var(--canvas);padding:9px 16px;border-radius:999px;font-size:13.5px;font-weight:600;box-shadow:var(--shadow-lift);animation:toastIn .4s cubic-bezier(.34,1.56,.64,1) both;transition:opacity .3s ease,transform .3s ease,filter .3s ease}
+.toast.out{opacity:0;transform:translateY(10px) scale(.92);filter:blur(3px)}
+.toast .t-ico{display:grid;place-items:center;width:17px;height:17px;border-radius:50%;flex:none}
+.toast.t-ok .t-ico{background:var(--green);color:#fff}
+.toast.t-err .t-ico{background:var(--red);color:#fff}
+.toast.t-info .t-ico{background:var(--accent);color:#fff}
+@keyframes toastIn{from{opacity:0;transform:translateY(16px) scale(.9);filter:blur(4px)}to{opacity:1;transform:none;filter:none}}
+
+footer{text-align:center;margin-top:26px;color:var(--text2);font-size:12.5px}
+
+/* entrance motion */
+#dash>*{animation:fadeUp .55s cubic-bezier(.16,1,.3,1) both}
+#dash>*:nth-child(2){animation-delay:.06s}
+#dash>*:nth-child(3){animation-delay:.12s}
+#dash>*:nth-child(4){animation-delay:.18s}
+#dash>*:nth-child(5){animation-delay:.24s}
+#dash>*:nth-child(6){animation-delay:.3s}
+@keyframes fadeUp{from{opacity:0;transform:translateY(14px);filter:blur(5px)}to{opacity:1;transform:none;filter:none}}
+.spin{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+
+.no-qr [data-qr]{display:none}
+[hidden]{display:none!important}
+
+@media (max-width:720px){
+  .grid2,.grid3{grid-template-columns:1fr}
+  .big{font-size:30px}
+  .wrap{padding:16px 16px 40px}
+}
+@media (max-width:480px){
+  .setup{padding:28px 18px;margin-top:2vh}
+  .setup form{flex-direction:column}
+  .top{flex-wrap:wrap}
+}
+
+/* ── p12: skeleton loading ── */
+#skeleton{animation:fadeIn .3s ease both}
+.sk{display:block;position:relative;overflow:hidden;background:var(--surface2);border-radius:8px;min-height:10px}
+.sk::after{content:"";position:absolute;inset:0;transform:translateX(-100%);background:linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent);animation:shimmer 1.3s ease-in-out infinite}
+@media (prefers-color-scheme: dark){.sk::after{background:linear-gradient(90deg,transparent,rgba(255,255,255,.07),transparent)}}
+@keyframes shimmer{to{transform:translateX(100%)}}
+.sk-row{display:flex;gap:12px;align-items:center}
+
+/* ── p12: usage gauge ── */
+.gauge{position:relative;width:52px;height:52px;flex:none;margin:-2px 0}
+.gauge svg{width:100%;height:100%;transform:rotate(-90deg)}
+.gauge .g-bg{stroke:var(--surface2)}
+.gauge .g-fg{stroke:var(--accent);stroke-linecap:round;transition:stroke-dashoffset 1s cubic-bezier(.22,1,.36,1),stroke .3s ease}
+.gauge.lvl-warn .g-fg{stroke:var(--orange)}
+.gauge.lvl-full .g-fg{stroke:var(--red)}
+.g-txt{position:absolute;inset:0;display:grid;place-items:center;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--text)}
+
+/* ── p12: insight card ── */
+.insight{display:flex;gap:14px;align-items:center;margin-bottom:16px}
+.insight-ico{width:40px;height:40px;border-radius:12px;flex:none;display:grid;place-items:center;background:var(--surface2);background-image:linear-gradient(135deg,var(--accent-soft),transparent);color:var(--accent)}
+.insight-main{display:block;font-weight:700;font-size:14.5px}
+.insight-sub{display:block;margin-top:2px}
+/* ── p15: tilt / swap / island ── */
+.tilt{position:relative;transform-style:preserve-3d;will-change:transform}
+.tilt .tilt-glare{position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:radial-gradient(240px circle at var(--gx,50%) var(--gy,50%),rgba(255,255,255,.14),transparent 62%);opacity:0;transition:opacity .25s ease}
+.tilt:hover .tilt-glare{opacity:1}
+.swapbtn .ic-copy,.swapbtn .ic-check{grid-area:1/1;transition:opacity .18s ease,transform .3s cubic-bezier(.34,1.56,.64,1),filter .18s ease}
+.swapbtn .ic-check{opacity:0;transform:scale(.4) rotate(-14deg);color:var(--green)}
+.swapbtn.done{border-color:var(--green);box-shadow:0 0 0 3px rgba(14,159,110,.15)}
+.swapbtn.done .ic-copy{opacity:0;transform:scale(.4);filter:blur(3px)}
+.swapbtn.done .ic-check{opacity:1;transform:none}
+button.chip{border:0;font-family:inherit;cursor:pointer;flex-direction:column;align-items:stretch;text-align:right;gap:0}
+.chip-top{display:inline-flex;align-items:center;gap:7px}
+.chip .chip-more{display:block;overflow:hidden;max-height:0;max-width:0;transition:max-height .35s cubic-bezier(.22,1,.36,1),max-width .35s cubic-bezier(.22,1,.36,1)}
+.chip .chip-details{overflow:hidden;font-weight:500;font-size:12px;white-space:nowrap;opacity:0;filter:blur(3px);transform:translateY(-2px);transition:opacity .3s ease,filter .3s ease,transform .3s ease,margin .3s ease}
+.chip.open{border-radius:16px}
+.chip.open .chip-more{max-height:44px;max-width:320px}
+.chip.open .chip-details{opacity:1;filter:none;transform:none;margin-top:6px}
+.chip:active{transform:scale(.97)}
+
+/* ═══════════════════════ v20: تم دستی ═══════════════════════ */
+html[data-theme="light"]{
+  color-scheme:light;
+  --canvas:#F7F7F8; --surface:#FFFFFF; --surface2:#F1F1F3; --border:#E5E5E8;
+  --text:#17171B; --text2:#72727C;
+  --accent:#0C96B2; --accent2:#2CC1D6; --accent-soft:rgba(18,158,187,.10);
+  --green:#0E9F6E; --green-soft:rgba(14,159,110,.11);
+  --orange:#D98324; --orange-soft:rgba(217,131,36,.13);
+  --red:#E14D5A; --red-soft:rgba(225,77,90,.10);
+  --shadow:0 1px 2px rgba(23,23,27,.04),0 12px 32px -16px rgba(23,23,27,.14);
+  --shadow-lift:0 2px 4px rgba(23,23,27,.05),0 16px 40px -16px rgba(23,23,27,.2);
+}
+html[data-theme="dark"]{
+  color-scheme:dark;
+  --canvas:#0B0B0D; --surface:#151518; --surface2:#212126; --border:rgba(255,255,255,.09);
+  --text:#F7F7F8; --text2:rgba(255,255,255,.6);
+  --accent:#3BC5DA; --accent2:#6ADBEB; --accent-soft:rgba(59,197,218,.13);
+  --green:#3DD68C; --green-soft:rgba(61,214,140,.13);
+  --orange:#F5A64B; --orange-soft:rgba(245,166,75,.13);
+  --red:#F5707B; --red-soft:rgba(245,112,123,.12);
+  --shadow:none; --shadow-lift:none;
+}
+
+/* ═══════════════════════ v20: اجزای جدید ═══════════════════════ */
+.iconbtn.tiny{font-size:12.5px;font-weight:800;letter-spacing:.03em}
+.tabs{display:flex;gap:4px;background:var(--surface2);padding:4px;border-radius:12px;box-shadow:inset 0 0 0 1px var(--border)}
+.tab{flex:1;border:0;background:transparent;color:var(--text2);font:inherit;font-size:13px;font-weight:600;padding:8px 6px;border-radius:9px;cursor:pointer;transition:background .18s ease,color .18s ease}
+.tab:hover{color:var(--text)}
+.tab.active{background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.copyline{display:flex;gap:8px;align-items:stretch}
+.copyline .urltxt{flex:1;min-width:0;display:flex;align-items:center}
+.mini{display:flex;gap:6px;flex:none}
+.mini .iconbtn{width:40px;height:40px}
+.field{width:100%;height:44px;border:1px solid var(--border);border-radius:12px;background:var(--canvas);color:var(--text);padding:0 13px;font:inherit;font-size:14px;transition:border-color .18s ease,box-shadow .18s ease}
+.field:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.field::placeholder{color:var(--text2);opacity:.8}
+.fchips{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
+.fchip{border:1px solid var(--border);background:var(--surface);color:var(--text2);border-radius:999px;padding:6px 12px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;transition:background .16s ease,color .16s ease,border-color .16s ease}
+.fchip:hover{color:var(--text);border-color:var(--accent)}
+.fchip.active{background:var(--accent-soft);color:var(--accent);border-color:transparent}
+.btn-ghost{background:var(--surface);color:var(--text);border:1px solid var(--border);box-shadow:none}
+.btn-ghost:hover{box-shadow:var(--shadow)}
+.btn.sm{min-height:40px;padding:0 16px;font-size:14px;border-radius:11px}
+.actionrow{display:flex;gap:9px;flex-wrap:wrap}
+.actionrow .btn{flex:1 1 190px}
+.dchart{width:100%;height:180px;display:block;overflow:visible}
+@media (max-width:560px){.dchart{height:150px}.dchart text{font-size:10.5px}}
+/* direction:ltr لازم است: در بستر RTL، text-anchor="end" برعکس عمل می‌کرد و برچسب
+   حداکثر از کادر کارت بیرون می‌زد (سرریز در موبایل) */
+.dchart text{fill:var(--text2);font-size:11px;font-family:inherit;direction:ltr;unicode-bidi:isolate}
+.dchart .grid{stroke:var(--text2);stroke-opacity:.16;stroke-dasharray:4 5;stroke-width:1}
+.dchart .bar-dl{fill:var(--accent)}
+.dchart .bar-ul{fill:var(--green)}
+.dchart .bar-empty{fill:var(--surface2)}
+.dchart .tot{fill:var(--text2);font-size:10px}
+/* v35: نمودار ۷ روزه حذف شد؛ کلاس‌های .dchart دست‌نخورده مانده‌اند تا چیزی نشکند */
+.rowbtn{width:100%;background:none;border:0;font:inherit;color:inherit;cursor:pointer;text-align:start}
+.rowbtn:hover span:first-child{color:var(--accent)}
+.rowbtn:active{opacity:.7}
+/* رنگ عدد بر اساس کیفیت (سبز/معمولی/نارنجی/قرمز) */
+.ms-g1{color:var(--green)}
+.ms-g2{color:var(--text)}
+.ms-g3{color:var(--orange)}
+.ms-g4{color:var(--red)}
+.card-head .headbtns{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.8)}}
+.kv{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-top:1px solid var(--border);font-size:13.5px}
+.kv:first-child{border-top:0}
+.kv span:first-child{color:var(--text2)}
+.kv b{font-weight:700;font-variant-numeric:tabular-nums}
+details.acc{border:1px solid var(--border);border-radius:13px;padding:0 15px;background:var(--surface);margin-top:12px}
+details.acc>summary{cursor:pointer;font-weight:600;font-size:14px;padding:14px 0;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:10px}
+details.acc>summary::-webkit-details-marker{display:none}
+details.acc>summary::after{content:"▾";color:var(--text2);font-size:12px;transition:transform .22s ease}
+details.acc[open]>summary::after{transform:rotate(180deg)}
+.acc-body{padding:2px 0 15px;border-top:1px solid var(--border);margin-top:2px}
+ol.steps{margin:12px 0 0;padding-inline-start:20px;font-size:13.5px;line-height:1.95}
+ol.steps li{margin-bottom:2px}
+ul.checks{list-style:none;margin:10px 0 0;padding:0;font-size:13.5px;line-height:1.7}
+ul.checks li{position:relative;padding-inline-start:26px;margin-bottom:9px}
+ul.checks li::before{content:"✓";position:absolute;inset-inline-start:0;top:1px;width:18px;height:18px;border-radius:6px;background:var(--green-soft);color:var(--green);font-size:11px;font-weight:800;display:grid;place-items:center}
+.plans{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.plan{border:1px solid var(--border);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:5px;background:var(--canvas)}
+.plan .pl-name{font-weight:700;font-size:14.5px}
+.plan .pl-meta{font-size:12.5px;color:var(--text2)}
+.plan .pl-price{font-weight:800;font-size:17px;margin:4px 0 8px;font-variant-numeric:tabular-nums}
+.plan .btn{width:100%;min-height:40px;font-size:14px}
+.loadrow{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--border)}
+.loadrow:first-of-type{border-top:0}
+.loadrow .lname{font-size:13px;font-weight:600;min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.loadbar{height:8px;border-radius:999px;background:var(--surface2);overflow:hidden;flex:1;box-shadow:inset 0 0 0 1px var(--border)}
+.loadbar i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+.loadbar i.hot{background:linear-gradient(90deg,var(--orange),#F0B429)}
+.loadbar i.full{background:linear-gradient(90deg,var(--red),#F97583)}
+.loadrow .lval{font-size:12px;color:var(--text2);min-width:64px;text-align:end;font-variant-numeric:tabular-nums}
+.xbtn{border:0;background:transparent;color:var(--text2);cursor:pointer;font:inherit;font-size:15px;line-height:1;padding:2px 4px;border-radius:6px}
+/* تیتر/جمله‌ای که خودش لینک است (تست نشتی DNS و تست مسدودسازی تبلیغات) */
+.linktitle{color:inherit;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px;cursor:pointer}
+.linktitle:hover{text-decoration-thickness:2px}
+.xbtn:hover{color:var(--red);background:var(--red-soft)}
+.masked{letter-spacing:.04em}
+.notice{display:flex;gap:9px;align-items:flex-start;font-size:13px;line-height:1.7;padding:11px 13px;border-radius:11px;background:var(--accent-soft);color:var(--text);margin-top:12px}
+.notice svg{flex:none;margin-top:2px;color:var(--accent)}
+.notice.warn{background:var(--orange-soft)}
+.notice.warn svg{color:var(--orange)}
+.notice.ok{background:var(--green-soft)}
+.notice.ok svg{color:var(--green)}
+#diagList{margin-top:4px}
+.eta{font-variant-numeric:tabular-nums}
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:var(--text2)}
+.legend i{width:9px;height:9px;border-radius:3px;display:inline-block;margin-inline-end:5px}
+@media (max-width:520px){
+  .actionrow .btn{flex:1 1 100%}
+}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <div class="card">
-    <h1>{{.Name}}{{if .Online}}<span class="on" title="{{.T.online}}"></span>{{end}}</h1>
-    <span class="badge {{.StateClass}}">{{.State}}</span>
-    <div class="grid">
-      <div><span class="muted">{{.T.used}}</span><b dir="ltr">{{.Used}}</b></div>
-      <div><span class="muted">{{.T.total}}</span><b dir="ltr">{{.Total}}</b></div>
-      <div><span class="muted">{{.T.left}}</span><b dir="ltr">{{.Left}}</b></div>
-      <div><span class="muted">{{.T.expiry}}</span><b dir="ltr">{{.Expiry}}</b>{{if .DaysLeft}}<span class="muted">{{.DaysLeft}}</span>{{end}}</div>
+
+  <header class="top">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">
+        <img src="data:image/jpeg;base64,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" alt="">
+      </span>
+      <div class="brand-text">
+        <strong id="panelName" data-i18n="doc.title">وضعیت اشتراک</strong>
+        <span class="sub" id="profileTitle" hidden></span>
+      </div>
     </div>
-    {{if not .Unlimited}}<div class="bar"><i style="width:{{.Percent}}%"></i></div>{{end}}
-  </div>
-  <div class="card">
-    <div class="muted">{{.T.link}}</div>
-    <div class="link" id="link">{{.Link}}</div>
-    <button class="btn" id="copy" type="button">{{.T.copy}}</button>
-    {{if .QR}}<div class="qr"><img src="{{.QR}}" alt="QR"></div>{{end}}
-    <p class="muted">{{.T.hint}}</p>
-  </div>
-  <div class="card">
-    <div class="muted">{{.T.apps}}</div>
-    {{range .Apps}}
-    <div class="app"><div>{{.Name}}<small>{{.Platform}}</small></div>
-      <div class="acts">{{if .Import}}<a class="btn" href="{{.Import}}">{{$.T.import}}</a>{{end}}<a class="btn alt" href="{{.Download}}" target="_blank" rel="noopener">{{$.T.download}}</a></div></div>
-    {{end}}
-  </div>
-  {{if .Bot}}<div class="card" style="text-align:center"><a class="btn" href="{{.Bot}}" target="_blank" rel="noopener">{{.T.renew}}</a></div>{{end}}
+    <div class="top-actions">
+      <span id="offlineChip" class="chip tone-orange" hidden data-i18n="offline.chip">آفلاین — دادهٔ ذخیره‌شده</span>
+      <button id="statusChip" class="chip tone-green" type="button" hidden aria-expanded="false"><span class="chip-top"><i class="dot" aria-hidden="true"></i><b id="statusText"></b></span><span class="chip-more"><span class="chip-details" id="chipDetails"></span></span></button>
+      <button id="themeBtn" class="iconbtn" type="button" data-i18n-title="theme.title" data-i18n-aria="theme.title" title="تغییر تم" aria-label="تغییر تم"></button>
+      <button id="langBtn" class="iconbtn tiny" type="button" title="Language" aria-label="Language">EN</button>
+      <a id="supportBtn" class="iconbtn" hidden target="_blank" rel="noopener" title="پشتیبانی" aria-label="پشتیبانی" data-i18n-title="contact.support" data-i18n-aria="contact.support">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      </a>
+      <button id="refreshBtn" class="iconbtn" hidden type="button" title="به‌روزرسانی" aria-label="به‌روزرسانی" data-i18n-title="act.refresh" data-i18n-aria="act.refresh">
+        <svg id="refreshIco" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- اسکلتون بارگذاری -->
+  <section id="skeleton" hidden aria-hidden="true">
+    <div class="grid2">
+      <article class="card">
+        <div class="sk-row" style="justify-content:space-between"><span class="sk" style="width:90px;height:13px"></span><span class="sk" style="width:52px;height:52px;border-radius:50%"></span></div>
+        <div class="sk" style="width:60%;height:32px;margin:12px 0 14px"></div>
+        <div class="sk" style="height:10px;border-radius:999px"></div>
+      </article>
+      <article class="card">
+        <span class="sk" style="width:80px;height:13px"></span>
+        <div class="sk" style="width:45%;height:32px;margin:12px 0 14px"></div>
+        <div class="sk" style="width:70%;height:12px"></div>
+      </article>
+    </div>
+    <div class="grid3">
+      <article class="card sk-row"><span class="sk" style="width:40px;height:40px;border-radius:12px"></span><div style="flex:1"><div class="sk" style="width:70%;height:14px;margin-bottom:7px"></div><div class="sk" style="width:40%;height:10px"></div></div></article>
+      <article class="card sk-row"><span class="sk" style="width:40px;height:40px;border-radius:12px"></span><div style="flex:1"><div class="sk" style="width:70%;height:14px;margin-bottom:7px"></div><div class="sk" style="width:40%;height:10px"></div></div></article>
+      <article class="card sk-row"><span class="sk" style="width:40px;height:40px;border-radius:12px"></span><div style="flex:1"><div class="sk" style="width:70%;height:14px;margin-bottom:7px"></div><div class="sk" style="width:40%;height:10px"></div></div></article>
+    </div>
+    <article class="card">
+      <span class="sk" style="width:90px;height:13px"></span>
+      <div class="sk" style="height:42px;margin-top:14px;border-radius:10px"></div>
+    </article>
+  </section>
+
+  <!-- ورود لینک اشتراک -->
+  <section id="setup" class="card setup">
+    <div class="setup-icon" aria-hidden="true">
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5.5 19a9 9 0 1 1 13 0"/><path d="M12 14.5 15.5 9"/><circle cx="12" cy="15" r="1.6" fill="currentColor" stroke="none"/></svg>
+    </div>
+    <h1 data-i18n="setup.title">مشاهده وضعیت اشتراک</h1>
+    <p class="lead muted" data-i18n="setup.lead">لینک اشتراک (Subscription) یا فقط کد انتهای آن را وارد کنید تا میزان مصرف، حجم باقی‌مانده و تاریخ انقضای سرویس‌تان را ببینید.</p>
+    <form id="subForm">
+      <input id="subInput" dir="ltr" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://example.com/xxxxxxxx" data-i18n-ph="setup.placeholder" aria-label="لینک اشتراک">
+      <button class="btn" id="goBtn" type="submit" data-i18n="setup.go">نمایش اطلاعات</button>
+    </form>
+    <div id="errorBox" class="error" hidden>
+      <strong id="errorTitle" data-i18n="err.title">دریافت اطلاعات ناموفق بود</strong>
+      <p id="errorMsg"></p>
+    </div>
+    <div class="setup-foot small muted">
+      <span class="note">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+        <span data-i18n="setup.privacy">اطلاعات فقط بین مرورگر شما و سرور پنل ردوبدل می‌شود.</span>
+      </span>
+    </div>
+  </section>
+
+  <!-- داشبورد -->
+  <section id="dash" hidden>
+    <div id="demoBanner" class="banner demo" hidden data-i18n="banner.demo">حالت نمایشی — این داده‌ها واقعی نیستند.</div>
+    <div id="noInfoBanner" class="banner warn" hidden data-i18n="banner.noInfo">جزئیات مصرف از سرور دریافت نشد (هدر اطلاعات در دسترس نیست) — راهنمای رفع مشکل در پایین صفحه.</div>
+    <div id="alertBox" hidden></div>
+
+    <article class="card block" id="checklistCard" hidden>
+      <div class="card-head"><h2 data-i18n="check.title">شروع کار</h2></div>
+      <p class="muted small" style="margin:2px 0 0" data-i18n="check.lead">اشتراک شما آماده است؛ این سه کار را انجام دهید:</p>
+      <ul class="checks" id="checkList"></ul>
+    </article>
+
+    <div class="grid2">
+      <article class="card">
+        <div class="card-head"><h2 data-i18n="card.usage">حجم مصرفی</h2><span id="usageGauge" class="gauge" hidden aria-hidden="true"><svg viewBox="0 0 52 52"><circle class="g-bg" cx="26" cy="26" r="22" fill="none" stroke-width="5"/><circle class="g-fg" cx="26" cy="26" r="22" fill="none" stroke-width="5" stroke-dasharray="138.23" stroke-dashoffset="138.23"/></svg><span class="g-txt" id="usagePct"></span></span></div>
+        <div class="usage-metrics">
+          <div class="usage-metric"><span class="metric-label" data-i18n="card.total">حجم کل</span><strong class="metric-value" id="totalVal">—</strong></div>
+          <div class="usage-metric"><span class="metric-label" data-i18n="card.usedLabel">مصرف‌شده</span><strong class="metric-value" id="usedVal">—</strong></div>
+          <div class="usage-metric primary"><span class="metric-label" data-i18n="card.remainLabel">باقی‌مانده</span><strong class="metric-value" id="remainVal">—</strong></div>
+        </div>
+        <div class="bar" id="barWrap" role="progressbar" aria-label="میزان مصرف حجم" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="barFill" style="width:0%"></i></div>
+        <div class="bar-caption muted small"><span id="usedTxt"></span><span id="remainLabel"></span></div>
+        <div class="muted small" id="createdTxt" style="margin-top:8px" hidden></div>
+      </article>
+    </div>
+
+    <div class="grid3" id="statsGrid">
+      <div class="stat card">
+        <span class="stat-ico" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M19 12l-7 7-7-7"/></svg></span>
+        <div><span class="stat-val" id="dlVal">—</span><span class="muted small" data-i18n="card.dl">دانلود</span></div>
+      </div>
+      <div class="stat card">
+        <span class="stat-ico up" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg></span>
+        <div><span class="stat-val" id="ulVal">—</span><span class="muted small" data-i18n="card.ul">آپلود</span></div>
+      </div>
+      <div class="stat card">
+        <span class="stat-ico time" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+        <div>
+          <span class="stat-val"><span id="daysVal">—</span><span class="unit" id="daysUnit"></span></span>
+          <span class="muted small" id="daysLabel" data-i18n="card.time">اعتبار زمانی</span>
+          <span class="muted small" id="countdownTxt" style="display:block"></span>
+          <span class="muted small" id="expiryFa" style="display:block"></span>
+          <span class="muted small" id="expiryEn" dir="ltr" style="display:block;text-align:right"></span>
+        </div>
+      </div>
+      <a class="stat card renewcard" id="renewBtn" hidden target="_blank" rel="noopener">
+        <span class="stat-ico renew" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2.5 3h2.2l2.2 11.2a2 2 0 0 0 2 1.6h8.3a2 2 0 0 0 2-1.6L21 7H6"/></svg></span>
+        <div><span class="stat-val" data-i18n="act.renew">تمدید اشتراک</span></div>
+      </a>
+    </div>
+
+    <article class="card insight" id="insightCard" hidden>
+      <span class="insight-ico" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 1 3.6 10.8c-.4.3-.6.8-.6 1.2v1h-6v-1c0-.4-.2-.9-.6-1.2A6 6 0 0 1 12 3z"/></svg></span>
+      <div><span class="insight-main" id="insightMain"></span><span class="muted small insight-sub" id="insightSub"></span></div>
+    </article>
+
+    <article class="card block" id="appsBox">
+      <p class="muted small" id="appsNote" style="margin:0 0 12px"></p>
+      <div class="apps" id="appsGrid"></div>
+      <p class="muted small" style="margin:10px 0 0" data-i18n="apps.note"></p>
+    </article>
+
+    <article class="card block" id="qrCard">
+      <div class="card-head"><h2 data-i18n="qr.title">لینک اشتراک و کد QR</h2></div>
+      <div class="tabs" id="qrTabs" role="tablist">
+        <button class="tab active" type="button" data-qr-mode="json" role="tab" data-i18n="qr.tabJson">Sing-Box</button>
+        <button class="tab" type="button" data-qr-mode="clash" role="tab" data-i18n="qr.tabClash">Clash</button>
+      </div>
+      <div class="copyline" style="margin-top:12px">
+        <span class="urltxt" id="subUrlBox"></span>
+        <span class="mini">
+          <button class="iconbtn" id="maskBtn" type="button" data-i18n-title="qr.mask" data-i18n-aria="qr.mask" title="نمایش/پنهان کردن شناسه">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/></svg>
+          </button>
+          <button class="iconbtn swapbtn" id="copySubBtn" type="button" data-i18n-title="qr.copy" data-i18n-aria="qr.copy" title="کپی لینک">
+            <span class="ic-copy"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></span>
+            <span class="ic-check"></span>
+          </button>
+        </span>
+      </div>
+      <p class="muted small" id="qrNote" style="margin:10px 0 0"></p>
+      <div class="qr-pair">
+        <div class="qr-item" id="subQrItem">
+          <strong id="subQrTitle" data-i18n="qr.singboxTitle">SING-BOX (scan only)</strong>
+          <canvas id="inlineQrCanvas" width="220" height="220" aria-label="SING-BOX scan only QR"></canvas>
+          <span class="muted small" id="qrHint"></span>
+        </div>
+      </div>
+    </article>
+
+
+    <article class="card block" id="metricsCard" hidden>
+      <div class="card-head"><h2 data-i18n="mtr.title">وضعیت لحظه‌ای</h2><span class="muted small" id="mtrFresh"></span></div>
+      <div id="mtrBody"></div>
+    </article>
+
+    <article class="card block" id="plansCard" hidden>
+      <div class="card-head"><h2 data-i18n="plans.title">تمدید و خرید حجم</h2></div>
+      <div class="plans" id="plansGrid"></div>
+      <p class="muted small" style="margin:12px 0 0" data-i18n="plans.note">پس از انتخاب، برای هماهنگی و پرداخت به پشتیبانی هدایت می‌شوید.</p>
+    </article>
+
+    <article class="card block" id="refCard" hidden>
+      <div class="card-head"><h2 data-i18n="ref.title">معرفی دوستان</h2></div>
+      <p class="muted small" style="margin:2px 0 12px" data-i18n="ref.lead">با هر معرفی موفق، تخفیف یا حجم هدیه بگیرید.</p>
+      <div class="copyline">
+        <span class="urltxt" id="refUrlBox"></span>
+        <span class="mini"><button class="iconbtn" id="refCopyBtn" type="button" aria-label="copy">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+        </button></span>
+      </div>
+    </article>
+
+    <article class="card block" id="diagCard" hidden>
+      <div class="card-head"><h2 data-i18n="net.title">وضعیت اتصال</h2></div>
+      <div class="card-head" style="margin:14px 0 0"><h2><a class="linktitle" id="dnsCheckLink" href="https://browserleaks.com/dns" target="_blank" rel="noopener" data-i18n="dns.title">تست نشتی DNS</a></h2></div>
+      <p class="muted small" style="margin:8px 0 0" data-i18n="dns.lead"></p>
+      <p class="muted small" style="margin:10px 0 0" data-i18n="dns.hint"></p>
+
+      <div class="card-head" style="margin:20px 0 0;padding-top:16px;border-top:1px solid var(--border)"><h2><a class="linktitle" id="adbCheckLink" href="https://adblock.turtlecute.org/" target="_blank" rel="noopener" data-i18n="adb.title">تست مسدودسازی تبلیغات</a></h2></div>
+      <p class="muted small" style="margin:8px 0 0" data-i18n="adb.lead"></p>
+      <p class="muted small" style="margin:10px 0 0" data-i18n="adb.hint"></p>
+
+      <details class="acc" id="guideAcc">
+        <summary data-i18n="guide.title">راهنمای اتصال Sing-Box</summary>
+        <div class="acc-body" id="guideBody"></div>
+      </details>
+      <details class="acc">
+        <summary data-i18n="fix.title">اگر وصل نمی‌شوید، این‌ها را بررسی کنید</summary>
+        <div class="acc-body"><ul class="checks" id="fixList"></ul></div>
+      </details>
+    </article>
+
+    <div class="actionrow block" id="mainActions">
+      <button class="btn sm btn-ghost" id="notifBtn" type="button" hidden data-i18n="act.notif">فعال‌سازی یادآور مرورگر</button>
+    </div>
+
+    <div class="contact-grid block">
+      <a class="stat card" id="channelCard" href="https://t.me/DrNetWorkSingBox" target="_blank" rel="noopener">
+        <span class="stat-ico tm" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/></svg></span>
+        <div><span class="stat-val" data-i18n="contact.channel">کانال اطلاع‌رسانی</span><span class="muted small" dir="ltr" id="channelHandle">t.me/DrNetWorkSingBox</span></div>
+      </a>
+      <a class="stat card" id="supportCard" hidden target="_blank" rel="noopener">
+        <span class="stat-ico tm" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+        <div><span class="stat-val" data-i18n="contact.support">ارتباط با پشتیبانی</span><span class="muted small" data-i18n="contact.supportSub">ارسال پیام در تلگرام</span></div>
+      </a>
+    </div>
+  </section>
+
+  
+
+  
 </div>
+
+<!-- مودال QR -->
+<div id="qrModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="qrTitle">
+  <div class="modal-backdrop" data-close></div>
+  <div class="modal-card">
+    <div class="modal-head">
+      <h3 id="qrTitle" data-i18n="qr.modalTitle">کد QR</h3>
+      <button class="iconbtn" id="qrCloseBtn" data-close type="button" aria-label="بستن">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <canvas id="qrCanvas" width="264" height="264"></canvas>
+    <p id="qrSub" class="urltxt small"></p>
+  </div>
+</div>
+
+<div id="toasts" role="status" aria-live="polite"></div>
+
 <script>
-document.getElementById('copy').addEventListener('click', function () {
-  var text = document.getElementById('link').textContent, b = this
-  var done = function () { b.textContent = '{{.T.copied}}' }
-  if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(text).then(done) } else {
-    var r = document.createRange(); r.selectNodeContents(document.getElementById('link'))
-    var s = window.getSelection(); s.removeAllRanges(); s.addRange(r); try { document.execCommand('copy'); done() } catch (e) {}
+/* ═════════════════ تنظیمات (این بخش را ویرایش کنید) ═════════════════ */
+const CONFIG = {
+  // نام نمایشی پنل شما
+  panelName: "وضعیت اشتراک",
+  panelNameEn: "",              // معادل انگلیسی نام پنل (اختیاری)
+
+  // آدرس پایه سرویس اشتراک. خالی = همان دامنه و مسیر لینک فعلی (پیشنهادی داخل پنل).
+  defaultSubBase: "",
+
+  // لینک پشتیبانی (مثلا تلگرام). خالی بگذارید تا دکمه مخفی شود: "https://t.me/YourID"
+  supportLink: "https://t.me/DrNetWorkSingBox?direct",
+
+  // ربات تمدید/فروش (اختیاری). با تنظیم آن، دکمه «درخواست تمدید» به
+  // https://t.me/<bot>?start=<شناسه> می‌رود و کاربر خودکار شناسایی می‌شود.
+  renewBot: "",                 // اگر پر شود، لینک ربات می‌شود: t.me/<ربات>?start=<شناسه>؛ مثال: "DrNetWorkShopBot"
+
+  // مقصد «درخواست تمدید» وقتی renewBot خالی است. لینک ساخته‌شده:
+  //   https://t.me/<این‌جا>?direct&text=<متن درخواست تمدید (شناسه، لینک اشتراک، مصرف، انقضا)>
+  // پیش‌فرض همان چیزی است که خواستید؛ اگر فروشگاه/پشتیبانی‌تان حساب دیگری است، فقط همین را عوض کنید.
+  renewTarget: "DrNetWorkSingBox",
+
+  // لینک معرفی دوستان (اختیاری)؛ {id} با شناسه اشتراک جایگزین می‌شود.
+  referral: "",                 // مثال: "https://t.me/DrNetWorkShopBot?start=ref_{id}"
+
+  // پلن‌های تمدید (اختیاری) — لینک هر پلن را بدهید تا کارت‌ها ساخته شوند.
+  plans: [
+    // { name: "۳۰ روزه ۵۰ گیگ", days: 30, gb: 50, price: "۹۹ هزار تومان", link: "https://t.me/..." },
+  ],
+
+  // سرویس میانی اختیاری برای وضعیت لحظه‌ای (addons/bridge.py).
+  // خالی بگذارید تا کارت «وضعیت لحظه‌ای» مخفی بماند. هم‌دامنه توصیه می‌شود: "/api/public"
+  publicApi: "",
+  publicApiKey: "",             // اگر bridge با --key اجرا شده باشد
+
+  // Web Push (اختیاری؛ نیازمند sw.js و push.py در addons)
+  pushEndpoint: "",             // مثال: "/api/push/subscribe"
+  vapidPublicKey: "",
+
+  // تازه‌سازی خودکار با درخواست سبک HEAD (ثانیه، 0 = خاموش)
+  autoRefreshSec: 60,
+
+  // فقط سه لینک دانلود اپ Sing-Box (نسخه‌ها را می‌توانید به‌روز کنید)
+  downloads: {
+    ios: "https://apps.apple.com/us/app/sing-box-mt/id6785326793",
+    android: "https://play.google.com/store/apps/details?id=io.nekohasekai.sfa",
+    windows: "https://github.com/SagerNet/sing-box/releases/download/v1.14.1/SFW-1.14.1-x64.exe",
+  },
+
+  // قالب «لینک Sing-Box» در کارت لینک اشتراک.
+  //   {origin} = دامنه و پورت، {id} = شناسه (نام کاربر)، {dir} = مسیر لینک اشتراک
+  // پیش‌فرض نتیجه می‌دهد: https://example.com/ID?format=json
+  // اگر سرویس اشتراک شما زیر مسیر /sub/ سرو می‌شود، این را بگذارید: "{origin}{dir}/{id}?format=json"
+  jsonLinkTemplate: "{origin}{dir}/{id}?format=json",
+
+  // قالب «لینک Clash» (همان قواعد {origin}/{id}/{dir})؛ پیش‌فرض:
+  //   https://example.com/ID?format=clash
+  clashLinkTemplate: "{origin}{dir}/{id}?format=clash",
+
+  // دانلود اپ Clash فقط برای آیفون (Clash Mi از اپ استور).
+  // این لینک به‌صورت دکمه‌ی دانلود، کنار بقیه‌ی دکمه‌های دانلود در کارت «دستگاه شما» می‌آید.
+  clashDownloads: {
+    ios: "https://apps.apple.com/us/app/clash-mi/id6744321968",
+  },
+
+  // صفحه‌ی بیرونی تست نشتی DNS (در تب جدید باز می‌شود؛ صفحه‌ی ما نتیجه‌اش را نمی‌خواند)
+  dnsCheckUrl: "https://browserleaks.com/dns",
+  // صفحه‌ی بیرونی تست مسدودسازی تبلیغات (در تب جدید باز می‌شود)
+  adblockCheckUrl: "https://adblock.turtlecute.org/",
+};
+/* ════════════════════════ پایان تنظیمات ════════════════════════ */
+
+const $ = (s) => document.querySelector(s);
+
+/* ── v20: زبان و قالب‌بندی ── */
+/* نام برند پنل: در حالت انگلیسی اگر panelNameEn خالی باشد، نام پیش‌فرض انگلیسی استفاده می‌شود */
+function brandName() {
+  const fa = CONFIG.panelName || t("doc.title");
+  return LANG === "en" ? (CONFIG.panelNameEn || t("doc.title")) : fa;
+}
+function readLS(k, d) { try { return localStorage.getItem(k) || d; } catch (e) { return d; } }
+function writeLS(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+let LANG = readLS("sui-info:lang", "fa") === "en" ? "en" : "fa";
+let FA0, FA1, FA2, faDate, enDate, faTime, byteUnits, pctSign;
+function initFormatters() {
+  const loc = LANG === "en" ? "en-US" : "fa-IR";
+  FA0 = new Intl.NumberFormat(loc, { maximumFractionDigits: 0 });
+  FA1 = new Intl.NumberFormat(loc, { maximumFractionDigits: 1 });
+  FA2 = new Intl.NumberFormat(loc, { maximumFractionDigits: 2 });
+  faDate = new Intl.DateTimeFormat(loc, LANG === "en" ? { year: "numeric", month: "short", day: "numeric" } : { year: "numeric", month: "long", day: "numeric" });
+  enDate = new Intl.DateTimeFormat("en-GB", { year: "numeric", month: "short", day: "numeric", hour: undefined });
+  faTime = new Intl.DateTimeFormat(loc, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  byteUnits = LANG === "en" ? ["B", "KB", "MB", "GB", "TB", "PB"] : ["بایت", "کیلوبایت", "مگابایت", "گیگابایت", "ترابایت", "پتابایت"];
+  pctSign = LANG === "en" ? "%" : "٪";
+}
+initFormatters();
+
+const state = { url: null, demo: false, info: null, title: "", headerMissing: false, daily: null,
+  offline: false, cachedAt: 0, bridgeData: null,
+  maskOn: true, bridgeP: null, bridgeAt: 0 };
+let lastFocus = null;
+let refreshTimer = null;
+
+/* ── ابزارها ── */
+function b64decodeUtf8(s) {
+  const norm = s.replace(/-/g, "+").replace(/_/g, "/");
+  const pad = norm + "=".repeat((4 - (norm.length % 4)) % 4);
+  const bin = atob(pad);
+  return new TextDecoder("utf-8").decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+}
+function b64url(s) {
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function formatBytes(n) {
+  if (n == null || isNaN(n) || n < 0) return "—";
+  if (n === 0) return FA0.format(0) + " " + byteUnits[0];
+  const i = Math.min(byteUnits.length - 1, Math.floor(Math.log(n) / Math.log(1024)));
+  const val = n / Math.pow(1024, i);
+  return (i >= 3 ? FA2 : FA1).format(val) + " " + byteUnits[i];
+}
+const REDUCED_MOTION = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+function animateNum(el, target, fmt) {
+  fmt = fmt || function (v) { return FA0.format(v); };
+  if (REDUCED_MOTION || !(target > 0)) { el.textContent = fmt(Math.max(0, target || 0)); return; }
+  var dur = 900, t0 = performance.now();
+  if (el._raf) cancelAnimationFrame(el._raf);
+  function tick(now) {
+    var p = Math.min(1, (now - t0) / dur);
+    var e = 1 - Math.pow(1 - p, 3);
+    el.textContent = fmt(target * e);
+    if (p < 1) el._raf = requestAnimationFrame(tick);
+    else el._raf = null;
   }
-})
+  tick(t0);
+}
+function normalizeExpire(e) {
+  if (!e || e <= 0) return null;
+  return e > 1e12 ? e : e * 1000;
+}
+function parseUserInfo(h) {
+  if (!h) return null;
+  const out = {};
+  h.split(/[;,]/).forEach((p) => {
+    const m = p.trim().match(/^(\w+)\s*=\s*(-?\d+(?:\.\d+)?)/);
+    if (m) out[m[1].toLowerCase()] = Math.floor(Number(m[2]));
+  });
+  return "upload" in out || "download" in out || "total" in out || "expire" in out ? out : null;
+}
+function repairUtf8(h) {
+  // هدرهای HTTP بایت‌محور هستند؛ مرورگر آن‌ها را Latin-1 می‌خواند و متن UTF-8
+  // فارسی به‌شکل «Ø³Ø±ÙˆÛŒØ³» درمی‌آید. اینجا در صورت معتبر بودن، بازگردانی می‌شود.
+  if (!h || !/[\u0080-\u00FF]/.test(h)) return h;
+  try {
+    const bytes = Uint8Array.from(h, (c) => c.charCodeAt(0) & 0xff);
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch (e) { return h; }
+}
+function parseTitle(h) {
+  if (!h) return "";
+  if (/^base64:/i.test(h.trim())) {
+    try { return b64decodeUtf8(h.trim().slice(7)); } catch (e) { return ""; }
+  }
+  return repairUtf8(h.trim());
+}
+
+
+
+/* ═══════════════════════ v20: ترجمه ═══════════════════════ */
+const I18N = {
+  fa: {
+    "doc.title": "وضعیت اشتراک",
+    "setup.title": "مشاهده وضعیت اشتراک",
+    "setup.lead": "لینک اشتراک (Subscription) یا فقط کد انتهای آن را وارد کنید تا میزان مصرف، حجم باقی‌مانده و تاریخ انقضای سرویس‌تان را ببینید.",
+    "setup.go": "نمایش اطلاعات",
+    "setup.placeholder": "https://example.com/xxxxxxxx",
+    "setup.privacy": "اطلاعات فقط بین مرورگر شما و سرور پنل ردوبدل می‌شود.",
+    "err.title": "دریافت اطلاعات ناموفق بود",
+    "err.support": "ارتباط با پشتیبانی",
+    "banner.demo": "حالت نمایشی — این داده‌ها واقعی نیستند.",
+    "banner.noInfo": "جزئیات مصرف از سرور دریافت نشد (هدر اطلا  ات در دسترس نیست) — راهنمای رفع مشکل در پایین صفحه.",
+    "card.usage": "حجم مصرفی",
+    "card.created": "تاریخ ایجاد اشتراک",
+    "card.createdApprox": "تاریخ ایجاد اشتراک (تخمینی از اولین مصرف)",
+    "card.createdUnknown": "تاریخ ایجاد اشتراک: نامشخص — سرویس میانی پنل پاسخ نداد",
+    "card.createdNoData": "تاریخ ایجاد اشتراک: در پنل ثبت نشده",
+    "card.createdHint": "تاریخ ایجاد از دیتابیس پنل خوانده می‌شود؛ سرویس میانی (addons/bridge.py) باید روی سرور پنل در حال اجرا و از این صفحه در دسترس باشد.",
+    "card.dl": "دانلود",
+    "card.ul": "آپلود",
+    "card.time": "اعتبار زمانی",
+    "card.remainOf": "باقی‌مانده از {total}",
+    "card.unlimited": "نامحدود",
+    "card.noLimit": "بدون محدودیت حجم",
+    "card.noInfo": "اطلاعات مصرف در دسترس نیست",
+    "card.used": "{used} از {total} مصرف شده · {remain} باقی مانده",
+    "card.total": "حجم کل",
+    "card.usedLabel": "مصرف‌شده",
+    "card.remainLabel": "باقی‌مانده",
+    "card.days": "روز",
+    "card.daysLeft": "باقی‌مانده",
+    "card.expired": "منقضی شده",
+    "card.noExpiry": "بدون تاریخ انقضا",
+    "card.expiry": "انقضا: {d}",
+    "st.active": "فعال",
+    "st.warn": "رو به اتمام",
+    "st.expired": "منقضی شده",
+    "st.usedUp": "حجم تمام شده",
+    "st.unknown": "نامشخص",
+    "chip.daysLeft": "{d} روز مانده · انقضا: {date}",
+    "count.left": "{d} روز و {t} ساعت دیگر",
+    "count.expired": "اعتبار تمام شده است",
+    "alert.volume": "⚠ {p}٪ از حجم اشتراک شما مصرف شده است.",
+    "alert.days": "⚠ فقط {d} روز از اعتبار اشتراک شما مانده است.",
+    "alert.expired": "⚠ اعتبار اشتراک شما تمام شده است.",
+    "alert.renew": "تمدید اشتراک",
+    "alert.enableNotif": "فعال‌کردن اعلان",
+    "alert.dismiss": "بستن هشدار",
+    "notif.volTitle": "حجم اشتراک کم شده",
+    "notif.volBody": "{p}٪ از حجم اشتراک شما مصرف شده است.",
+    "offline.chip": "آفلاین — دادهٔ ذخیره‌شده",
+    "toast.offline": "اینترنت قطع است؛ آخرین وضعیت ذخیره‌شده نمایش داده می‌شود",
+    "toast.backOnline": "اینترنت برگشت ✓",
+    "toast.offlineData": "بدون اینترنت — آخرین وضعیت ذخیره‌شده",
+    "chip.expired": "منقضی شده · {date}",
+    "chip.noExpiry": "بدون تاریخ انقضا",
+    "insight.quota": "سهمیه امن روزانه: {v}",
+    "insight.quotaSub": "اگر روزانه حداکثر همین‌قدر مصرف کنید، حجم‌تان تا پایان {d} روز باقی‌مانده کافی است.",
+    "insight.low": " ⚠ سهمیه کم است؛ بهتر است زودتر تمدید کنید.",
+    "apps.note": "برای اتصال، اپ Sing-Box کافی است؛ لینک اشتراک یکی است و روی همه‌ی دستگاه‌ها کار می‌کند. (کاربران آیفون اگر اپ Clash Mi را ترجیح می‌دهند، همان لینک را از تب «لینک Clash» بردارید.)",
+    "apps.device": "دستگاه شما: {os}",
+    "apps.add": "افزودن به {app}",
+    "apps.addSub": "برای افزودن خودکار کانفیگ کلیک کنید",
+    "apps.notInstalled": "به‌نظر می‌رسد اپ نصب نیست؛ لینک اشتراک کپی شد.",
+    "dl.ios": "دانلود از اپ استور (آیفون)", "dl.iosSub": "نسخه آیفون Sing-Box",
+    "dl.android": "دانلود از گوگل پلی (اندروید)", "dl.androidSub": "نسخه اندروید Sing-Box",
+    "dl.windows": "دانلود نسخه ویندوز", "dl.windowsSub": "فایل اجرایی Sing-Box برای ویندوز ۶۴ بیتی",
+    "dl.clashIos": "دانلود Clash Mi از اپ استور (آیفون)", "dl.clashIosSub": "اپ کلاینت Clash برای آیفون",
+    "os.ios": "آیفون/آیپد", "os.android": "اندروید", "os.windows": "ویندوز", "os.macos": "مک", "os.linux": "لینوکس", "os.other": "نامشخص",
+    "qr.title": "لینک اشتراک و کد QR",
+    "qr.tabJson": "لینک Sing-Box", "qr.tabClash": "لینک Clash",
+    "qr.copy": "کپی لینک", "qr.mask": "نمایش/پنهان کردن شناسه",
+    "qr.noteJson": "این لینک اشتراک شماست؛ برای افزودن به Sing-Box از آن استفاده کنید (دامنه/نام کاربر با ?format=json). شناسه‌ی شما به‌صورت پیش‌فرض پنهان است.",
+    "qr.noteClash": "این لینک مخصوص اپ‌های Clash است (دامنه/نام کاربر با ?format=clash). روی آیفون آن را با اپ Clash Mi باز کنید (دکمه‌ی دانلودش در کارت «دستگاه شما» است) یا از اپ‌های مشابه مثل Stash استفاده کنید. شناسه‌ی شما به‌صورت پیش‌فرض پنهان است.",
+    "qr.hintSub": "برای افزودن روی دستگاه دیگر، این کد را با دوربین یا داخل اپ Sing-Box اسکن کنید.",
+    "qr.hintJson": "در Sing-Box گزینه Import from QR را بزنید؛ با اسکن این کد، پروفایل آماده مستقیماً وارد برنامه می‌شود.",
+    "qr.hintClash": "در اپ Clash بخش Profiles را باز کنید، گزینه «Import from URL / QR» را بزنید و این لینک یا کد را وارد کنید.",
+    "qr.modalTitle": "کد QR",
+    "qr.singboxTitle": "SING-BOX (scan only)",
+    "daily.title": "مصرف امروز",
+    "daily.dl": "دانلود", "daily.ul": "آپلود",
+    "daily.tz": "ریست: نیمه‌شب به وقت ایران",
+    "daily.today": "امروز", "daily.yesterday": "دیروز",
+    "daily.emptyToday": "امروز هنوز مصرفی ثبت نشده است.",
+    "daily.total": "مجموع امروز",
+    "daily.note": "فقط مصرف همین روز (از ساعت ۰۰:۰۰ به وقت ایران) از مصرف واقعی اشتراک شما محاسبه می‌شود، نه از بازدید صفحه. با رسیدن نیمه‌شب به وقت ایران، شمارنده دوباره از صفر شروع می‌شود.",
+    "mtr.title": "وضعیت لحظه‌ای", "mtr.state": "وضعیت اتصال",
+    "mtr.online": "آنلاین", "mtr.offline": "آفلاین",
+    "mtr.lastSeen": "آخرین فعالیت",
+    "mtr.ago": "{v} پیش",
+    "mtr.h24": "مصرف ۲۴ ساعت گذشته", "mtr.d7": "مصرف ۷ روز گذشته",
+    "mtr.servers": "ترافیک سرورها (۲۴ ساعت)",
+    "mtr.updated": "به‌روزرسانی: {v}",
+    "plans.title": "تمدید و خرید حجم",
+    "plans.note": "پس از انتخاب، برای هماهنگی و پرداخت به پشتیبانی هدایت می‌شوید.",
+    "plans.days": "{d} روز", "plans.gb": "{v} گیگابایت", "plans.unlimited": "حجم نامحدود",
+    "plans.buy": "انتخاب و تمدید",
+    "ref.title": "معرفی   وستان",
+    "ref.lead": "با هر معرفی موفق، تخفیف یا حجم هدیه بگیرید.",
+    "net.title": "تست شبکه",
+    "dns.title": "تست نشتی DNS",
+    "dns.lead": "برای دیدن اینکه پرس‌وجوهای DNS شما از کدام سرور و کدام کشور پاسخ می‌گیرند، روی عنوان «تست نشتی DNS» بزنید تا تست کامل BrowserLeaks در تب جدید باز شود.",
+    "adb.title": "تست مسدودسازی تبلیغات",
+    "adb.lead": "برای دیدن اینکه تبلیغات، ردیاب‌ها و اسکریپت‌های تبلیغاتی روی مرورگر و شبکه‌ی شما مسدود می‌شوند یا نه، روی عنوان «تست مسدودسازی تبلیغات» بزنید تا تست در تب جدید باز شود.",
+    "adb.hint": "در همان صفحه سه چیز بررسی می‌شود: مسدودسازی دامنه‌ها (Host)، اسکریپت‌های تبلیغاتی و فیلترهای ظاهری. امتیاز بالای ۶۰٪ یعنی مسدودساز شما کار می‌کند؛ اگر امتیاز پایین بود، تبلیغات مسدود نمی‌شوند.",
+    "dns.hint": "در همان صفحه بخش «DNS Servers» را ببینید: اگر کشور یا شرکتِ سرور DNS با محل خروج فیلترشکن شما یکی نیست، یعنی پرس‌وجوهای شما از DNS اینترنت محلی پاسخ می‌گیرند (نشتی).",
+    "diag.unknown": "نامشخص",
+    "guide.title": "راهنمای اتصال Sing-Box",
+    "guide.ios": "آیفون / آیپد", "guide.android": "اندروید", "guide.windows": "ویندوز",
+    "gstep.ios.1": "از دکمه «دانلود از اپ استور» اپ Sing-Box را نصب کنید (روی آیفون فقط همین اپ را استفاده کنید).",
+    "gstep.ios.2": "لینک اشتراک را از بخش بالا کپی کنید، یا کد QR را با دوربین گوشی اسکن کنید تا در Sing-Box باز شود.",
+    "gstep.ios.3": "در Sing-Box بخش Profiles را باز کنید؛ اگر با QR اضافه نشده، روی + بزنید و «Import from clipboard» را انتخاب کنید.",
+    "gstep.ios.4": "پروفایل را انتخاب کنید، کلید Connect را روشن کنید و اجازه‌ی VPN را بدهید.",
+    "gstep.android.1": "از دکمه «دانلود از گوگل پلی» اپ Sing-Box را نصب کنید (روی اندروید فقط همین اپ را استفاده کنید).",
+    "gstep.android.2": "لینک اشتراک را کپی کنید یا با دکمه «افزودن به Sing-Box» پروفایل را خودکار اضافه کنید.",
+    "gstep.android.3": "در Sing-Box بخش Profiles، روی + بزنید و «Import from clipboard» یا «Scan QR code» را انتخاب کنید.",
+    "gstep.android.4": "پروفایل را انتخاب کنید، کلید Connect را روشن کنید و اجازه‌ی VPN را بدهید.",
+    "gstep.windows.1": "از دکمه «دانلود نسخه ویندوز» فایل اجرایی Sing-Box را دانلود و اجرا کنید.",
+    "gstep.windows.2": "لینک اشتراک را کپی کنید یا کد QR را در برنامه اسکن کنید (روی ویندوز فقط اپ Sing-Box را استفاده کنید).",
+    "gstep.windows.3": "در Sing-Box بخش Profiles، روی + بزنید و «Import from clipboard» را انتخاب کنید.",
+    "gstep.windows.4": "پروفایل را انتخاب کنید و کلید Connect را روشن کنید (اگر ویندوز اجازه‌ی شبکه خواست، تأیید کنید).",
+    "fix.title": "اگر وصل نمی‌شوید، این‌ها را بررسی کنید",
+    "fix.1": "مطمئن شوید فیلترشکن یا پروکسی دیگری (در اپ‌ها یا افزونه‌های مرورگر) هم‌زمان روشن نیست.",
+    "fix.2": "شبکه را عوض کنید (وای‌فای ↔ داده موبایل) و دوباره امتحان کنید.",
+    "fix.3": "در Sing-Box پروفایل خود را به‌روزرسانی کنید (Update) تا کانفیگ‌های تازه دریافت شوند.",
+    "fix.4": "ساعت و تاریخ دستگاه را روی «خودکار» بگذارید؛ ساعت نادرست اتصال امن را خراب می‌کند.",
+    "fix.5": "اگر حجم یا اعتبار تمام شده باشد، از دکمه «درخواست تمدید» استفاده کنید.",
+    "check.title": "اشتراک شما آماده است",
+    "check.lead": "برای اتصال، این سه کار را انجام دهید:",
+    "check.1": "اپ مناسب دستگاه خود را نصب کنید (زیر بخش «افزودن به Sing-Box»).",
+    "check.2": "سپس دکمه «افزودن به Sing-Box» را بزنید و اشتراک را اضافه کنین.",
+    "check.3": "در اپ دکمه استارت را بزنید و متصل بشید.",
+    "act.refresh": "به‌روزرسانی",
+    "act.renew": "تمدید اشتراک",
+    "act.notif": "فعال‌سازی یادآور مرورگر",
+    "act.install": "نصب این صفحه روی دستگاه",
+    "toast.copied": "کپی شد",
+    "toast.copyFail": "کپی ناموفق بود",
+    "toast.refreshed": "به‌روزرسانی شد ✓",
+    "toast.refreshFail": "به‌روزرسانی ناموفق بود",
+    "toast.qrNeedsNet": "نمایش QR نیاز به اتصال اینترنت دارد",
+    "toast.qrTooLong": "ساخت کد QR ممکن نشد (متن خیلی طولانی است)",
+    "toast.notifOn": "یادآور مرورگر فعال شد",
+    "toast.notifOff": "اجازه‌ی اعلان داده نشد",
+    "toast.pushOk": "اعلان‌ها ثبت شد",
+    "toast.pushFail": "ثبت اعلان ناموفق بود",
+    "notif.title": "اشتراک شما رو به اتمام است",
+    "notif.body": "{d} روز از اعتبار اشتراک شما باقی مانده است.",
+    "sum.head": "سلام، وضعیت سرویس من:",
+    "sum.renewHead": "سلام، درخواست تمدید سرویس:",
+    "sum.link": "لینک اشتراک",
+    "sum.id": "شناسه", "sum.used": "مصرف", "sum.remain": "باقی‌مانده", "sum.days": "اعتبار", "sum.expire": "انقضا",
+    "summary.unlimited": "نامحدود",
+    "summary.noExpiry": "بدون تاریخ انقضا",
+    "contact.channel": "کانال اطلاع‌رسانی",
+    "contact.support": "ارتباط با پشتیبانی",
+    "contact.supportSub": "ارسال پیام در تلگرام",
+    "theme.light": "تم روشن", "theme.dark": "تم تاریک", "theme.system": "هم‌رنگ سیستم",
+    "theme.title": "تغییر تم (روشن/تاریک/سیستم)",
+    "lang.switch": "تغییر زبان به انگلیسی",
+    "err.empty": "لینک اشتراک یا شناسه خود را وارد کنید.",
+    "err.notSub": "این یک لینک اشتراک نیست؛ لینک باید با http یا https شروع شود (کانفیگ تکی اینجا پشتیبانی نمی‌شود).",
+    "err.needBase": "برای ورود با شناسه، باید آدرس پایه (defaultSubBase) در تنظیمات صفحه ثبت شده باشد. لطفا لینک کامل اشتراک را وارد کنید.",
+    "err.invalid": "ورودی نامعتبر است؛ لینک کامل اشتراک یا شناسه اشتراک را وارد کنید.",
+    "err.mixedTitle": "لینک ناامن مسدود شد",
+    "err.mixedMsg": "این صفحه با HTTPS باز شده ولی لینک اشتراک HTTP است و مرورگر چنین درخواستی را مسدود می‌کند. لینک HTTPS وارد کنید یا صفحه را روی همان دامنه پنل میزبانی کنید.",
+    "err.expiredTitle": "اکانت شما غیرفعال شده",
+    "err.expiredMsg": "اکانت شما غیرفعال یا تمام‌شده است؛ برای بررسی و تمدید به پشتیبانی پیام بدهید.",
+    "err.tooManyTitle": "درخواست‌های زیاد",
+    "err.tooManyMsg": "تعداد درخواست‌ها زیاد شده است؛ چند دقیقه بعد دوباره تلاش کنید.",
+    "err.serverTitle": "خطای موقت سرور",
+    "err.serverMsg": "سرور پنل در حال حاضر پاسخ نمی‌دهد؛ چند لحظه بعد دوباره تلاش کنید.",
+    "err.statusTitle": "دریافت اطلاعات ناموفق بود",
+    "err.statusMsg": "سرور پاسخ داد اما وضعیت {code} برگرداند؛ درستی لینک را بررسی کنید.",
+    "err.netTitle": "اتصال به سرور برقرار نشد",
+    "err.corsMsg": "مرورگر اجازه خواندن پاسخ را نداد (CORS). سرویس اشتراک s-ui هدر CORS نمی‌فرستد؛ پس این صفحه باید روی همان دامنه و پورتی میزبانی شود که لینک اشتراک از آن می‌آید.",
+    "err.netMsg": "اتصال اینترنت یا فیلترشکن خود را بررسی کنید و دوباره تلاش کنید.",
+  },
+  en: {
+    "doc.title": "Subscription status",
+    "setup.title": "Check your subscription",
+    "setup.lead": "Paste your subscription link (or just the ID at the end) to see your usage, remaining data and expiry date.",
+    "setup.go": "Show status",
+    "setup.placeholder": "https://example.com/xxxxxxxx",
+    "setup.privacy": "Data is exchanged only between your browser and the panel server.",
+    "err.title": "Could not load your data",
+    "err.support": "Contact support",
+    "banner.demo": "Demo mode — this data is not real.",
+    "banner.noInfo": "Usage details were not provided by the server (info header missing) — see the troubleshooting section below.",
+    "card.usage": "Data usage",
+    "card.created": "Subscription created",
+    "card.createdApprox": "Subscription created (estimated from first traffic)",
+    "card.createdUnknown": "Subscription created: unknown — panel bridge did not respond",
+    "card.createdNoData": "Subscription created: not recorded in the panel",
+    "card.createdHint": "The creation date is read from the panel database; the bridge (addons/bridge.py) must be running on the panel server and reachable from this page.",
+    "card.dl": "Download",
+    "card.ul": "Upload",
+    "card.time": "Time left",
+    "card.remainOf": "remaining of {total}",
+    "card.unlimited": "Unlimited",
+    "card.noLimit": "No data limit",
+    "card.noInfo": "Usage data unavailable",
+    "card.used": "{used} of {total} used · {remain} remaining",
+    "card.total": "Total data",
+    "card.usedLabel": "Used",
+    "card.remainLabel": "Remaining",
+    "card.days": "days",
+    "card.daysLeft": "left",
+    "card.expired": "Expired",
+    "card.noExpiry": "No expiry date",
+    "card.expiry": "Expires: {d}",
+    "st.active": "Active",
+    "st.warn": "Running low",
+    "st.expired": "Expired",
+    "st.usedUp": "Data used up",
+    "st.unknown": "Unknown",
+    "chip.daysLeft": "{d} days left · expires {date}",
+    "count.left": "{d} days and {t} h left",
+    "count.expired": "Subscription expired",
+    "alert.volume": "⚠ You have used {p}% of your data.",
+    "alert.days": "⚠ Only {d} days of your subscription are left.",
+    "alert.expired": "⚠ Your subscription has expired.",
+    "alert.renew": "Renew subscription",
+    "alert.enableNotif": "Enable notification",
+    "alert.dismiss": "Dismiss alert",
+    "notif.volTitle": "Your data is running low",
+    "notif.volBody": "You have used {p}% of your subscription data.",
+    "offline.chip": "Offline — saved data",
+    "toast.offline": "No internet; showing the last saved status",
+    "toast.backOnline": "Back online ✓",
+    "toast.offlineData": "No internet — last saved status",
+    "chip.expired": "Expired · {date}",
+    "chip.noExpiry": "No expiry date",
+    "insight.quota": "Safe daily allowance: {v}",
+    "insight.quotaSub": "If you use no more than this per day, your data will last until the end of the remaining {d} days.",
+    "insight.low": " ⚠ That is a low allowance; consider renewing soon.",
+    "apps.note": "Sing-Box is all you need to connect — the same subscription link works everywhere. (iPhone users who prefer Clash Mi can take the same link from the “Clash link” tab.)",
+    "apps.device": "Your device: {os}",
+    "apps.add": "Add to {app}",
+    "apps.addSub": "Tap to import the configuration automatically",
+    "apps.notInstalled": "The app does not seem to be installed; the subscription link was copied.",
+    "dl.ios": "Download from App Store (iPhone)", "dl.iosSub": "Sing-Box for iPhone",
+    "dl.android": "Download from Google Play (Android)", "dl.androidSub": "Sing-Box for Android",
+    "dl.windows": "Download for Windows", "dl.windowsSub": "Sing-Box 64-bit Windows executable",
+    "dl.clashIos": "Download Clash Mi from the App Store (iPhone)", "dl.clashIosSub": "Clash client for iPhone",
+    "os.ios": "iPhone/iPad", "os.android": "Android", "os.windows": "Windows", "os.macos": "macOS", "os.linux": "Linux", "os.other": "Unknown",
+    "qr.title": "Subscription link & QR code",
+    "qr.tabJson": "Sing-Box link", "qr.tabClash": "Clash link",
+    "qr.copy": "Copy link", "qr.mask": "Show/hide ID",
+    "qr.noteJson": "This is your subscription link — use it to add the profile to Sing-Box (domain/username with ?format=json). Your ID is hidden by default.",
+    "qr.noteClash": "This link is for Clash-based apps (domain/username with ?format=clash). On iPhone open it with Clash Mi (its download button is in the “Your device” card) or use a similar app such as Stash. Your ID is hidden by default.",
+    "qr.hintSub": "To add it on another device, scan this code with the camera or inside the Sing-Box app.",
+    "qr.hintJson": "In Sing-Box choose Import from QR; scanning this code imports the ready profile directly.",
+    "qr.hintClash": "In your Clash app open Profiles, choose “Import from URL / QR” and paste this link or scan the code.",
+    "qr.modalTitle": "QR code",
+    "qr.singboxTitle": "SING-BOX (scan only)",
+    "daily.title": "Today\u2019s usage",
+    "daily.dl": "Download", "daily.ul": "Upload",
+    "daily.tz": "Resets at midnight Iran time",
+    "daily.today": "Today", "daily.yesterday": "Yesterday",
+    "daily.emptyToday": "No usage recorded today yet.",
+    "daily.total": "Today\u2019s total",
+    "daily.note": "Only today\u2019s usage (since 00:00 Iran time) is computed from your subscription\u2019s real usage, not from page visits. It restarts from zero at midnight Iran time.",
+    "mtr.title": "Live status", "mtr.state": "Connection",
+    "mtr.online": "Online", "mtr.offline": "Offline",
+    "mtr.lastSeen": "Last activity",
+    "mtr.ago": "{v} ago",
+    "mtr.h24": "Usage in the last 24 hours", "mtr.d7": "Usage in the last 7 days",
+    "mtr.servers": "Server traffic (24h)",
+    "mtr.updated": "Updated: {v}",
+    "plans.title": "Renew / buy data",
+    "plans.note": "After choosing a plan you will be redirected to support to complete the order.",
+    "plans.days": "{d} days", "plans.gb": "{v} GB", "plans.unlimited": "Unlimited data",
+    "plans.buy": "Choose & renew",
+    "ref.title": "Refer a friend",
+    "ref.lead": "Get a discount or bonus data for every successful referral.",
+    "net.title": "Network tests",
+    "dns.title": "DNS leak test",
+    "dns.lead": "Tap the “DNS leak test” title to open the full BrowserLeaks test in a new tab and see which DNS servers and which countries answer your queries.",
+    "adb.title": "Ad-block test",
+    "adb.lead": "Tap the “Ad-block test” title to open the test in a new tab and see whether ads, trackers and ad scripts are blocked on your browser and network.",
+    "adb.hint": "On that page three things are checked: host (domain) blocking, ad-script blocking and cosmetic filters. A score above 60% means your blocker is working; a very low score means ads are not being blocked.",
+    "dns.hint": "On that page look at the “DNS Servers” section: if the country or owner does not match your VPN exit, your queries are answered by your local ISP DNS (a leak).",
+    "diag.unknown": "Unknown",
+    "guide.title": "Sing-Box setup guide",
+    "guide.ios": "iPhone / iPad", "guide.android": "Android", "guide.windows": "Windows",
+    "gstep.ios.1": "Install Sing-Box from the App Store (on iPhone use only this app).",
+    "gstep.ios.2": "Copy the subscription link above, or scan the QR code with the camera so it opens in Sing-Box.",
+    "gstep.ios.3": "Open the Profiles tab in Sing-Box; if the QR did not add it, tap + and choose “Import from clipboard”.",
+    "gstep.ios.4": "Select the profile, turn the Connect switch on and allow the VPN permission.",
+    "gstep.android.1": "Install Sing-Box from Google Play (on Android use only this app).",
+    "gstep.android.2": "Copy the subscription link, or press “Add to Sing-Box” to import the profile automatically.",
+    "gstep.android.3": "In Sing-Box → Profiles, tap + and choose “Import from clipboard” or “Scan QR code”.",
+    "gstep.android.4": "Select the profile, turn the Connect switch on and allow the VPN permission.",
+    "gstep.windows.1": "Download the Sing-Box executable with the Windows button and run it.",
+    "gstep.windows.2": "Copy the subscription link or scan the QR code inside the app (on Windows use only Sing-Box).",
+    "gstep.windows.3": "In Sing-Box → Profiles, tap + and choose “Import from clipboard”.",
+    "gstep.windows.4": "Select the profile and turn the Connect switch on (approve the network prompt if Windows asks).",
+    "fix.title": "If you cannot connect, check these",
+    "fix.1": "Make sure no other VPN or proxy (apps or browser extensions) is running at the same time.",
+    "fix.2": "Switch networks (Wi-Fi ↔ mobile data) and try again.",
+    "fix.3": "Update your profile inside Sing-Box (Update) to fetch fresh configs.",
+    "fix.4": "Set your device date & time to automatic; a wrong clock breaks secure connections.",
+    "fix.5": "If your data or time has run out, use the “Request renewal” button.",
+    "check.title": "Your subscription is ready",
+    "check.lead": "To connect, do these three steps:",
+    "check.1": "Install the right app for your device (under the \u201cAdd to Sing-Box\u201d section).",
+    "check.2": "Then press \u201cAdd to Sing-Box\u201d and add your subscription.",
+    "check.3": "In the app, press Start and connect.",
+    "act.refresh": "Refresh",
+    "act.renew": "Renew subscription",
+    "act.notif": "Enable browser reminder",
+    "act.install": "Install this page as an app",
+    "toast.copied": "Copied",
+    "toast.copyFail": "Copy failed",
+    "toast.refreshed": "Refreshed ✓",
+    "toast.refreshFail": "Refresh failed",
+    "toast.qrNeedsNet": "QR rendering needs an internet connection",
+    "toast.qrTooLong": "Could not build the QR code (text too long)",
+    "toast.notifOn": "Browser reminder enabled",
+    "toast.notifOff": "Notification permission was not granted",
+    "toast.pushOk": "Notifications registered",
+    "toast.pushFail": "Could not register notifications",
+    "notif.title": "Your subscription is running low",
+    "notif.body": "{d} days of your subscription are left.",
+    "sum.head": "Hello, here is my service status:",
+    "sum.renewHead": "Hello, a renewal request:",
+    "sum.link": "Subscription link",
+    "sum.id": "ID", "sum.used": "Used", "sum.remain": "Remaining", "sum.days": "Time left", "sum.expire": "Expiry",
+    "summary.unlimited": "Unlimited",
+    "summary.noExpiry": "No expiry date",
+    "contact.channel": "Announcement channel",
+    "contact.support": "Support",
+    "contact.supportSub": "Send a Telegram message",
+    "theme.light": "Light theme", "theme.dark": "Dark theme", "theme.system": "System theme",
+    "theme.title": "Change theme (light/dark/system)",
+    "lang.switch": "تغییر زبان به فارسی",
+    "err.empty": "Please enter your subscription link or ID.",
+    "err.notSub": "That is not a subscription link; it must start with http or https (single configs are not supported here).",
+    "err.needBase": "To use a bare ID the page needs a base address (defaultSubBase) configured. Please paste the full link.",
+    "err.invalid": "Invalid input; enter the full subscription link or the subscription ID.",
+    "err.mixedTitle": "Insecure link blocked",
+    "err.mixedMsg": "This page is served over HTTPS but the subscription link is HTTP, which the browser blocks. Use an HTTPS link or host the page on the panel domain.",
+    "err.expiredTitle": "Your account is deactivated",
+    "err.expiredMsg": "Your account is disabled or used up; message support to check and renew it.",
+    "err.tooManyTitle": "Too many requests",
+    "err.tooManyMsg": "You have made too many requests; try again in a few minutes.",
+    "err.serverTitle": "Temporary server error",
+    "err.serverMsg": "The panel server is not responding right now; try again in a moment.",
+    "err.statusTitle": "Could not load your data",
+    "err.statusMsg": "The server answered with status {code}; please check the link.",
+    "err.netTitle": "Could not reach the server",
+    "err.corsMsg": "The browser refused to read the response (CORS). The s-ui subscription service sends no CORS headers, so this page must be hosted on the same domain and port as the subscription link.",
+    "err.netMsg": "Check your internet connection or your VPN client and try again.",
+  },
+};
+function t(key, vars) {
+  const d = I18N[LANG] || I18N.fa;
+  let s = d[key] != null ? d[key] : (I18N.fa[key] != null ? I18N.fa[key] : key);
+  if (vars) s = s.replace(/\{(\w+)\}/g, function (m, k) { return vars[k] != null ? vars[k] : m; });
+  return s;
+}
+function applyI18n() {
+  document.documentElement.lang = LANG;
+  document.documentElement.dir = LANG === "en" ? "ltr" : "rtl";
+  document.querySelectorAll("[data-i18n]").forEach(function (el) {
+    const k = el.getAttribute("data-i18n");
+    if (k) el.textContent = t(k);
+  });
+  document.querySelectorAll("[data-i18n-ph]").forEach(function (el) { el.setAttribute("placeholder", t(el.getAttribute("data-i18n-ph"))); });
+  document.querySelectorAll("[data-i18n-title]").forEach(function (el) { el.setAttribute("title", t(el.getAttribute("data-i18n-title"))); });
+  document.querySelectorAll("[data-i18n-aria]").forEach(function (el) { el.setAttribute("aria-label", t(el.getAttribute("data-i18n-aria"))); });
+  const langBtn = $("#langBtn");
+  if (langBtn) { langBtn.textContent = LANG === "en" ? "فا" : "EN"; langBtn.setAttribute("title", t("lang.switch")); langBtn.setAttribute("aria-label", t("lang.switch")); }
+  $("#panelName").textContent = brandName();
+}
+
+/* ── toast stack ── */
+function toast(msg, type) {
+  const box = $("#toasts");
+  const t = document.createElement("div");
+  t.className = "toast t-" + (type || "info");
+  const ico = document.createElement("span");
+  ico.className = "t-ico";
+  ico.innerHTML =
+    type === "ok"
+      ? '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>'
+      : type === "err"
+        ? '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>'
+        : '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><path d="M12 8h.01M12 11v5"/></svg>';
+  t.appendChild(ico);
+  t.appendChild(document.createTextNode(msg));
+  box.appendChild(t);
+  while (box.children.length > 3) box.removeChild(box.firstChild);
+  setTimeout(() => {
+    t.classList.add("out");
+    setTimeout(() => t.remove(), 320);
+  }, 2400);
+}
+async function copyText(str) {
+  try {
+    await navigator.clipboard.writeText(str);
+    toast(t("toast.copied"), "ok");
+  } catch (e) {
+    const ta = document.createElement("textarea");
+    ta.value = str;
+    ta.style.cssText = "position:fixed;opacity:0";
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); toast(t("toast.copied"), "ok"); } catch (e2) { toast(t("toast.copyFail"), "err"); }
+    ta.remove();
+  }
+}
+
+/* ── p15: tilt cards + status island ── */
+function initTilt() {
+  if (REDUCED_MOTION) return;
+  if (!window.matchMedia || !matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+  document.querySelectorAll("#dash .grid2 > .card, #dash .grid3 > .card").forEach(function (card) {
+    card.classList.add("tilt");
+    const glare = document.createElement("i");
+    glare.className = "tilt-glare";
+    glare.setAttribute("aria-hidden", "true");
+    card.appendChild(glare);
+    card.addEventListener("mousemove", function (e) {
+      const r = card.getBoundingClientRect();
+      const px = (e.clientX - r.left) / r.width;
+      const py = (e.clientY - r.top) / r.height;
+      card.style.transform =
+        "perspective(700px) rotateX(" + ((0.5 - py) * 5).toFixed(2) + "deg) rotateY(" + ((px - 0.5) * 5).toFixed(2) + "deg) translateY(-2px)";
+      card.style.setProperty("--gx", (px * 100).toFixed(1) + "%");
+      card.style.setProperty("--gy", (py * 100).toFixed(1) + "%");
+    });
+    card.addEventListener("mouseleave", function () {
+      card.style.transform = "";
+    });
+  });
+}
+function initIsland() {
+  const chip = $("#statusChip");
+  function closeIsland() {
+    chip.classList.remove("open");
+    chip.setAttribute("aria-expanded", "false");
+  }
+  chip.addEventListener("click", function (e) {
+    e.stopPropagation();
+    const open = chip.classList.toggle("open");
+    chip.setAttribute("aria-expanded", open ? "true" : "false");
+  });
+  document.addEventListener("click", function (e) {
+    if (chip.classList.contains("open") && !chip.contains(e.target)) closeIsland();
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") closeIsland();
+  });
+}
+
+/* ── QR ── */
+function qrAvailable() { return typeof window.qrcode === "function"; }
+function syncQrVisibility() { document.body.classList.toggle("no-qr", !qrAvailable()); }
+function openQr(text, label) {
+  if (!qrAvailable()) { toast(t("toast.qrNeedsNet"), "err"); return; }
+  try {
+    if (qrcode.stringToBytesFuncs && qrcode.stringToBytesFuncs["UTF-8"]) {
+      qrcode.stringToBytes = qrcode.stringToBytesFuncs["UTF-8"];
+    } else if (window.TextEncoder) {
+      qrcode.stringToBytes = (s) => Array.from(new TextEncoder().encode(s));
+    }
+    const qr = qrcode(0, "M");
+    qr.addData(text, "Byte");
+    qr.make();
+    const n = qr.getModuleCount();
+    const quiet = 4;
+    const scale = Math.max(2, Math.floor(500 / (n + quiet * 2)));
+    const size = (n + quiet * 2) * scale;
+    const canvas = $("#qrCanvas");
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, size, size);
+    ctx.fillStyle = "#000";
+    for (let r = 0; r < n; r++)
+      for (let c = 0; c < n; c++)
+        if (qr.isDark(r, c)) ctx.fillRect((c + quiet) * scale, (r + quiet) * scale, scale, scale);
+  } catch (e) {
+    toast(t("toast.qrTooLong"), "err");
+    return;
+  }
+  $("#qrTitle").textContent = label || t("qr.modalTitle");
+  $("#qrSub").textContent = text.length > 90 ? text.slice(0, 90) + "…" : text;
+  lastFocus = document.activeElement;
+  $("#qrModal").hidden = false;
+  $("#qrCloseBtn").focus();
+}
+function closeQr() {
+  $("#qrModal").hidden = true;
+  if (lastFocus && lastFocus.focus) lastFocus.focus();
+}
+/* ── وضعیت ── */
+function computeStatus(info) {
+  if (!info) return { label: t("st.unknown"), tone: "orange" };
+  const now = Date.now();
+  const expMs = normalizeExpire(info.expire);
+  const used = (info.upload || 0) + (info.download || 0);
+  const total = info.total || 0;
+  if (expMs && now > expMs) return { label: t("st.expired"), tone: "red" };
+  if (total > 0 && used >= total) return { label: t("st.usedUp"), tone: "red" };
+  const daysLeft = expMs ? Math.ceil((expMs - now) / 864e5) : null;
+  const pct = total > 0 ? (used / total) * 100 : 0;
+  if ((daysLeft != null && daysLeft <= 3) || pct >= 90) return { label: t("st.warn"), tone: "orange" };
+  return { label: t("st.active"), tone: "green" };
+}
+
+/* ── رندر ── */
+function renderDash() {
+  syncQrVisibility();
+  requestAnimationFrame(renderQrBox);   // تنها رندرکننده‌ی QR کارت لینک اشتراک
+  const info = state.info;
+  const title = state.title || "";
+  document.title = (title ? title + " | " : "") + brandName();
+
+  $("#profileTitle").textContent = title;
+  $("#profileTitle").hidden = !title;
+
+  const st = computeStatus(info);
+  const chip = $("#statusChip");
+  chip.className = "chip tone-" + st.tone;
+  chip.hidden = false;
+  chip.setAttribute("aria-expanded", "false");
+  $("#statusText").textContent = st.label;
+
+  $("#demoBanner").hidden = !state.demo;
+  $("#noInfoBanner").hidden = !state.headerMissing;
+
+  const used = info ? (info.upload || 0) + (info.download || 0) : null;
+  const total = info && info.total > 0 ? info.total : 0;
+  const pct = total > 0 && used != null ? Math.min(100, (used / total) * 100) : null;
+
+  if (info) {
+    if (total > 0) {
+      const remain = Math.max(0, total - used);
+      animateNum($("#totalVal"), total, formatBytes);
+      animateNum($("#usedVal"), used, formatBytes);
+      animateNum($("#remainVal"), remain, formatBytes);
+      $("#remainLabel").textContent = t("card.used", { used: formatBytes(used), total: formatBytes(total), remain: formatBytes(remain) });
+      const gw = $("#usageGauge");
+      gw.hidden = false;
+      gw.className = "gauge" + (pct >= 95 ? " lvl-full" : pct >= 80 ? " lvl-warn" : "");
+      gw.querySelector(".g-fg").style.strokeDashoffset = (138.23 * (1 - pct / 100)).toFixed(2);
+      animateNum($("#usagePct"), pct, function (v) { return FA0.format(v) + pctSign; });
+      const fill = $("#barFill");
+      fill.style.width = pct + "%";
+      fill.className = pct >= 95 ? "lvl-full" : pct >= 80 ? "lvl-warn" : "";
+      $("#barWrap").setAttribute("aria-valuenow", Math.round(pct));
+      $("#usedTxt").textContent = FA0.format(Math.round(pct)) + pctSign;
+    } else {
+      $("#totalVal").textContent = t("card.unlimited");
+      animateNum($("#usedVal"), used, formatBytes);
+      $("#remainVal").textContent = t("card.unlimited");
+      $("#remainLabel").textContent = t("card.noLimit");
+      const gw = $("#usageGauge");
+      gw.hidden = true;
+      gw.querySelector(".g-fg").style.strokeDashoffset = "138.23";
+      $("#usagePct").textContent = "";
+      const fill = $("#barFill");
+      fill.style.width = "100%";
+      fill.className = "lvl-free";
+      $("#barWrap").setAttribute("aria-valuenow", 0);
+      $("#usedTxt").textContent = t("card.usedLabel") + ": " + formatBytes(used);
+    }
+  } else {
+    $("#totalVal").textContent = "—";
+    $("#usedVal").textContent = "—";
+    $("#remainVal").textContent = "—";
+    $("#remainLabel").textContent = t("card.noInfo");
+    const gw = $("#usageGauge");
+    gw.hidden = true;
+    gw.querySelector(".g-fg").style.strokeDashoffset = "138.23";
+    $("#usagePct").textContent = "";
+    const fill = $("#barFill");
+    fill.style.width = "0%";
+    fill.className = "";
+    $("#usedTxt").textContent = "";
+  }
+
+  const expMs = info ? normalizeExpire(info.expire) : null;
+  if (expMs) {
+    const daysLeft = Math.ceil((expMs - Date.now()) / 864e5);
+    animateNum($("#daysVal"), Math.max(0, daysLeft));
+    $("#daysUnit").textContent = t("card.days");
+    $("#daysLabel").textContent = daysLeft <= 0 ? t("card.expired") : t("card.daysLeft");
+    const d = new Date(expMs);
+    $("#expiryFa").textContent = t("card.expiry", { d: faDate.format(d) });
+    $("#expiryEn").textContent = LANG === "en" ? "" : enDate.format(d);
+    $("#chipDetails").textContent = daysLeft > 0
+      ? t("chip.daysLeft", { d: FA0.format(daysLeft), date: faDate.format(d) })
+      : t("chip.expired", { date: faDate.format(d) });
+  } else {
+    $("#daysVal").textContent = info ? t("card.unlimited") : "—";
+    $("#daysUnit").textContent = "";
+    $("#daysLabel").textContent = info ? t("card.noExpiry") : "";
+    $("#expiryFa").textContent = "";
+    $("#expiryEn").textContent = "";
+    $("#chipDetails").textContent = info ? t("chip.noExpiry") : "";
+  }
+
+  const insightEl = $("#insightCard");
+  const dLeft = expMs ? Math.ceil((expMs - Date.now()) / 864e5) : null;
+  const remainNow = total > 0 && used != null ? Math.max(0, total - used) : null;
+  if (info && remainNow != null && remainNow > 0 && dLeft != null && dLeft > 0) {
+    const dailyQuota = remainNow / dLeft;
+    $("#insightMain").textContent = t("insight.quota", { v: formatBytes(dailyQuota) });
+    let subTxt = t("insight.quotaSub", { d: FA0.format(dLeft) });
+    if (dailyQuota < 536870912) subTxt += t("insight.low");
+    $("#insightSub").textContent = subTxt;
+    insightEl.hidden = false;
+  } else {
+    insightEl.hidden = true;
+  }
+
+  if (info) {
+    animateNum($("#dlVal"), info.download || 0, formatBytes);
+    animateNum($("#ulVal"), info.upload || 0, formatBytes);
+  } else {
+    $("#dlVal").textContent = "—";
+    $("#ulVal").textContent = "—";
+  }
+
+  renderApps();
+  renderExtras();
+  renderCountdown();
+  checkAlerts();
+  if (!state.offline) saveLastInfo();
+}
+
+/* ── خطا و ناوبری ── */
+function showError(msg, showCauses, title) {
+  $("#errorBox").hidden = false;
+  $("#errorTitle").textContent = title || t("err.title");
+  const box = $("#errorMsg");
+  box.textContent = "";
+  box.appendChild(document.createTextNode(msg || ""));
+  if (CONFIG.supportLink) {
+    const a = document.createElement("a");
+    a.href = CONFIG.supportLink;
+    a.target = "_blank";
+    a.rel = "noopener";
+    a.textContent = t("err.support");
+    a.style.display = "inline-block";
+    a.style.marginInlineStart = "6px";
+    a.style.color = "inherit";
+    a.style.textDecoration = "underline";
+    a.style.fontWeight = "700";
+    box.appendChild(a);
+  }
+}
+function clearError() {
+  $("#errorBox").hidden = true;
+}
+function showSkeleton(on) {
+  $("#skeleton").hidden = !on;
+  if (on) { $("#setup").hidden = true; $("#dash").hidden = true; }
+}
+function showSetup(prefill) {
+  clearError();
+  $("#skeleton").hidden = true;
+  $("#dash").hidden = true;
+  $("#setup").hidden = false;
+  $("#refreshBtn").hidden = true;
+  $("#statusChip").hidden = true;
+  $("#profileTitle").hidden = true;
+  document.title = brandName();
+  if (prefill) $("#subInput").value = prefill;
+  $("#subInput").focus();
+}
+function showDash() {
+  clearError();
+  $("#skeleton").hidden = true;
+  $("#setup").hidden = true;
+  $("#dash").hidden = false;
+  $("#refreshBtn").hidden = false;
+}
+
+function resolveSubUrl(raw) {
+  const v = (raw || "").trim();
+  if (!v) return { error: t("err.empty") };
+  if (/^https?:\/\//i.test(v)) return { url: v };
+  if (v.includes("://")) return { error: t("err.notSub") };
+  if (/^[A-Za-z0-9_-]{1,128}$/.test(v)) {
+    if (CONFIG.defaultSubBase) {
+      const base = CONFIG.defaultSubBase.endsWith("/") ? CONFIG.defaultSubBase : CONFIG.defaultSubBase + "/";
+      return { url: base + v };
+    }
+    return { error: t("err.needBase") };
+  }
+  return { error: t("err.invalid") };
+}
+
+/* ── دریافت داده ── */
+async function load(url, opts) {
+  opts = opts || {};
+  if (!opts.fromRefresh && $("#dash").hidden) showSkeleton(true);
+  if (location.protocol === "https:" && /^http:\/\//i.test(url)) {
+    failUi(opts, t("err.mixedTitle"), t("err.mixedMsg"), "mixed-content");
+    return;
+  }
+  const go = $("#goBtn");
+  go.disabled = true;
+  $("#refreshIco").classList.add("spin");
+  try {
+    const res = await fetch(url, { method: "HEAD", cache: "no-store", redirect: "follow" });
+    if (!res.ok) {
+      if (res.status === 400 || res.status === 403 || res.status === 404 || res.status === 410) {
+        failUi(opts, t("err.expiredTitle"), t("err.expiredMsg"), "http-" + res.status);
+      } else if (res.status === 429) {
+        failUi(opts, t("err.tooManyTitle"), t("err.tooManyMsg"), "http-429");
+      } else if (res.status >= 500) {
+        failUi(opts, t("err.serverTitle"), t("err.serverMsg"), "http-" + res.status);
+      } else {
+        failUi(opts, t("err.statusTitle"), t("err.statusMsg", { code: res.status }), "http-" + res.status);
+      }
+      return;
+    }
+    const info = parseUserInfo(res.headers.get("subscription-userinfo"));
+    state.url = url;
+    state.demo = false;
+    state.info = info;
+    state.headerMissing = !info;
+    state.title = parseTitle(res.headers.get("profile-title"));
+    state.serverDate = res.headers.get("date") || state.serverDate;
+    state.lastFetch = Date.now();
+    if (info) dailyTrack(info);
+    renderDash();
+    showDash();
+    try { localStorage.setItem("sui-info:last", url); } catch (e) {}
+    if (opts.fromRefresh) toast(t("toast.refreshed"));
+  } catch (e) {
+    var cross = false;
+    try { cross = new URL(url).origin !== location.origin; } catch (err) { cross = false; }
+    const netDown = !navigator.onLine || !cross;
+    if (netDown) state.url = state.url || url;
+    if (netDown && !opts.fromRefresh && renderOffline(readLastInfo())) {
+      toast(t("toast.offlineData"), "info");
+      return;
+    }
+    failUi(
+      opts,
+      t("err.netTitle"),
+      cross ? t("err.corsMsg") : t("err.netMsg"),
+      cross ? "network/cors" : "network"
+    );
+  } finally {
+    go.disabled = false;
+    $("#refreshIco").classList.remove("spin");
+  }
+}
+
+function failUi(opts, title, msg, tech) {
+  if (opts.fromRefresh) {
+    toast(t("toast.refreshFail"));
+    return;
+  }
+  showSetup();
+  console.warn("جزئیات فنی (" + (tech || "?") + "):", msg);
+  showError(msg, false, title || t("err.title"));
+}
+
+function loadDemo() {
+  state.url = "https://demo.example.com:2096/sub/demo-user";
+  state.demo = true;
+  state.headerMissing = false;
+  state.title = "سرویس ویژه ۵۰۰ گیگ";
+  state.info = {
+    upload: 34359738368,
+    download: 214748364800,
+    total: 536870912000,
+    expire: Math.floor(Date.now() / 1000) + 47 * 86400,
+  };
+  // داده‌ی نمایشی برای کارت مصرف روزانه (فقط حالت دمو)
+  const GB = 1024 * 1024 * 1024;
+  const dlP = [4.8, 1.2, 9.4, 2.6, 6.1, 12.4, 3.3];
+  const ulP = [0.36, 0.11, 0.72, 0.24, 0.44, 0.95, 0.28];
+  const dk = {};
+  for (let i = 6; i >= 0; i--) dk[dayKeyOffset(i)] = { down: Math.round(dlP[6 - i] * GB), up: Math.round(ulP[6 - i] * GB) };
+  state.daily = { days: dk, last: { up: 34359738368, down: 214748364800, t: Date.now() } };
+  state.bridgeP = null;
+  state.bridgeAt = 0;
+  renderDash();
+  showDash();
+}
+
+
+/* ═══════════════════════ v20: ماژول‌های تازه ═══════════════════════ */
+
+/* ── تم روشن/تاریک/سیستم ── */
+let THEME = readLS("sui-info:theme", "system");
+function applyTheme() {
+  const root = document.documentElement;
+  if (THEME === "system") root.removeAttribute("data-theme");
+  else root.setAttribute("data-theme", THEME);
+  const dark = THEME === "dark" || (THEME === "system" && window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches);
+  const btn = $("#themeBtn");
+  if (btn) {
+    btn.innerHTML = dark
+      ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2M12 19.5v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2.5 12h2M19.5 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></svg>'
+      : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 14.6A8.6 8.6 0 1 1 9.4 3.5a7 7 0 0 0 11.1 11.1z"/></svg>';
+    btn.setAttribute("title", t("theme." + THEME));
+  }
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", dark ? "#0B0B0D" : "#FFFFFF");
+  drawFavicon(state.lastPct);
+}
+function cycleTheme() {
+  THEME = THEME === "system" ? "light" : THEME === "light" ? "dark" : "system";
+  writeLS("sui-info:theme", THEME);
+  applyTheme();
+  toast(t("theme." + THEME), "ok");
+}
+
+/* ── تشخیص دستگاه ── */
+function detectOS() {
+  const ua = (navigator.userAgent || "") + " " + ((navigator.userAgentData && navigator.userAgentData.platform) || "");
+  if (/iPhone|iPad|iPod/i.test(ua)) return "ios";
+  if (/Android/i.test(ua)) return "android";
+  if (/Windows/i.test(ua)) return "windows";
+  if (/Macintosh|Mac OS X/i.test(ua)) return "macos";
+  if (/Linux|X11|CrOS/i.test(ua)) return "linux";
+  return "other";
+}
+
+/* ── لینک‌ها ── */
+function subIdOf(u) {
+  try { const p = new URL(u).pathname.split("/").filter(Boolean); return decodeURIComponent(p[p.length - 1] || "x"); } catch (e) { return "x"; }
+}
+function subUrlFor(fmt) {
+  const u = state.url || "";
+  if (!u) return "";
+  if (!fmt || fmt === "sub") return u;
+  // لینک Sing-Box: پیش‌فرض «دامنه/نام‌کاربر?format=json» (قالب در CONFIG.jsonLinkTemplate)
+  // لینک Clash:    پیش‌فرض «دامنه/نام‌کاربر?format=clash» (قالب در CONFIG.clashLinkTemplate)
+  const tpl = fmt === "json" ? CONFIG.jsonLinkTemplate : fmt === "clash" ? CONFIG.clashLinkTemplate : "";
+  if (tpl) {
+    try {
+      const x = new URL(u);
+      const dir = x.pathname.replace(/\/[^/]*$/, "");
+      return tpl
+        .replace("{origin}", x.origin)
+        .replace("{dir}", dir)
+        .replace("{id}", encodeURIComponent(subIdOf(u)));
+    } catch (e) {}
+  }
+  return u + (u.indexOf("?") >= 0 ? "&" : "?") + "format=" + fmt;
+}
+function maskedUrl(u) {
+  // فقط دامنه نمایش داده می‌شود و هر چیزی بعد از آن (شناسه کاربر) پنهان می‌ماند؛
+  // بخش ?format=json چون بخشی از خودِ لینک Sing-Box است نمایش داده می‌شود.
+  if (!u) return "";
+  try { const x = new URL(u); return x.origin + "/••••••••" + (x.search || ""); }
+  catch (e) { return "••••••••"; }
+}
+function deepLinkTo(copyValue) {
+  let hidden = false;
+  const onHide = function () { hidden = true; };
+  document.addEventListener("visibilitychange", onHide, { once: true });
+  window.addEventListener("blur", onHide, { once: true });
+  setTimeout(function () {
+    document.removeEventListener("visibilitychange", onHide);
+    if (!hidden && !document.hidden) {
+      if (copyValue) copyText(copyValue);
+      else toast(t("apps.notInstalled"), "info");
+    }
+  }, 1600);
+}
+
+/* ── کد QR ── */
+let qrMode = "json";
+function singBoxScanUrl() {
+  const jsonUrl = subUrlFor("json");
+  if (!jsonUrl) return "";
+  const title = state.title || brandName();
+  return "sing-box://import-remote-profile?url=" + encodeURIComponent(jsonUrl) + "#" + encodeURIComponent(title);
+}
+function shownSubscriptionLink(mode) {
+  return mode === "clash" ? subUrlFor("clash") : subUrlFor("json");
+}
+function qrPayload(mode) {
+  if (mode === "clash") return subUrlFor("clash");
+  return singBoxScanUrl();          // معادل QR «SING-BOX (scan only)» پنل؛ اسکن مستقیم و ورود آماده به برنامه
+}
+function drawQrTo(canvas, text, budget) {
+  if (!canvas || !text || !qrAvailable()) return false;
+  try {
+    if (qrcode.stringToBytesFuncs && qrcode.stringToBytesFuncs["UTF-8"]) qrcode.stringToBytes = qrcode.stringToBytesFuncs["UTF-8"];
+    else if (window.TextEncoder) qrcode.stringToBytes = function (value) { return Array.from(new TextEncoder().encode(value)); };
+    const qr = qrcode(0, "M");
+    qr.addData(text, "Byte");
+    qr.make();
+    const n = qr.getModuleCount(), quiet = 4;
+    const scale = Math.max(2, Math.floor((budget || 440) / (n + quiet * 2)));
+    const size = (n + quiet * 2) * scale;
+    canvas.width = size; canvas.height = size;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, size, size);
+    ctx.fillStyle = "#000";
+    for (let r = 0; r < n; r++) for (let c = 0; c < n; c++)
+      if (qr.isDark(r, c)) ctx.fillRect((c + quiet) * scale, (r + quiet) * scale, scale, scale);
+    return true;
+  } catch (e) { return false; }
+}
+function renderQrBox() {
+  const box = $("#subUrlBox");
+  if (!box || !state.url) return;
+  const real = shownSubscriptionLink(qrMode) || state.url; // کادر متن همان لینک اشتراک را نشان می‌دهد؛ QR دیپ‌لینک آمادهٔ ورود است
+  box.textContent = state.maskOn ? maskedUrl(real) : real;
+  const note = $("#qrNote"), hint = $("#qrHint");
+  const kind = qrMode === "clash" ? "Clash" : "Json";
+  if (note) {
+    note.hidden = !kind;
+    note.textContent = kind ? t("qr.note" + kind) : "";
+  }
+  if (hint) hint.textContent = t("qr.hint" + (kind || "Sub"));
+  document.querySelectorAll("#qrTabs .tab").forEach(function (b) {
+    b.classList.toggle("active", b.getAttribute("data-qr-mode") === qrMode);
+  });
+  const canvas = $("#inlineQrCanvas");
+  const holder = $("#subQrItem");
+  const payload = qrPayload(qrMode);
+  if (holder) holder.hidden = !payload || !qrAvailable();
+  if (holder && !holder.hidden && !drawQrTo(canvas, payload, 440)) holder.hidden = true;
+}
+
+/* ── فاوآیکون پویا ── */
+function drawFavicon(pct) {
+  const link = document.querySelector('link[rel="icon"]');
+  if (!link) return;
+  const dark = document.documentElement.getAttribute("data-theme") === "dark" ||
+    (THEME === "system" && window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches);
+  const c = document.createElement("canvas");
+  c.width = c.height = 64;
+  const x = c.getContext("2d");
+  x.fillStyle = dark ? "#151518" : "#FFFFFF";
+  if (x.roundRect) { x.beginPath(); x.roundRect(0, 0, 64, 64, 16); x.fill(); } else x.fillRect(0, 0, 64, 64);
+  const have = pct != null && !isNaN(pct);
+  const v = have ? Math.max(0, Math.min(100, pct)) : 0;
+  x.lineWidth = 7;
+  x.strokeStyle = dark ? "#2B2B31" : "#E8E8EC";
+  x.beginPath(); x.arc(32, 32, 22, 0, Math.PI * 2); x.stroke();
+  x.strokeStyle = have ? (v >= 95 ? "#E14D5A" : v >= 80 ? "#D98324" : "#0C96B2") : "#0C96B2";
+  x.beginPath(); x.arc(32, 32, 22, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (have ? v / 100 : 1)); x.stroke();
+  x.fillStyle = dark ? "#F7F7F8" : "#17171B";
+  x.font = "700 26px Tahoma, sans-serif";
+  x.textAlign = "center"; x.textBaseline = "middle";
+  x.fillText(have ? String(Math.round(v)) : "", 32, 34);
+  try { link.href = c.toDataURL("image/png"); } catch (e) {}
+}
+
+/* ── مصرف روزانه (ریست ۱۲ شب به وقت ایران) ── */
+const TZ = "Asia/Tehran";
+function tzDayKey(ms) {
+  try {
+    return new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(ms));
+  } catch (e) {
+    return new Date(ms - 3.5 * 3600000).toISOString().slice(0, 10); // تهران = UTC+3:30 (بدون ساعت تابستانی)
+  }
+}
+function dayKeyOffset(back) { return tzDayKey(Date.now() - back * 86400000); }
+function dailyLoad() {
+  try {
+    const o = JSON.parse(localStorage.getItem("sui-info:daily:" + subIdOf(state.url || "")) || "null");
+    if (o && o.days && typeof o.days === "object") return o;
+  } catch (e) {}
+  return { days: {}, last: null };
+}
+function dailySave(o) { try { writeLS("sui-info:daily:" + subIdOf(state.url || ""), JSON.stringify(o)); } catch (e) {} }
+function dailyTrack(info) {
+  if (!info || state.demo || !state.url) return;
+  const o = dailyLoad();
+  const up = info.upload || 0, down = info.download || 0, now = Date.now(), last = o.last;
+  if (last && typeof last.up === "number" && typeof last.down === "number") {
+    // اختلاف با آخرین بازدید؛ اگر کانتر سرویس ریست شده باشد، خود مقدار جدید را حساب می‌کنیم
+    const du = up >= last.up ? up - last.up : up;
+    const dd = down >= last.down ? down - last.down : down;
+    if (du > 0 || dd > 0) {
+      const k = tzDayKey(now);
+      const b = o.days[k] || { up: 0, down: 0 };
+      b.up += du; b.down += dd;
+      o.days[k] = b;
+    }
+  }
+  o.last = { up: up, down: down, t: now };
+  const keys = Object.keys(o.days).sort();
+  while (keys.length > 45) delete o.days[keys.shift()];
+  dailySave(o);
+  state.daily = o;
+}
+/* نمودار ۷ روزه در v35 حذف شد؛ این تابع دیگر لازم نیست */
+function _unusedDayLabel(key, idx, total) {
+  if (idx === total - 1) return t("daily.today");
+  if (idx === total - 2) return t("daily.yesterday");
+  try {
+    const d = new Date(key + "T12:00:00Z");
+    return new Intl.DateTimeFormat(LANG === "en" ? "en-GB" : "fa-IR", { timeZone: TZ, weekday: "short" }).format(d);
+  } catch (e) { return key.slice(5); }
+}
+function compactBytes(v) {
+  if (!v) return "";
+  const u = LANG === "en" ? ["B", "K", "M", "G", "T"] : ["ب", "ک", "م", "گ", "ت"];
+  const i = Math.min(u.length - 1, Math.floor(Math.log(v) / Math.log(1024)));
+  const n = v / Math.pow(1024, i);
+  return (n >= 10 || i === 0 ? FA0.format(n) : FA1.format(n)) + u[i];
+}
+/* نمودار ۷ روزه و راهنمای آن در v35 حذف شدند (فقط «امروز» نمایش داده می‌شود) */
+async function renderDaily() {
+  const card = $("#histCard");
+  if (!card) return;
+  if (!state.info) { card.hidden = true; return; }
+  card.hidden = false;
+  const todayKey = dayKeyOffset(0);
+  // اولویت اول: آمار واقعی سرور (bridge.py، جدول stats پنل) برای همین روز.
+  // اگر در دسترس نبود، از اختلاف کانترهای خود اشتراک در همین مرورگر.
+  let up = 0, down = 0;
+  const proj = await loadBridge();
+  let fromServer = false;
+  if (proj && Array.isArray(proj.daily)) {
+    const row = proj.daily.filter(function (d) { return d && d.day === todayKey; })[0];
+    if (row) { up = row.up || 0; down = row.down || 0; fromServer = true; }
+  }
+  if (!fromServer) {
+    const o = state.daily || dailyLoad();
+    const b = o.days[todayKey] || { up: 0, down: 0 };
+    up = b.up || 0; down = b.down || 0;
+  }
+  const tzEl = $("#dailyRange");
+  if (tzEl) tzEl.textContent = t("daily.tz");
+  const total = up + down;
+  const rows = [];
+  rows.push('<div class="kv"><span>' + t("daily.total") + '</span><b>' + formatBytes(total) + "</b></div>");
+  rows.push('<div class="kv"><span>⬇ ' + t("daily.dl") + '</span><b>' + formatBytes(down) + "</b></div>");
+  rows.push('<div class="kv"><span>⬆ ' + t("daily.ul") + '</span><b>' + formatBytes(up) + "</b></div>");
+  if (total === 0) rows.push('<div class="kv"><span class="muted">' + t("daily.emptyToday") + "</span></div>");
+  $("#dailyStats").innerHTML = rows.join("");
+}
+
+/* ── خلاصه وضعیت / ICS / اعلان ── */
+function summaryLines(withId, headKey) {
+  const info = state.info || {};
+  const used = (info.upload || 0) + (info.download || 0);
+  const total = info.total > 0 ? info.total : 0;
+  const exp = normalizeExpire(info.expire);
+  const rows = [t(headKey || "sum.head")];
+  if (withId && state.url) {
+    rows.push("• " + t("sum.id") + ": " + subIdOf(state.url));
+    rows.push("• " + t("sum.link") + ": " + state.url);   // لینک اشتراک کاربر، کنار بقیه‌ی توضیحات
+  }
+  rows.push("• " + t("sum.used") + ": " + formatBytes(used) + (total > 0 ? " / " + formatBytes(total) : ""));
+  rows.push("• " + t("sum.remain") + ": " + (total > 0 ? formatBytes(Math.max(0, total - used)) : t("summary.unlimited")));
+  rows.push("• " + t("sum.days") + ": " + (exp ? FA0.format(Math.max(0, Math.ceil((exp - Date.now()) / 864e5))) + " " + t("card.days") : t("summary.noExpiry")));
+  if (exp) rows.push("• " + t("sum.expire") + ": " + faDate.format(new Date(exp)));
+  return rows;
+}
+function summaryText(withId, headKey) { return summaryLines(withId, headKey).join("\n"); }
+function renewalText() { return summaryText(true, "sum.renewHead"); }
+function renewUrl() {
+  const id = subIdOf(state.url || "");
+  const handle = function (v) { return String(v || "").replace(/^https?:\/\/t\.me\//, "").replace(/^@/, ""); };
+  // ۱) اگر ربات فروشگاه تنظیم شده باشد: t.me/<ربات>?start=<شناسه>
+  if (CONFIG.renewBot) return "https://t.me/" + handle(CONFIG.renewBot) + "?start=" + encodeURIComponent(id);
+  // ۲) وگرنه: t.me/<مقصد>?direct&text=<متن کامل درخواست تمدید>
+  const target = handle(CONFIG.renewTarget);
+  if (target) return "https://t.me/" + target + "?direct&text=" + encodeURIComponent(renewalText());
+  if (!CONFIG.supportLink) return "";
+  return CONFIG.supportLink + (CONFIG.supportLink.indexOf("?") >= 0 ? "&" : "?") + "text=" + encodeURIComponent(renewalText());
+}
+/* ردیف دکمه‌های پایین فقط وقتی دیده می‌شود که حداقل یک دکمه‌ی نمایان داشته باشد.
+   عمداً بدون MutationObserver: نوشتن همان اتریبیوت «hidden» داخل callback خودش
+   حلقه‌ی بی‌پایان می‌سازد و اجرای صفحه را قفل می‌کند. */
+function syncMainActions() {
+  const row = $("#mainActions");
+  if (!row) return;
+  row.hidden = !Array.prototype.some.call(row.children, function (b) { return !b.hidden; });
+}
+function maybeNotifyCore() {
+  const exp = normalizeExpire((state.info || {}).expire);
+  const btn = $("#notifBtn");
+  if (!exp || !("Notification" in window)) { if (btn) btn.hidden = true; return; }
+  const days = Math.ceil((exp - Date.now()) / 864e5);
+  if (Notification.permission !== "granted") { if (btn) btn.hidden = days > 30; return; }
+  if (btn) btn.hidden = true;
+  if (days > 3) return;
+  const k = "sui-info:notif:" + subIdOf(state.url || "") + ":" + new Date().toISOString().slice(0, 10);
+  if (readLS(k, "")) return;
+  writeLS(k, "1");
+  try { new Notification(t("notif.title"), { body: t("notif.body", { d: FA0.format(Math.max(0, days)) }) }); } catch (e) {}
+}
+/* هر بار وضعیت دکمه‌ی یادآور عوض شد، ردیف دکمه‌ها هم هم‌گام می‌شود */
+function maybeNotify() { maybeNotifyCore(); syncMainActions(); }
+function askNotify() {
+  if (!("Notification" in window)) return;
+  Notification.requestPermission().then(function (p) {
+    if (p === "granted") { toast(t("toast.notifOn"), "ok"); writeLS("sui-info:notif:" + subIdOf(state.url || "") + ":" + new Date().toISOString().slice(0, 10), "1"); maybeNotify(); }
+    else toast(t("toast.notifOff"), "err");
+  });
+}
+
+/* ── عیب‌یابی (v36: تست پینگ سرویس‌ها کامل حذف شد) ── */
+function agoLabel(sec) {
+  if (sec == null) return t("diag.unknown");
+  const s = Math.max(0, Math.round(sec));
+  const en = LANG === "en";
+  if (s < 60) return t("mtr.ago", { v: FA0.format(s) + (en ? "s" : " ثانیه") });
+  if (s < 3600) return t("mtr.ago", { v: FA0.format(Math.round(s / 60)) + (en ? " min" : " دقیقه") });
+  if (s < 86400) return t("mtr.ago", { v: FA0.format(Math.round(s / 3600)) + (en ? " h" : " ساعت") });
+  return t("mtr.ago", { v: FA0.format(Math.round(s / 86400)) + " " + t("card.days") });
+}
+async function renderConnectivity() {
+  const card = $("#diagCard");
+  if (!card) return;
+  // تیتر هر دو تست، خودشان لینک هستند (آدرس‌ها از CONFIG)
+  [["#dnsCheckLink", CONFIG.dnsCheckUrl], ["#adbCheckLink", CONFIG.adblockCheckUrl]].forEach(function (pair) {
+    const el = $(pair[0]);
+    if (el && pair[1]) el.href = pair[1];
+  });
+  card.hidden = !state.url || state.demo;
+}
+
+/* شمارش معکوس دقیق اعتبار */
+function renderCountdown() {
+  const el = $("#countdownTxt");
+  if (!el) return;
+  const exp = state.info ? normalizeExpire(state.info.expire) : null;
+  if (!exp) { el.textContent = ""; return; }
+  let ms = exp - Date.now();
+  if (ms <= 0) { el.textContent = t("count.expired"); return; }
+  const days = Math.floor(ms / 864e5);
+  ms -= days * 864e5;
+  const h = Math.floor(ms / 36e5), mi = Math.floor((ms % 36e5) / 6e4);
+  const two = function (v) { return FA0.format(v).length < 2 ? "۰" + FA0.format(v) : FA0.format(v); };
+  el.textContent = t("count.left", { d: FA0.format(days), t: two(h) + ":" + two(mi) });
+}
+setInterval(function () { if (state.info && !state.demo) renderCountdown(); }, 30000);
+
+/* ── v37: هشدار حجم/اعتبار (بنر + اعلان یک‌بارهٔ مرورگر) ── */
+function alertFlags() {
+  try { return JSON.parse(localStorage.getItem("sui-info:alert:" + subIdOf(state.url || "")) || "{}") || {}; }
+  catch (e) { return {}; }
+}
+function setAlertFlag(k) {
+  const f = alertFlags(); f[k] = 1;
+  try { localStorage.setItem("sui-info:alert:" + subIdOf(state.url || ""), JSON.stringify(f)); } catch (e) {}
+}
+function fireNotif(key, title, body) {
+  if (!("Notification" in window) || Notification.permission !== "granted") return false;
+  const flags = alertFlags();
+  if (flags[key]) return false;
+  setAlertFlag(key);
+  try { new Notification(title, { body: body }); return true; } catch (e) { return false; }
+}
+function checkAlerts() {
+  const box = $("#alertBox");
+  if (!box) return;
+  if (!state.info || state.demo || state.offline) { box.hidden = true; return; }
+  const info = state.info;
+  const total = info.total > 0 ? info.total : 0;
+  const used = (info.upload || 0) + (info.download || 0);
+  const pct = total > 0 ? Math.min(100, (used / total) * 100) : null;
+  const exp = normalizeExpire(info.expire);
+  const days = exp ? Math.ceil((exp - Date.now()) / 864e5) : null;
+  const flags = alertFlags();
+  let tone = "", key = "", txt = "", notifyTitle = "", notifyBody = "";
+  if (days != null && days <= 3) {
+    tone = "danger"; key = "d3";
+    txt = days <= 0 ? t("alert.expired") : t("alert.days", { d: FA0.format(Math.max(0, days)) });
+    notifyTitle = t("notif.title"); notifyBody = t("notif.body", { d: FA0.format(Math.max(0, days)) });
+  } else if (pct != null && pct >= 80) {
+    tone = pct >= 95 ? "danger" : "warn"; key = "v80";
+    txt = t("alert.volume", { p: FA0.format(Math.round(pct)) });
+    notifyTitle = t("notif.volTitle"); notifyBody = t("notif.volBody", { p: FA0.format(Math.round(pct)) });
+  }
+  if (!key || flags[key] === 2) { box.hidden = true; return; }
+  const wantNotif = ("Notification" in window) && Notification.permission === "default" && !flags.notifAsked;
+  const btn = flags[key] === 1
+    ? '<button type="button" class="bxa" data-alert-act="renew">' + t("alert.renew") + "</button>"
+    : (wantNotif ? '<button type="button" class="bxa" data-alert-act="notif">' + t("alert.enableNotif") + "</button>" : "");
+  box.className = "banner take " + (tone || "warn");
+  box.innerHTML = '<span>' + txt + (btn ? " " + btn : "") + "</span>" +
+    '<button type="button" class="bxx" data-alert-act="dismiss" aria-label="' + t("alert.dismiss") + '">×</button>';
+  box.hidden = false;
+  if (!flags[key]) {
+    const sent = fireNotif(key, notifyTitle, notifyBody);
+    if (sent) setAlertFlag("notifAsked");
+  }
+}
+let alertsWired = false;
+function wireAlerts() {
+  const box = $("#alertBox");
+  if (!box || alertsWired) return;
+  alertsWired = true;
+  box.addEventListener("click", function (e) {
+    const b = e.target.closest("[data-alert-act]");
+    if (!b) return;
+    const act = b.getAttribute("data-alert-act");
+    if (act === "dismiss") {
+      const k = (function () {
+        const info = state.info || {}, total = info.total > 0 ? info.total : 0;
+        const exp = normalizeExpire(info.expire);
+        const days = exp ? Math.ceil((exp - Date.now()) / 864e5) : null;
+        return days != null && days <= 3 ? "d3" : "v80";
+      })();
+      try {   // مقدار ۲ = کاربر خودش بست؛ دیگر نشان نده
+        const f = alertFlags(); f[k] = 2;
+        localStorage.setItem("sui-info:alert:" + subIdOf(state.url || ""), JSON.stringify(f));
+      } catch (err) {}
+      box.hidden = true;
+      return;
+    }
+    if (act === "renew") {
+      const rb = $("#renewBtn");
+      if (rb && rb.href) window.open(rb.href, "_blank", "noopener");
+      return;
+    }
+    if (act === "notif") { if (typeof askNotify === "function") askNotify(); }
+  });
+}
+
+/* ── v37: آفلاین — کش آخرین وضعیت + چیپ ── */
+function saveLastInfo() {
+  if (!state.url || state.demo || !state.info) return;
+  try {
+    writeLS("sui-info:lastinfo:" + subIdOf(state.url), JSON.stringify({
+      up: state.info.upload || 0, down: state.info.download || 0, total: state.info.total || 0,
+      expire: state.info.expire || 0, title: state.title || "", created: state.createdAt || 0,
+      ts: Date.now(),
+    }));
+  } catch (e) {}
+}
+function readLastInfo() {
+  if (!state.url) return null;
+  try { return JSON.parse(localStorage.getItem("sui-info:lastinfo:" + subIdOf(state.url)) || "null"); }
+  catch (e) { return null; }
+}
+function setOffline(on) {
+  state.offline = !!on;
+  const chip = $("#offlineChip");
+  if (chip) chip.hidden = !on;
+  if (on) checkAlerts();
+}
+function renderOffline(cache) {
+  /* وقتی اینترنت نیست: همان آخرین وضعیت ذخیره‌شده را نشان بده */
+  if (!cache) return false;
+  state.info = { upload: cache.up || 0, download: cache.down || 0, total: cache.total || 0, expire: cache.expire || 0 };
+  state.title = cache.title || state.title || "";
+  state.headerMissing = false;
+  state.cachedAt = cache.ts || 0;
+  renderDash();
+  showDash();
+  setOffline(true);
+  if (cache.created) renderCreated(cache.created, 0, "");
+  return true;
+}
+
+/* ── راهنما و چک‌لیست ── */
+let guideTab = null;
+function renderGuide() {
+  const body = $("#guideBody");
+  if (!body) return;
+  const d = detectOS();
+  const os = guideTab || (d === "ios" ? "ios" : d === "android" ? "android" : "windows");
+  const tabs = ["ios", "android", "windows"];
+  const bar = tabs.map(function (k) {
+    return '<button class="fchip' + (k === os ? " active" : "") + '" type="button" data-guide="' + k + '">' + t("guide." + k) + "</button>";
+  }).join("");
+  const steps = [1, 2, 3, 4].map(function (i) { return "<li>" + t("gstep." + os + "." + i) + "</li>"; }).join("");
+  body.innerHTML = '<div class="fchips" style="margin-top:12px">' + bar + '</div><ol class="steps">' + steps + "</ol>";
+  body.querySelectorAll("[data-guide]").forEach(function (b) {
+    b.addEventListener("click", function () { guideTab = b.getAttribute("data-guide"); renderGuide(); });
+  });
+}
+function renderFixList() {
+  const ul = $("#fixList");
+  if (!ul) return;
+  ul.innerHTML = [1, 2, 3, 4, 5].map(function (i) { return "<li>" + t("fix." + i) + "</li>"; }).join("");
+}
+function renderChecklist() {
+  const card = $("#checklistCard"), ul = $("#checkList");
+  if (!card || !ul) return;
+  const info = state.info;
+  const used = info ? (info.upload || 0) + (info.download || 0) : null;
+  const show = !!info && used === 0;
+  card.hidden = !show;
+  if (!show) return;
+  ul.innerHTML = [1, 2, 3].map(function (i) { return "<li>" + t("check." + i) + "</li>"; }).join("");
+}
+
+/* ── اپ‌ها و لینک‌های مستقیم ── */
+function appButtons() {
+  const os = detectOS(), u = state.url || "", title = state.title || brandName();
+  const dl = CONFIG.downloads || {};
+  const jsonU = subUrlFor("json");
+  const items = [{
+    primary: true,
+    name: t("apps.add", { app: "Sing-Box" }),
+    sub: t("apps.addSub"),
+    href: "sing-box://import-remote-profile?url=" + encodeURIComponent(jsonU) + "#" + encodeURIComponent(title),
+    copy: u,
+    deep: true,
+  }];
+  // فقط سه گزینه‌ی دانلود: آیفون (اپ استور)، اندروید (گوگل پلی)، ویندوز
+  const list = [
+    { key: "ios", name: t("dl.ios"), sub: t("dl.iosSub"), href: dl.ios },
+    { key: "android", name: t("dl.android"), sub: t("dl.androidSub"), href: dl.android },
+    { key: "windows", name: t("dl.windows"), sub: t("dl.windowsSub"), href: dl.windows },
+    // اپ Clash فقط برای آیفون (لینک در CONFIG.clashDownloads.ios)
+    { key: "clashIos", name: t("dl.clashIos"), sub: t("dl.clashIosSub"), href: (CONFIG.clashDownloads || {}).ios },
+  ].filter(function (x) { return !!x.href; });
+  const prefer = os === "ios" ? "ios" : os === "android" ? "android" : os === "windows" ? "windows" : "";
+  if (prefer) list.sort(function (a, b) { return (b.key === prefer ? 1 : 0) - (a.key === prefer ? 1 : 0); });
+  list.forEach(function (x) {
+    items.push({ primary: false, name: x.name, sub: x.sub, href: x.href, external: true });
+  });
+  return items;
+}
+function renderApps() {
+  const grid = $("#appsGrid");
+  if (!grid) return;
+  grid.innerHTML = "";
+  const note = $("#appsNote");
+  if (note) note.textContent = state.url ? t("apps.device", { os: t("os." + detectOS()) }) : "";
+  if (!state.url) { grid.hidden = true; return; }
+  grid.hidden = false;
+  appButtons().forEach(function (it) {
+    const a = document.createElement("a");
+    a.className = "app-link" + (it.primary ? " app-link-primary" : "");
+    a.href = it.href;
+    if (it.external) { a.target = "_blank"; a.rel = "noopener"; }
+    else if (it.deep) a.setAttribute("data-deep", "1");
+    a.textContent = it.name;
+    if (it.sub) {
+      const s = document.createElement("span");
+      s.textContent = it.sub;
+      a.appendChild(s);
+    }
+    if (it.deep) a.addEventListener("click", function () { deepLinkTo(it.copy); });
+    grid.appendChild(a);
+  });
+}
+
+/* ── پلن‌های تمدید ── */
+function renderPlans() {
+  const card = $("#plansCard"), grid = $("#plansGrid");
+  if (!card || !grid) return;
+  const plans = Array.isArray(CONFIG.plans) ? CONFIG.plans.filter(function (p) { return p && (p.name || p.days || p.gb); }) : [];
+  card.hidden = plans.length === 0 || !state.url;
+  if (card.hidden) return;
+  grid.innerHTML = "";
+  plans.forEach(function (p) {
+    const meta = [];
+    if (p.days) meta.push(t("plans.days", { d: FA0.format(p.days) }));
+    meta.push(p.gb ? t("plans.gb", { v: FA0.format(p.gb) }) : t("plans.unlimited"));
+    const el = document.createElement("div");
+    el.className = "plan";
+    const en = LANG === "en";
+    const nameTxt = (en && p.nameEn) || p.name || meta.join(" · ");
+    const priceTxt = (en && p.priceEn) || p.price || "";
+    const n = document.createElement("div"); n.className = "pl-name"; n.textContent = nameTxt;
+    const m = document.createElement("div"); m.className = "pl-meta"; m.textContent = meta.join(" · ");
+    const pr = document.createElement("div"); pr.className = "pl-price"; pr.textContent = priceTxt;
+    const a = document.createElement("a");
+    a.className = "btn";
+    a.textContent = t("plans.buy");
+    a.href = p.link || renewUrl() || CONFIG.supportLink || "#";
+    a.target = "_blank";
+    a.rel = "noopener";
+    el.appendChild(n); el.appendChild(m); el.appendChild(pr); el.appendChild(a);
+    grid.appendChild(el);
+  });
+}
+
+/* ── سرویس میانی (bridge.py): یک بار درخواست، چند کاربرد ── */
+const BRIDGE_TTL = 45000;
+// کشِ «پرامیس» تا هر دو مصرف‌کننده (نمودار روزانه و کارت وضعیت لحظه‌ای)
+// یک درخواست مشترک بگیرند و کارت دوم با نتیجه‌ی خالی رندر نشود.
+function loadBridge(force) {
+  if (!CONFIG.publicApi || !state.url || state.demo) return Promise.resolve(null);
+  if (force) { state.bridgeP = null; state.bridgeAt = 0; }
+  if (state.bridgeP && Date.now() - state.bridgeAt < BRIDGE_TTL) return state.bridgeP;
+  const key = CONFIG.publicApiKey ? "&key=" + encodeURIComponent(CONFIG.publicApiKey) : "";
+  const url = CONFIG.publicApi + (CONFIG.publicApi.indexOf("?") >= 0 ? "&" : "?") + "id=" + encodeURIComponent(subIdOf(state.url)) + key;
+  state.bridgeAt = Date.now();
+  state.bridgeP = fetch(url, { cache: "no-store" })
+    .then(function (res) { return res.json(); })
+    .then(function (j) { return j && j.ok !== false ? j : null; })
+    .catch(function () { return null; });
+  return state.bridgeP;
+}
+
+/* ── سرویس میانی: وضعیت لحظه‌ای ── */
+// تاریخ ایجاد اشتراک در کارت «حجم مصرفی».
+// منبع اول: created_at جدول clients پنل (دقیق) → «تاریخ ایجاد اشتراک»
+// منبع دوم (اگر پنل آن ستون را نداشته باشد): اولین ترافیک ثبت‌شده در جدول stats → تخمینی
+// اگر هیچ‌کدام نبود، خط پنهان نمی‌شود؛ علت صریح نشان داده می‌شود.
+function renderCreated(ts, approxTs, reason) {
+  const el = $("#createdTxt");
+  if (!el) return;
+  const exact = ts || 0, approx = approxTs || 0;
+  const use = exact || approx;
+  el.title = t("card.createdHint");
+  if (!use) {
+    if (reason === "unreachable") { el.hidden = false; el.textContent = t("card.createdUnknown"); }
+    else if (reason === "noData") { el.hidden = false; el.textContent = t("card.createdNoData"); }
+    else { el.hidden = true; el.textContent = ""; }
+    return;
+  }
+  const d = new Date(use * 1000);
+  el.hidden = false;
+  state.createdAt = use;
+  el.textContent = t(exact ? "card.created" : "card.createdApprox") + ": " +
+    (LANG === "en" ? enDate.format(d) : faDate.format(d));
+}
+async function renderMetrics() {
+  const card = $("#metricsCard"), body = $("#mtrBody");
+  if (!card || !body) return;
+  if (!CONFIG.publicApi || !state.url || state.demo) { card.hidden = true; renderCreated(0); return; }
+  card.hidden = false;
+  try {
+    const j = await loadBridge();
+    if (!j) throw new Error("bad");
+    const c = j.client || {}, us = j.usage || {}, rows = [];
+    renderCreated(c.createdAt, c.firstStatAt, (c.createdAt || c.firstStatAt) ? "" : "noData");
+    rows.push('<div class="kv"><span>' + t("mtr.state") + "</span><b>" + (c.online ? "🟢 " + t("mtr.online") : "⚪ " + t("mtr.offline")) + "</b></div>");
+    if (c.lastSeen) rows.push('<div class="kv"><span>' + t("mtr.lastSeen") + "</span><b>" + agoLabel((j.now || Math.floor(Date.now() / 1000)) - c.lastSeen) + "</b></div>");
+    if (us.h24 != null) rows.push('<div class="kv"><span>' + t("mtr.h24") + "</span><b>" + formatBytes(us.h24) + "</b></div>");
+    if (us.d7 != null) rows.push('<div class="kv"><span>' + t("mtr.d7") + "</span><b>" + formatBytes(us.d7) + "</b></div>");
+    const inb = Array.isArray(j.inbounds) ? j.inbounds.slice() : [];
+    if (inb.length) {
+      const max = inb.reduce(function (m, x) { return Math.max(m, (x.up || 0) + (x.down || 0)); }, 0) || 1;
+      let html = '<div style="margin-top:12px"><div class="muted small" style="margin-bottom:6px">' + t("mtr.servers") + "</div>";
+      inb.sort(function (a, b) { return ((b.up || 0) + (b.down || 0)) - ((a.up || 0) + (a.down || 0)); }).forEach(function (s) {
+        const v = (s.up || 0) + (s.down || 0);
+        const pct = Math.max(2, Math.round((v / max) * 100));
+        html += '<div class="loadrow"><span class="lname">' + (s.tag || "—") + '</span><span class="loadbar"><i style="width:' + pct + '%"></i></span><span class="lval">' + formatBytes(v) + "</span></div>";
+      });
+      rows.push(html + "</div>");
+    }
+    state.bridgeData = j;
+    body.innerHTML = rows.join("");
+      const f = $("#mtrFresh");
+    if (f) f.textContent = t("mtr.updated", { v: faTime.format(new Date()) });
+    saveLastInfo();   // تاریخ ایجاد (هم در کش آفلاین بماند)
+  } catch (e) {
+    card.hidden = true;
+    const lg = readLastInfo();     // آفلاین: تاریخ ایجادِ ذخیره‌شده باید بماند
+    renderCreated(state.offline && lg && lg.created ? lg.created : 0, 0, (state.offline && lg && lg.created) ? "" : "unreachable");
+  }
+}
+
+/* ── معرفی دوستان ── */
+function renderReferral() {
+  const card = $("#refCard");
+  if (!card) return;
+  const tpl = CONFIG.referral;
+  card.hidden = !tpl || !state.url;
+  if (card.hidden) return;
+  const link = tpl.replace("{id}", encodeURIComponent(subIdOf(state.url || "")));
+  $("#refUrlBox").textContent = link;
+  const b = $("#refCopyBtn");
+  if (b && !b._wired) { b._wired = 1; b.addEventListener("click", function () { copyText(link); }); }
+}
+
+/* ── تازه‌سازی سبک / PWA ── */
+async function refreshFast() {
+  if (!state.url || state.demo || state.offline) return;
+  try {
+    const res = await fetch(state.url, { method: "HEAD", cache: "no-store" });
+    if (!res.ok) return;
+    const info = parseUserInfo(res.headers.get("subscription-userinfo"));
+    if (!info) return;
+    state.info = info;
+    state.headerMissing = false;
+    state.serverDate = res.headers.get("date") || state.serverDate;
+    state.lastFetch = Date.now();
+    dailyTrack(info);
+    renderDash();
+  } catch (e) {}
+}
+function startAutoRefresh() {
+  if (refreshTimer) clearInterval(refreshTimer);
+  if (!CONFIG.autoRefreshSec || CONFIG.autoRefreshSec <= 0) return;
+  refreshTimer = setInterval(function () {
+    if (document.hidden) return;
+    if (!$("#dash").hidden && state.url && !state.demo) refreshFast();
+  }, CONFIG.autoRefreshSec * 1000);
+}
+let deferredInstall = null;
+async function initPwa() {
+  window.addEventListener("beforeinstallprompt", function (e) {
+    e.preventDefault();
+    deferredInstall = e;
+    const row = $("#mainActions");
+    if (row && !$("#installBtn")) {
+      const b = document.createElement("button");
+      b.className = "btn sm btn-ghost";
+      b.id = "installBtn";
+      b.type = "button";
+      b.textContent = t("act.install");
+      b.addEventListener("click", async function () {
+        try { deferredInstall.prompt(); await deferredInstall.userChoice; } catch (err) {}
+      });
+      row.insertBefore(b, row.firstChild);
+      syncMainActions();
+    }
+  });
+  try {
+    const m = await fetch("manifest.json", { method: "HEAD" });
+    if (m.ok && !document.querySelector('link[rel="manifest"]')) {
+      const l = document.createElement("link");
+      l.rel = "manifest";
+      l.href = "manifest.json";
+      document.head.appendChild(l);
+    }
+  } catch (e) {}
+  try {
+    // v37: سرویس‌ورکر همیشه (اگر sw.js کنار صفحه باشد) — برای باز شدن آفلاین و Push
+    if (navigator.serviceWorker && location.protocol !== "file:") {
+      const s = await fetch("sw.js", { method: "HEAD" });
+      if (s.ok) {
+        state.swReg = await navigator.serviceWorker.register("sw.js");
+        try { await navigator.serviceWorker.ready; state.swReady = true; } catch (e) {}
+        try {   // به سرویس‌ورکر بگو همین صفحه را برای باز شدن آفلاین کش کند
+          if (state.swReg && state.swReg.active) {
+            state.swReg.active.postMessage({ type: "cache-self", href: location.href, key: location.pathname });
+          }
+        } catch (e) {}
+      }
+    }
+  } catch (e) {}
+}
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(base64);
+  return Uint8Array.from(raw, function (c) { return c.charCodeAt(0); });
+}
+async function enablePush() {
+  try {
+    if (!CONFIG.pushEndpoint || !CONFIG.vapidPublicKey) throw new Error("not configured");
+    const reg = state.swReg || (navigator.serviceWorker && (await navigator.serviceWorker.register("sw.js")));
+    state.swReg = reg;
+    const perm = await Notification.requestPermission();
+    if (perm !== "granted") throw new Error("denied");
+    const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(CONFIG.vapidPublicKey) });
+    await fetch(CONFIG.pushEndpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: subIdOf(state.url || ""), subscription: sub }),
+    });
+    toast(t("toast.pushOk"), "ok");
+  } catch (e) { toast(t("toast.pushFail"), "err"); }
+}
+
+/* ── رندر بخش‌های تازه ── */
+function renderExtras() {
+  renderQrBox();
+  renderApps();
+  renderDaily();
+  renderPlans();
+  renderReferral();
+  renderChecklist();
+  renderGuide();
+  renderFixList();
+  const rb = $("#renewBtn");
+  if (rb) {
+    const u = renewUrl();
+    rb.hidden = !u;
+    if (u) rb.href = u;
+  }
+  const sc = $("#supportCard");
+  if (sc && CONFIG.supportLink) sc.href = CONFIG.supportLink;
+  maybeNotify();
+  renderMetrics();
+  renderConnectivity(false);
+  const pct = state.info && state.info.total > 0
+    ? Math.min(100, (((state.info.upload || 0) + (state.info.download || 0)) / state.info.total) * 100)
+    : null;
+  state.lastPct = pct;
+  drawFavicon(pct);
+  if (state.title) document.title = (pct != null ? FA0.format(pct) + pctSign + " · " : "") + state.title;
+}
+
+/* ── کنترل زبان/تم ── */
+function setLang(next) {
+  LANG = next === "en" ? "en" : "fa";
+  writeLS("sui-info:lang", LANG);
+  initFormatters();
+  applyI18n();
+  applyTheme();
+  if (state.info) renderDash();
+  else {
+    document.title = brandName();
+    renderGuide();
+    renderFixList();
+    renderChecklist();
+    renderApps();
+  }
+}
+
+/* ── شروع ── */
+function init() {
+  syncQrVisibility();
+  applyTheme();
+  applyI18n();
+  window.addEventListener("load", () => { syncQrVisibility(); renderQrBox(); });
+
+  if (!CONFIG.defaultSubBase) {
+    const path = location.pathname.replace(/\/[^/]*$/, "/") || "/";
+    CONFIG.defaultSubBase = location.origin + path;
+  }
+  $("#panelName").textContent = brandName();
+  document.title = brandName();
+  if (CONFIG.supportLink) {
+    const sb = $("#supportBtn");
+    sb.href = CONFIG.supportLink;
+    sb.hidden = false;
+    const sc = $("#supportCard");
+    sc.href = CONFIG.supportLink;
+    sc.hidden = false;
+  }
+
+  $("#subForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const r = resolveSubUrl($("#subInput").value);
+    if (r.error) { showError(r.error, false); return; }
+    clearError();
+    load(r.url);
+  });
+  $("#refreshBtn").addEventListener("click", () => {
+    if (state.demo) { loadDemo(); toast(t("toast.refreshed"), "ok"); return; }
+    if (state.url) load(state.url, { fromRefresh: true });
+  });
+  wireV20Events();
+  initTilt();
+  initIsland();
+  $("#qrModal").addEventListener("click", (e) => {
+    if (e.target.closest("[data-close]")) closeQr();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !$("#qrModal").hidden) closeQr();
+  });
+
+  const qs = new URLSearchParams(location.search);
+  if (qs.get("demo") === "1") {
+    loadDemo();
+  } else if (qs.get("url")) {
+    $("#subInput").value = qs.get("url");
+    load(qs.get("url"));
+  } else if (qs.get("id")) {
+    const r = resolveSubUrl(qs.get("id"));
+    if (r.url) { $("#subInput").value = r.url; load(r.url); }
+    else showError(r.error, false);
+  } else {
+    const selfUrl = location.origin + location.pathname.replace(/\/+$/, "");
+    load(selfUrl);
+  }
+
+  startAutoRefresh();
+  initPwa();
+}
+
+/* ── v20: اتصال رویدادها ── */
+function wireV20Events() {
+  const themeBtn = $("#themeBtn");
+  if (themeBtn) themeBtn.addEventListener("click", cycleTheme);
+  const langBtn = $("#langBtn");
+  if (langBtn) langBtn.addEventListener("click", function () { setLang(LANG === "en" ? "fa" : "en"); });
+
+  const maskBtn = $("#maskBtn");
+  if (maskBtn) maskBtn.addEventListener("click", function () { state.maskOn = !state.maskOn; renderQrBox(); });
+  const copyBtn = $("#copySubBtn");
+  if (copyBtn) copyBtn.addEventListener("click", function () {
+    copyText(shownSubscriptionLink(qrMode));
+    copyBtn.classList.add("done");
+    setTimeout(function () { copyBtn.classList.remove("done"); }, 1400);
+  });
+  document.querySelectorAll("#qrTabs .tab").forEach(function (b) {
+    b.addEventListener("click", function () { qrMode = b.getAttribute("data-qr-mode"); renderQrBox(); });
+  });
+  const notifBtn = $("#notifBtn");
+  if (notifBtn) notifBtn.addEventListener("click", askNotify);
+  // ردیف دکمه‌های پایین: اگر هیچ دکمه‌ی نمایانی نداشت، خودش پنهان بماند
+  const mainActions = $("#mainActions");
+  syncMainActions();   // ردیف دکمه‌های پایین اگر دکمه‌ی نمایانی نداشت، پنهان بماند
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden && state.url && !state.demo && !$("#dash").hidden) refreshFast();
+  });
+  // v37: آفلاین/آنلاین — چیپ نشان می‌دهد و با برگشتن اینترنت خودش تازه می‌شود
+  wireAlerts();
+  window.addEventListener("offline", function () {
+    setOffline(true);
+    if (state.url && !state.demo) toast(t("toast.offline"), "info");
+  });
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.addEventListener("message", function (ev) {
+      if (ev && ev.data && ev.data.type === "offline-fallback") setOffline(true);
+    });
+  }
+  window.addEventListener("online", function () {
+    setOffline(false);
+    if (state.url && !state.demo) { toast(t("toast.backOnline"), "ok"); refreshFast(); }
+  });
+  if (!navigator.onLine) setOffline(true);
+  if (CONFIG.pushEndpoint) {
+    const row = $("#mainActions");
+    const b = document.createElement("button");
+    b.className = "btn sm btn-ghost";
+    b.id = "pushBtn";
+    b.type = "button";
+    b.textContent = t("act.notif");
+    b.addEventListener("click", enablePush);
+    if (row) { row.appendChild(b); syncMainActions(); }
+  }
+}
+
+// فهرست سرویس‌های ذخیره‌شده دیگر وجود ندارد؛ کلید قدیمی‌اش هم پاک می‌شود تا چیزی از آن نماند.
+try { localStorage.removeItem("sui-info:subs"); } catch (e) {}
+
+init();
 </script>
+
+<!--
+  این صفحه را خود پنل روی لینک اشتراک سرو می‌کند. nginx لازم نیست.
+  اپ‌های VPN همان لینک را با هدرهای اشتراک می‌گیرند؛ مرورگر این HTML را می‌بیند.
+-->
 </body>
 </html>

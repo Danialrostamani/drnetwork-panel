@@ -193,10 +193,23 @@ set_setting() {
     echo -e "Enter the ${yellow}panel path${plain} (leave blank for existing/default value):"
     read config_path
 
-    echo -e "Enter the ${yellow}subscription port${plain} (leave blank for existing/default value):"
+    echo -e "Enter the ${yellow}subscription domain${plain} clients open (e.g. sub.example.com, blank to skip):"
+    read config_subDomain
+    echo -e "Enter the ${yellow}subscription certificate file${plain} (e.g. /root/cert.crt, blank to skip HTTPS):"
+    read config_subCert
+    echo -e "Enter the ${yellow}subscription private key file${plain} (e.g. /root/private.key, blank to skip HTTPS):"
+    read config_subKey
+
+    echo -e "Enter the ${yellow}subscription port${plain} (blank = 443 if domain+certs, otherwise existing/default):"
     read config_subPort
-    echo -e "Enter the ${yellow}subscription path${plain} (leave blank for existing/default value):" 
+    echo -e "Enter the ${yellow}subscription path${plain} (blank = / if domain+certs, otherwise existing/default):"
     read config_subPath
+
+    if [[ -n "$config_subDomain" && -n "$config_subCert" && -n "$config_subKey" ]]; then
+        [ -n "$config_subPort" ] || config_subPort=443
+        [ -n "$config_subPath" ] || config_subPath=/
+        echo -e "${green}Subscription will use HTTPS on port 443 at /. Nginx is not needed.${plain}"
+    fi
 
     echo -e "${yellow}Initializing, please wait...${plain}"
     params=""
@@ -204,6 +217,9 @@ set_setting() {
     [ -z "$config_path" ] || params="$params -path $config_path"
     [ -z "$config_subPort" ] || params="$params -subPort $config_subPort"
     [ -z "$config_subPath" ] || params="$params -subPath $config_subPath"
+    [ -z "$config_subDomain" ] || params="$params -subDomain $config_subDomain"
+    [ -z "$config_subCert" ] || params="$params -subCert $config_subCert"
+    [ -z "$config_subKey" ] || params="$params -subKey $config_subKey"
     /usr/local/s-ui/sui setting ${params}
     before_show_menu
 }

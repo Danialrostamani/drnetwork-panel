@@ -31,7 +31,7 @@ func resetSetting() {
 	}
 }
 
-func updateSetting(port int, path string, subPort int, subPath string) {
+func updateSetting(port int, path string, subPort int, subPath, subDomain, subCert, subKey string) {
 	err := database.InitDB(config.GetDBPath())
 	if err != nil {
 		fmt.Println(err)
@@ -70,6 +70,30 @@ func updateSetting(port int, path string, subPort int, subPath string) {
 			fmt.Println("set sub path failed:", err)
 		} else {
 			fmt.Println("set sub path success")
+		}
+	}
+	if subDomain != "" {
+		err := settingService.SetSubDomain(subDomain)
+		if err != nil {
+			fmt.Println("set sub domain failed:", err)
+		} else {
+			fmt.Println("set sub domain success")
+		}
+	}
+	if subCert != "" {
+		err := settingService.SetSubCertFile(subCert)
+		if err != nil {
+			fmt.Println("set sub certificate failed:", err)
+		} else {
+			fmt.Println("set sub certificate success")
+		}
+	}
+	if subKey != "" {
+		err := settingService.SetSubKeyFile(subKey)
+		if err != nil {
+			fmt.Println("set sub key failed:", err)
+		} else {
+			fmt.Println("set sub key success")
 		}
 	}
 }

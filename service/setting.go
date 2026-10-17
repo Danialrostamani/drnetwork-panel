@@ -377,6 +377,18 @@ func (s *SettingService) SetSubPath(subPath string) error {
 	return s.setString("subPath", subPath)
 }
 
+func (s *SettingService) SetSubDomain(domain string) error {
+	return s.setString("subDomain", strings.TrimSpace(domain))
+}
+
+func (s *SettingService) SetSubCertFile(path string) error {
+	return s.setString("subCertFile", strings.TrimSpace(path))
+}
+
+func (s *SettingService) SetSubKeyFile(path string) error {
+	return s.setString("subKeyFile", strings.TrimSpace(path))
+}
+
 func (s *SettingService) GetSubDomain() (string, error) {
 	return s.getString("subDomain")
 }
