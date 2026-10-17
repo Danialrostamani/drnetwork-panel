@@ -522,524 +522,524 @@
           </v-tabs>
           <v-window v-model="tgTab">
             <v-window-item value="bot">
-          <v-row>
-            <v-col cols="12">
-              <v-alert
-                type="info"
-                variant="tonal"
-                density="compact"
-              >
-                {{ $t('setting.tgBotHint') }}
-              </v-alert>
-            </v-col>
-            <v-col
-              cols="12"
-              sm="6"
-              md="4"
-            >
-              <v-switch
-                v-model="tgBotEnable"
-                color="primary"
-                :label="$t('setting.tgBotEnable')"
-                hide-details
-              />
-            </v-col>
-            <v-col
-              cols="12"
-              sm="6"
-              md="4"
-            >
-              <v-switch
-                v-model="tgBotNotify"
-                color="primary"
-                :label="$t('setting.tgBotNotify')"
-                hide-details
-              />
-            </v-col>
-            <v-col
-              cols="12"
-              sm="6"
-              md="4"
-            >
-              <v-select
-                v-model="settings.tgBotLang"
-                :items="[{ title: 'فارسی', value: 'fa' }, { title: 'English', value: 'en' }]"
-                :label="$t('setting.tgBotLang')"
-                hide-details
-              />
-            </v-col>
-            <v-col
-              cols="12"
-              sm="6"
-              md="4"
-            >
-              <v-select
-                v-model="settings.tgBotSkin"
-                :items="[{ title: $t('setting.tgBotSkinColorful'), value: 'colorful' }, { title: $t('setting.tgBotSkinClassic'), value: 'classic' }]"
-                :label="$t('setting.tgBotSkin')"
-                hide-details
-              />
-            </v-col>
-            <v-col
-              cols="12"
-              md="6"
-            >
-              <v-text-field
-                v-model="settings.tgBotToken"
-                :label="$t('setting.tgBotToken')"
-                placeholder="123456789:AA..."
-                autocomplete="off"
-                hide-details
-              />
-            </v-col>
-            <v-col
-              cols="12"
-              md="6"
-            >
-              <v-text-field
-                v-model="settings.tgBotAdmins"
-                :label="$t('setting.tgBotAdmins')"
-                :hint="$t('setting.tgBotAdminsHint')"
-                persistent-hint
-                placeholder="12345678, 87654321"
-              />
-            </v-col>
-            <v-col
-              cols="12"
-              md="6"
-            >
-              <v-text-field
-                v-model="settings.tgBotOwner"
-                :label="$t('setting.tgBotOwner')"
-                :hint="$t('setting.tgBotOwnerHint')"
-                persistent-hint
-                placeholder="12345678"
-              />
-            </v-col>
-            <v-col
-              cols="12"
-              md="6"
-            >
-              <v-textarea
-                v-model="settings.tgBotScopes"
-                :label="$t('setting.tgBotScopes')"
-                :hint="$t('setting.tgBotScopesHint')"
-                persistent-hint
-                rows="2"
-                auto-grow
-                placeholder="12345678=Sales"
-              />
-            </v-col>
-            <v-col
-              cols="12"
-              md="6"
-            >
-              <v-textarea
-                v-model="settings.tgBotPerms"
-                :label="$t('setting.tgBotPerms')"
-                :hint="$t('setting.tgBotPermsHint')"
-                persistent-hint
-                rows="2"
-                auto-grow
-                placeholder="12345678=clients,stats"
-              />
-            </v-col>
-            <v-col
-              cols="12"
-              md="6"
-            >
-              <v-text-field
-                v-model="settings.tgBotProxy"
-                :label="$t('setting.tgBotProxy')"
-                :hint="$t('setting.tgBotProxyHint')"
-                persistent-hint
-                placeholder="http://127.0.0.1:8080"
-              />
-            </v-col>
-            <v-col
-              cols="12"
-              md="6"
-            >
-              <v-combobox
-                v-model="tgBotOutbound"
-                :items="outboundChoices"
-                item-title="title"
-                item-value="value"
-                :label="$t('setting.tgBotOutbound')"
-                :hint="$t('setting.tgBotOutboundHint')"
-                persistent-hint
-                clearable
-              />
-            </v-col>
-            <v-col
-              cols="12"
-              md="6"
-            >
-              <v-text-field
-                v-model="settings.tgBotReport"
-                :label="$t('setting.tgBotReport')"
-                :hint="$t('setting.tgBotReportHint')"
-                persistent-hint
-                placeholder="@daily"
-              />
-            </v-col>
-            <v-col
-              cols="12"
-              md="6"
-            >
-              <v-switch
-                v-model="tgBotReportBackup"
-                color="primary"
-                :label="$t('setting.tgBotReportBackup')"
-                hide-details
-              />
-            </v-col>
-          </v-row>
+              <v-row>
+                <v-col cols="12">
+                  <v-alert
+                    type="info"
+                    variant="tonal"
+                    density="compact"
+                  >
+                    {{ $t('setting.tgBotHint') }}
+                  </v-alert>
+                </v-col>
+                <v-col
+                  cols="12"
+                  sm="6"
+                  md="4"
+                >
+                  <v-switch
+                    v-model="tgBotEnable"
+                    color="primary"
+                    :label="$t('setting.tgBotEnable')"
+                    hide-details
+                  />
+                </v-col>
+                <v-col
+                  cols="12"
+                  sm="6"
+                  md="4"
+                >
+                  <v-switch
+                    v-model="tgBotNotify"
+                    color="primary"
+                    :label="$t('setting.tgBotNotify')"
+                    hide-details
+                  />
+                </v-col>
+                <v-col
+                  cols="12"
+                  sm="6"
+                  md="4"
+                >
+                  <v-select
+                    v-model="settings.tgBotLang"
+                    :items="[{ title: 'فارسی', value: 'fa' }, { title: 'English', value: 'en' }]"
+                    :label="$t('setting.tgBotLang')"
+                    hide-details
+                  />
+                </v-col>
+                <v-col
+                  cols="12"
+                  sm="6"
+                  md="4"
+                >
+                  <v-select
+                    v-model="settings.tgBotSkin"
+                    :items="[{ title: $t('setting.tgBotSkinColorful'), value: 'colorful' }, { title: $t('setting.tgBotSkinClassic'), value: 'classic' }]"
+                    :label="$t('setting.tgBotSkin')"
+                    hide-details
+                  />
+                </v-col>
+                <v-col
+                  cols="12"
+                  md="6"
+                >
+                  <v-text-field
+                    v-model="settings.tgBotToken"
+                    :label="$t('setting.tgBotToken')"
+                    placeholder="123456789:AA..."
+                    autocomplete="off"
+                    hide-details
+                  />
+                </v-col>
+                <v-col
+                  cols="12"
+                  md="6"
+                >
+                  <v-text-field
+                    v-model="settings.tgBotAdmins"
+                    :label="$t('setting.tgBotAdmins')"
+                    :hint="$t('setting.tgBotAdminsHint')"
+                    persistent-hint
+                    placeholder="12345678, 87654321"
+                  />
+                </v-col>
+                <v-col
+                  cols="12"
+                  md="6"
+                >
+                  <v-text-field
+                    v-model="settings.tgBotOwner"
+                    :label="$t('setting.tgBotOwner')"
+                    :hint="$t('setting.tgBotOwnerHint')"
+                    persistent-hint
+                    placeholder="12345678"
+                  />
+                </v-col>
+                <v-col
+                  cols="12"
+                  md="6"
+                >
+                  <v-textarea
+                    v-model="settings.tgBotScopes"
+                    :label="$t('setting.tgBotScopes')"
+                    :hint="$t('setting.tgBotScopesHint')"
+                    persistent-hint
+                    rows="2"
+                    auto-grow
+                    placeholder="12345678=Sales"
+                  />
+                </v-col>
+                <v-col
+                  cols="12"
+                  md="6"
+                >
+                  <v-textarea
+                    v-model="settings.tgBotPerms"
+                    :label="$t('setting.tgBotPerms')"
+                    :hint="$t('setting.tgBotPermsHint')"
+                    persistent-hint
+                    rows="2"
+                    auto-grow
+                    placeholder="12345678=clients,stats"
+                  />
+                </v-col>
+                <v-col
+                  cols="12"
+                  md="6"
+                >
+                  <v-text-field
+                    v-model="settings.tgBotProxy"
+                    :label="$t('setting.tgBotProxy')"
+                    :hint="$t('setting.tgBotProxyHint')"
+                    persistent-hint
+                    placeholder="http://127.0.0.1:8080"
+                  />
+                </v-col>
+                <v-col
+                  cols="12"
+                  md="6"
+                >
+                  <v-combobox
+                    v-model="tgBotOutbound"
+                    :items="outboundChoices"
+                    item-title="title"
+                    item-value="value"
+                    :label="$t('setting.tgBotOutbound')"
+                    :hint="$t('setting.tgBotOutboundHint')"
+                    persistent-hint
+                    clearable
+                  />
+                </v-col>
+                <v-col
+                  cols="12"
+                  md="6"
+                >
+                  <v-text-field
+                    v-model="settings.tgBotReport"
+                    :label="$t('setting.tgBotReport')"
+                    :hint="$t('setting.tgBotReportHint')"
+                    persistent-hint
+                    placeholder="@daily"
+                  />
+                </v-col>
+                <v-col
+                  cols="12"
+                  md="6"
+                >
+                  <v-switch
+                    v-model="tgBotReportBackup"
+                    color="primary"
+                    :label="$t('setting.tgBotReportBackup')"
+                    hide-details
+                  />
+                </v-col>
+              </v-row>
             </v-window-item>
             <v-window-item value="shop">
-          <v-row>
-            <v-col cols="12">
-              <v-alert
-                type="info"
-                variant="tonal"
-                density="compact"
-              >
-                {{ $t('setting.tgBotShopHint') }}
-              </v-alert>
-            </v-col>
-            <v-col cols="12">
-              <div class="text-subtitle-1 mb-2">
-                {{ $t('setting.tgBotShop') }}
-              </div>
-            </v-col>
-            <v-col
-              cols="12"
-              md="6"
-            >
-              <v-textarea
-                :model-value="shop.welcomeFa"
-                :label="$t('setting.tgBotShopWelcome')"
-                rows="2"
-                auto-grow
-                hide-details
-                @update:model-value="(v: string) => patchShop({ welcomeFa: v })"
-              />
-            </v-col>
-            <v-col
-              cols="12"
-              md="6"
-            >
-              <v-textarea
-                :model-value="shop.guideFa"
-                :label="$t('setting.tgBotShopGuide')"
-                rows="2"
-                auto-grow
-                hide-details
-                @update:model-value="(v: string) => patchShop({ guideFa: v })"
-              />
-            </v-col>
-            <v-col
-              cols="12"
-              sm="6"
-              md="4"
-            >
-              <v-text-field
-                :model-value="shop.payCard"
-                :label="$t('setting.tgBotShopPayCard')"
-                hide-details
-                @update:model-value="(v: string) => patchShop({ payCard: v })"
-              />
-            </v-col>
-            <v-col
-              cols="12"
-              sm="6"
-              md="4"
-            >
-              <v-text-field
-                :model-value="shop.payWallet"
-                :label="$t('setting.tgBotShopPayWallet')"
-                hide-details
-                @update:model-value="(v: string) => patchShop({ payWallet: v })"
-              />
-            </v-col>
-            <v-col
-              cols="12"
-              md="4"
-            >
-              <v-text-field
-                :model-value="shop.payHint"
-                :label="$t('setting.tgBotShopPayHint')"
-                hide-details
-                @update:model-value="(v: string) => patchShop({ payHint: v })"
-              />
-            </v-col>
-            <v-col
-              cols="6"
-              md="3"
-            >
-              <v-text-field
-                :model-value="String(shop.trialGB)"
-                type="number"
-                min="0"
-                :label="$t('setting.tgBotShopTrialGB')"
-                hide-details
-                @update:model-value="(v: string) => patchShop({ trialGB: Number(v) || 0 })"
-              />
-            </v-col>
-            <v-col
-              cols="6"
-              md="3"
-            >
-              <v-text-field
-                :model-value="String(shop.trialHours)"
-                type="number"
-                min="0"
-                :label="$t('setting.tgBotShopTrialHours')"
-                hide-details
-                @update:model-value="(v: string) => patchShop({ trialHours: Number(v) || 0 })"
-              />
-            </v-col>
-            <v-col cols="12">
-              <div class="text-subtitle-2 mb-1">
-                {{ $t('setting.tgBotShopRefs') }}
-              </div>
-              <div class="text-caption text-medium-emphasis mb-2">
-                {{ $t('setting.tgBotShopRefHint') }}
-              </div>
-              <div
-                v-for="(r, i) in shop.refs"
-                :key="r.id"
-                class="d-flex flex-wrap ga-2 mb-2"
-              >
-                <v-text-field
-                  :model-value="r.word"
-                  density="compact"
-                  hide-details
-                  :label="$t('setting.tgBotShopRefWord')"
-                  style="min-width: 8rem"
-                  @update:model-value="(v: string) => patchShopRef(i, { word: v })"
-                />
-                <v-text-field
-                  :model-value="r.group"
-                  density="compact"
-                  hide-details
-                  :label="$t('setting.tgBotShopRefGroup')"
-                  style="min-width: 8rem"
-                  @update:model-value="(v: string) => patchShopRef(i, { group: v })"
-                />
-                <v-text-field
-                  :model-value="r.admin"
-                  density="compact"
-                  hide-details
-                  :label="$t('setting.tgBotShopRefAdmin')"
-                  style="min-width: 8rem"
-                  @update:model-value="(v: string) => patchShopRef(i, { admin: v })"
-                />
-                <v-btn
-                  icon="mdi-close"
-                  variant="text"
-                  size="small"
-                  @click="removeShopRef(i)"
-                />
-              </div>
-              <v-btn
-                variant="tonal"
-                size="small"
-                @click="addShopRef"
-              >
-                {{ $t('setting.tgBotShopAddRef') }}
-              </v-btn>
-            </v-col>
-            <v-col cols="12">
-              <div class="text-subtitle-2 mb-2">
-                {{ $t('setting.tgBotShopPlans') }}
-              </div>
-              <div
-                v-for="(p, i) in shop.plans"
-                :key="p.id"
-                class="d-flex flex-wrap ga-2 mb-2"
-              >
-                <v-text-field
-                  :model-value="p.name"
-                  density="compact"
-                  hide-details
-                  :label="$t('setting.tgBotShopPlanName')"
-                  style="min-width: 8rem"
-                  @update:model-value="(v: string) => patchShopPlan(i, { name: v })"
-                />
-                <v-text-field
-                  :model-value="String(p.days)"
-                  type="number"
-                  density="compact"
-                  hide-details
-                  :label="$t('setting.tgBotShopPlanDays')"
-                  style="max-width: 6rem"
-                  @update:model-value="(v: string) => patchShopPlan(i, { days: Number(v) || 0 })"
-                />
-                <v-text-field
-                  :model-value="String(p.gb)"
-                  type="number"
-                  density="compact"
-                  hide-details
-                  :label="$t('setting.tgBotShopPlanGB')"
-                  style="max-width: 8rem"
-                  @update:model-value="(v: string) => patchShopPlan(i, { gb: Number(v) || 0 })"
-                />
-                <v-text-field
-                  :model-value="p.price"
-                  density="compact"
-                  hide-details
-                  :label="$t('setting.tgBotShopPlanPrice')"
-                  style="max-width: 8rem"
-                  @update:model-value="(v: string) => patchShopPlan(i, { price: v })"
-                />
-                <v-btn
-                  icon="mdi-close"
-                  variant="text"
-                  size="small"
-                  @click="removeShopPlan(i)"
-                />
-              </div>
-              <v-btn
-                variant="tonal"
-                size="small"
-                @click="addShopPlan"
-              >
-                {{ $t('setting.tgBotShopAddPlan') }}
-              </v-btn>
-            </v-col>
-          </v-row>
+              <v-row>
+                <v-col cols="12">
+                  <v-alert
+                    type="info"
+                    variant="tonal"
+                    density="compact"
+                  >
+                    {{ $t('setting.tgBotShopHint') }}
+                  </v-alert>
+                </v-col>
+                <v-col cols="12">
+                  <div class="text-subtitle-1 mb-2">
+                    {{ $t('setting.tgBotShop') }}
+                  </div>
+                </v-col>
+                <v-col
+                  cols="12"
+                  md="6"
+                >
+                  <v-textarea
+                    :model-value="shop.welcomeFa"
+                    :label="$t('setting.tgBotShopWelcome')"
+                    rows="2"
+                    auto-grow
+                    hide-details
+                    @update:model-value="(v: string) => patchShop({ welcomeFa: v })"
+                  />
+                </v-col>
+                <v-col
+                  cols="12"
+                  md="6"
+                >
+                  <v-textarea
+                    :model-value="shop.guideFa"
+                    :label="$t('setting.tgBotShopGuide')"
+                    rows="2"
+                    auto-grow
+                    hide-details
+                    @update:model-value="(v: string) => patchShop({ guideFa: v })"
+                  />
+                </v-col>
+                <v-col
+                  cols="12"
+                  sm="6"
+                  md="4"
+                >
+                  <v-text-field
+                    :model-value="shop.payCard"
+                    :label="$t('setting.tgBotShopPayCard')"
+                    hide-details
+                    @update:model-value="(v: string) => patchShop({ payCard: v })"
+                  />
+                </v-col>
+                <v-col
+                  cols="12"
+                  sm="6"
+                  md="4"
+                >
+                  <v-text-field
+                    :model-value="shop.payWallet"
+                    :label="$t('setting.tgBotShopPayWallet')"
+                    hide-details
+                    @update:model-value="(v: string) => patchShop({ payWallet: v })"
+                  />
+                </v-col>
+                <v-col
+                  cols="12"
+                  md="4"
+                >
+                  <v-text-field
+                    :model-value="shop.payHint"
+                    :label="$t('setting.tgBotShopPayHint')"
+                    hide-details
+                    @update:model-value="(v: string) => patchShop({ payHint: v })"
+                  />
+                </v-col>
+                <v-col
+                  cols="6"
+                  md="3"
+                >
+                  <v-text-field
+                    :model-value="String(shop.trialGB)"
+                    type="number"
+                    min="0"
+                    :label="$t('setting.tgBotShopTrialGB')"
+                    hide-details
+                    @update:model-value="(v: string) => patchShop({ trialGB: Number(v) || 0 })"
+                  />
+                </v-col>
+                <v-col
+                  cols="6"
+                  md="3"
+                >
+                  <v-text-field
+                    :model-value="String(shop.trialHours)"
+                    type="number"
+                    min="0"
+                    :label="$t('setting.tgBotShopTrialHours')"
+                    hide-details
+                    @update:model-value="(v: string) => patchShop({ trialHours: Number(v) || 0 })"
+                  />
+                </v-col>
+                <v-col cols="12">
+                  <div class="text-subtitle-2 mb-1">
+                    {{ $t('setting.tgBotShopRefs') }}
+                  </div>
+                  <div class="text-caption text-medium-emphasis mb-2">
+                    {{ $t('setting.tgBotShopRefHint') }}
+                  </div>
+                  <div
+                    v-for="(r, i) in shop.refs"
+                    :key="r.id"
+                    class="d-flex flex-wrap ga-2 mb-2"
+                  >
+                    <v-text-field
+                      :model-value="r.word"
+                      density="compact"
+                      hide-details
+                      :label="$t('setting.tgBotShopRefWord')"
+                      style="min-width: 8rem"
+                      @update:model-value="(v: string) => patchShopRef(i, { word: v })"
+                    />
+                    <v-text-field
+                      :model-value="r.group"
+                      density="compact"
+                      hide-details
+                      :label="$t('setting.tgBotShopRefGroup')"
+                      style="min-width: 8rem"
+                      @update:model-value="(v: string) => patchShopRef(i, { group: v })"
+                    />
+                    <v-text-field
+                      :model-value="r.admin"
+                      density="compact"
+                      hide-details
+                      :label="$t('setting.tgBotShopRefAdmin')"
+                      style="min-width: 8rem"
+                      @update:model-value="(v: string) => patchShopRef(i, { admin: v })"
+                    />
+                    <v-btn
+                      icon="mdi-close"
+                      variant="text"
+                      size="small"
+                      @click="removeShopRef(i)"
+                    />
+                  </div>
+                  <v-btn
+                    variant="tonal"
+                    size="small"
+                    @click="addShopRef"
+                  >
+                    {{ $t('setting.tgBotShopAddRef') }}
+                  </v-btn>
+                </v-col>
+                <v-col cols="12">
+                  <div class="text-subtitle-2 mb-2">
+                    {{ $t('setting.tgBotShopPlans') }}
+                  </div>
+                  <div
+                    v-for="(p, i) in shop.plans"
+                    :key="p.id"
+                    class="d-flex flex-wrap ga-2 mb-2"
+                  >
+                    <v-text-field
+                      :model-value="p.name"
+                      density="compact"
+                      hide-details
+                      :label="$t('setting.tgBotShopPlanName')"
+                      style="min-width: 8rem"
+                      @update:model-value="(v: string) => patchShopPlan(i, { name: v })"
+                    />
+                    <v-text-field
+                      :model-value="String(p.days)"
+                      type="number"
+                      density="compact"
+                      hide-details
+                      :label="$t('setting.tgBotShopPlanDays')"
+                      style="max-width: 6rem"
+                      @update:model-value="(v: string) => patchShopPlan(i, { days: Number(v) || 0 })"
+                    />
+                    <v-text-field
+                      :model-value="String(p.gb)"
+                      type="number"
+                      density="compact"
+                      hide-details
+                      :label="$t('setting.tgBotShopPlanGB')"
+                      style="max-width: 8rem"
+                      @update:model-value="(v: string) => patchShopPlan(i, { gb: Number(v) || 0 })"
+                    />
+                    <v-text-field
+                      :model-value="p.price"
+                      density="compact"
+                      hide-details
+                      :label="$t('setting.tgBotShopPlanPrice')"
+                      style="max-width: 8rem"
+                      @update:model-value="(v: string) => patchShopPlan(i, { price: v })"
+                    />
+                    <v-btn
+                      icon="mdi-close"
+                      variant="text"
+                      size="small"
+                      @click="removeShopPlan(i)"
+                    />
+                  </div>
+                  <v-btn
+                    variant="tonal"
+                    size="small"
+                    @click="addShopPlan"
+                  >
+                    {{ $t('setting.tgBotShopAddPlan') }}
+                  </v-btn>
+                </v-col>
+              </v-row>
             </v-window-item>
             <v-window-item value="desks">
-          <v-row>
-            <v-col cols="12">
-              <div class="text-subtitle-2 mb-1">
-                {{ $t('setting.tgBotShopDesks') }}
-              </div>
-              <div class="text-caption text-medium-emphasis mb-2">
-                {{ $t('setting.tgBotShopDesksHint') }}
-              </div>
-              <v-expansion-panels
-                variant="accordion"
-                class="mb-3"
-              >
-                <v-expansion-panel
-                  v-for="id in shopAdminIds"
-                  :key="id"
-                >
-                  <v-expansion-panel-title>
-                    {{ $t('setting.tgBotShopDeskTitle', { id }) }}
-                  </v-expansion-panel-title>
-                  <v-expansion-panel-text>
-                    <div class="d-flex flex-wrap ga-2 mb-2">
-                      <v-text-field
-                        :model-value="deskOf(id).payCard"
-                        density="compact"
-                        hide-details
-                        :label="$t('setting.tgBotShopPayCard')"
-                        style="min-width: 10rem"
-                        @update:model-value="(v: string) => patchShopDesk(id, { payCard: v })"
-                      />
-                      <v-text-field
-                        :model-value="deskOf(id).payWallet"
-                        density="compact"
-                        hide-details
-                        :label="$t('setting.tgBotShopPayWallet')"
-                        style="min-width: 10rem"
-                        @update:model-value="(v: string) => patchShopDesk(id, { payWallet: v })"
-                      />
-                      <v-text-field
-                        :model-value="deskOf(id).payHint"
-                        density="compact"
-                        hide-details
-                        :label="$t('setting.tgBotShopPayHint')"
-                        style="min-width: 10rem"
-                        @update:model-value="(v: string) => patchShopDesk(id, { payHint: v })"
-                      />
-                    </div>
-                    <div
-                      v-for="(p, i) in deskOf(id).plans"
-                      :key="p.id"
-                      class="d-flex flex-wrap ga-2 mb-2"
+              <v-row>
+                <v-col cols="12">
+                  <div class="text-subtitle-2 mb-1">
+                    {{ $t('setting.tgBotShopDesks') }}
+                  </div>
+                  <div class="text-caption text-medium-emphasis mb-2">
+                    {{ $t('setting.tgBotShopDesksHint') }}
+                  </div>
+                  <v-expansion-panels
+                    variant="accordion"
+                    class="mb-3"
+                  >
+                    <v-expansion-panel
+                      v-for="id in shopAdminIds"
+                      :key="id"
                     >
-                      <v-text-field
-                        :model-value="p.name"
-                        density="compact"
-                        hide-details
-                        :label="$t('setting.tgBotShopPlanName')"
-                        style="min-width: 8rem"
-                        @update:model-value="(v: string) => patchShopDeskPlan(id, i, { name: v })"
-                      />
-                      <v-text-field
-                        :model-value="String(p.days)"
-                        type="number"
-                        density="compact"
-                        hide-details
-                        :label="$t('setting.tgBotShopPlanDays')"
-                        style="max-width: 6rem"
-                        @update:model-value="(v: string) => patchShopDeskPlan(id, i, { days: Number(v) || 0 })"
-                      />
-                      <v-text-field
-                        :model-value="String(p.gb)"
-                        type="number"
-                        density="compact"
-                        hide-details
-                        :label="$t('setting.tgBotShopPlanGB')"
-                        style="max-width: 8rem"
-                        @update:model-value="(v: string) => patchShopDeskPlan(id, i, { gb: Number(v) || 0 })"
-                      />
-                      <v-text-field
-                        :model-value="p.price"
-                        density="compact"
-                        hide-details
-                        :label="$t('setting.tgBotShopPlanPrice')"
-                        style="max-width: 8rem"
-                        @update:model-value="(v: string) => patchShopDeskPlan(id, i, { price: v })"
-                      />
-                      <v-btn
-                        icon="mdi-close"
-                        variant="text"
-                        size="small"
-                        @click="removeShopDeskPlan(id, i)"
-                      />
-                    </div>
+                      <v-expansion-panel-title>
+                        {{ $t('setting.tgBotShopDeskTitle', { id }) }}
+                      </v-expansion-panel-title>
+                      <v-expansion-panel-text>
+                        <div class="d-flex flex-wrap ga-2 mb-2">
+                          <v-text-field
+                            :model-value="deskOf(id).payCard"
+                            density="compact"
+                            hide-details
+                            :label="$t('setting.tgBotShopPayCard')"
+                            style="min-width: 10rem"
+                            @update:model-value="(v: string) => patchShopDesk(id, { payCard: v })"
+                          />
+                          <v-text-field
+                            :model-value="deskOf(id).payWallet"
+                            density="compact"
+                            hide-details
+                            :label="$t('setting.tgBotShopPayWallet')"
+                            style="min-width: 10rem"
+                            @update:model-value="(v: string) => patchShopDesk(id, { payWallet: v })"
+                          />
+                          <v-text-field
+                            :model-value="deskOf(id).payHint"
+                            density="compact"
+                            hide-details
+                            :label="$t('setting.tgBotShopPayHint')"
+                            style="min-width: 10rem"
+                            @update:model-value="(v: string) => patchShopDesk(id, { payHint: v })"
+                          />
+                        </div>
+                        <div
+                          v-for="(p, i) in deskOf(id).plans"
+                          :key="p.id"
+                          class="d-flex flex-wrap ga-2 mb-2"
+                        >
+                          <v-text-field
+                            :model-value="p.name"
+                            density="compact"
+                            hide-details
+                            :label="$t('setting.tgBotShopPlanName')"
+                            style="min-width: 8rem"
+                            @update:model-value="(v: string) => patchShopDeskPlan(id, i, { name: v })"
+                          />
+                          <v-text-field
+                            :model-value="String(p.days)"
+                            type="number"
+                            density="compact"
+                            hide-details
+                            :label="$t('setting.tgBotShopPlanDays')"
+                            style="max-width: 6rem"
+                            @update:model-value="(v: string) => patchShopDeskPlan(id, i, { days: Number(v) || 0 })"
+                          />
+                          <v-text-field
+                            :model-value="String(p.gb)"
+                            type="number"
+                            density="compact"
+                            hide-details
+                            :label="$t('setting.tgBotShopPlanGB')"
+                            style="max-width: 8rem"
+                            @update:model-value="(v: string) => patchShopDeskPlan(id, i, { gb: Number(v) || 0 })"
+                          />
+                          <v-text-field
+                            :model-value="p.price"
+                            density="compact"
+                            hide-details
+                            :label="$t('setting.tgBotShopPlanPrice')"
+                            style="max-width: 8rem"
+                            @update:model-value="(v: string) => patchShopDeskPlan(id, i, { price: v })"
+                          />
+                          <v-btn
+                            icon="mdi-close"
+                            variant="text"
+                            size="small"
+                            @click="removeShopDeskPlan(id, i)"
+                          />
+                        </div>
+                        <v-btn
+                          variant="tonal"
+                          size="small"
+                          class="me-2"
+                          @click="addShopDeskPlan(id)"
+                        >
+                          {{ $t('setting.tgBotShopAddPlan') }}
+                        </v-btn>
+                        <v-btn
+                          variant="text"
+                          size="small"
+                          color="error"
+                          @click="removeShopDesk(id)"
+                        >
+                          {{ $t('setting.tgBotShopRemoveDesk') }}
+                        </v-btn>
+                      </v-expansion-panel-text>
+                    </v-expansion-panel>
+                  </v-expansion-panels>
+                  <div class="d-flex flex-wrap ga-2 align-center">
+                    <v-text-field
+                      v-model="newDeskId"
+                      density="compact"
+                      hide-details
+                      :label="$t('setting.tgBotShopDeskId')"
+                      style="max-width: 16rem"
+                    />
                     <v-btn
                       variant="tonal"
                       size="small"
-                      class="me-2"
-                      @click="addShopDeskPlan(id)"
+                      @click="addShopDesk"
                     >
-                      {{ $t('setting.tgBotShopAddPlan') }}
+                      {{ $t('setting.tgBotShopAddDesk') }}
                     </v-btn>
-                    <v-btn
-                      variant="text"
-                      size="small"
-                      color="error"
-                      @click="removeShopDesk(id)"
-                    >
-                      {{ $t('setting.tgBotShopRemoveDesk') }}
-                    </v-btn>
-                  </v-expansion-panel-text>
-                </v-expansion-panel>
-              </v-expansion-panels>
-              <div class="d-flex flex-wrap ga-2 align-center">
-                <v-text-field
-                  v-model="newDeskId"
-                  density="compact"
-                  hide-details
-                  :label="$t('setting.tgBotShopDeskId')"
-                  style="max-width: 16rem"
-                />
-                <v-btn
-                  variant="tonal"
-                  size="small"
-                  @click="addShopDesk"
-                >
-                  {{ $t('setting.tgBotShopAddDesk') }}
-                </v-btn>
-              </div>
-            </v-col>
-          </v-row>
+                  </div>
+                </v-col>
+              </v-row>
             </v-window-item>
           </v-window>
         </v-window-item>
