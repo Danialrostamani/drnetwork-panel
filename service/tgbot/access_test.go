@@ -440,10 +440,10 @@ func TestOnlyTheOwnerCanEditAdmins(t *testing.T) {
 	}
 }
 
-func TestWithoutAnOwnerNobodyEditsAdmins(t *testing.T) {
+func TestWithoutAnOwnerAFullAdminCanClaimIt(t *testing.T) {
 	e := newScopeEnv(t)
 	e.configure(map[string]string{"tgBotAdmins": "42, 77", "tgBotScopes": "77=Sales"})
-	for _, who := range []int64{fullAdmin, 0, 1000} {
+	for _, who := range []int64{0, 1000, salesAdmin} {
 		n := len(e.got())
 		e.press(who, "a:add")
 		if msgs := e.since(n); len(msgs) != 1 || msgs[0].Method != "answerCallbackQuery" || msgs[0].Text == "" {
@@ -453,15 +453,13 @@ func TestWithoutAnOwnerNobodyEditsAdmins(t *testing.T) {
 	n := len(e.got())
 	e.press(fullAdmin, "a:ls")
 	msgs := e.since(n)
-	if text := lastText(msgs, "editMessageText"); !strings.Contains(text, "Bot owner") {
-		t.Fatalf("no hint about setting the owner:\n%s", text)
+	text, kb := lastText(msgs, "editMessageText"), keyboardOf(msgs)
+	if !strings.Contains(text, "No owner is set yet") {
+		t.Fatalf("no hint about claiming the owner:\n%s", text)
 	}
-	for _, data := range callbackData(keyboardOf(msgs)) {
-		if strings.HasPrefix(data, "a:") {
-			t.Errorf("offered %s without an owner", data)
-		}
+	if !hasData(kb, "a:add") {
+		t.Fatalf("a full admin cannot add admins before an owner is set: %v", callbackData(kb))
 	}
-	// Asking the access layer directly does not make anybody the owner.
 	if e.b.as(0).owner || e.b.as(fullAdmin).owner {
 		t.Fatal("somebody is the owner of an ownerless bot")
 	}

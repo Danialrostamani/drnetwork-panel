@@ -17,6 +17,8 @@ func TestCustomerBuyIsButtonsAndOwnerEditsPlans(t *testing.T) {
 	}
 	b, got := fakeTelegram(t)
 	b.cfg.Lang = "en"
+	b.cfg.Owner = 42
+	b.setAccess(b.cfg.access())
 	ctx := context.Background()
 
 	b.handle(ctx, privateMessage(99, "Buy a plan 🔐"))
@@ -167,6 +169,8 @@ func TestNewCustomerMustSendReferrerWord(t *testing.T) {
 	}
 	b, got := fakeTelegram(t)
 	b.cfg.Lang = "en"
+	b.cfg.Owner = 42
+	b.setAccess(b.cfg.access())
 	ctx := context.Background()
 
 	b.handle(ctx, privateMessage(99, "Buy a plan 🔐"))
@@ -237,8 +241,9 @@ func TestNewCustomerMustSendReferrerWord(t *testing.T) {
 	_ = json.Unmarshal([]byte(`{"update_id":3,"message":{"photo":[{"file_id":"rec1"}],"chat":{"id":99,"type":"private"},"from":{"id":99}}}`), &rec)
 	b.handle(ctx, rec)
 	for _, m := range got()[n:] {
-		if m.ChatID == 42 {
+		if m.ChatID == 42 && m.Text != "" {
 			toAdmin = m.Text
+			break
 		}
 	}
 	if !strings.Contains(toAdmin, "Gold") || !strings.Contains(toAdmin, "Ali") {
