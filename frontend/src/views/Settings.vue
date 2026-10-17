@@ -790,6 +790,14 @@
                   style="min-width: 8rem"
                   @update:model-value="(v: string) => patchShopRef(i, { group: v })"
                 />
+                <v-text-field
+                  :model-value="r.admin"
+                  density="compact"
+                  hide-details
+                  :label="$t('setting.tgBotShopRefAdmin')"
+                  style="min-width: 8rem"
+                  @update:model-value="(v: string) => patchShopRef(i, { admin: v })"
+                />
                 <v-btn
                   icon="mdi-close"
                   variant="text"
@@ -862,6 +870,133 @@
               >
                 {{ $t('setting.tgBotShopAddPlan') }}
               </v-btn>
+            </v-col>
+            <v-col cols="12">
+              <div class="text-subtitle-2 mb-1">
+                {{ $t('setting.tgBotShopDesks') }}
+              </div>
+              <div class="text-caption text-medium-emphasis mb-2">
+                {{ $t('setting.tgBotShopDesksHint') }}
+              </div>
+              <v-expansion-panels
+                variant="accordion"
+                class="mb-3"
+              >
+                <v-expansion-panel
+                  v-for="id in shopAdminIds"
+                  :key="id"
+                >
+                  <v-expansion-panel-title>
+                    {{ $t('setting.tgBotShopDeskTitle', { id }) }}
+                  </v-expansion-panel-title>
+                  <v-expansion-panel-text>
+                    <div class="d-flex flex-wrap ga-2 mb-2">
+                      <v-text-field
+                        :model-value="deskOf(id).payCard"
+                        density="compact"
+                        hide-details
+                        :label="$t('setting.tgBotShopPayCard')"
+                        style="min-width: 10rem"
+                        @update:model-value="(v: string) => patchShopDesk(id, { payCard: v })"
+                      />
+                      <v-text-field
+                        :model-value="deskOf(id).payWallet"
+                        density="compact"
+                        hide-details
+                        :label="$t('setting.tgBotShopPayWallet')"
+                        style="min-width: 10rem"
+                        @update:model-value="(v: string) => patchShopDesk(id, { payWallet: v })"
+                      />
+                      <v-text-field
+                        :model-value="deskOf(id).payHint"
+                        density="compact"
+                        hide-details
+                        :label="$t('setting.tgBotShopPayHint')"
+                        style="min-width: 10rem"
+                        @update:model-value="(v: string) => patchShopDesk(id, { payHint: v })"
+                      />
+                    </div>
+                    <div
+                      v-for="(p, i) in deskOf(id).plans"
+                      :key="p.id"
+                      class="d-flex flex-wrap ga-2 mb-2"
+                    >
+                      <v-text-field
+                        :model-value="p.name"
+                        density="compact"
+                        hide-details
+                        :label="$t('setting.tgBotShopPlanName')"
+                        style="min-width: 8rem"
+                        @update:model-value="(v: string) => patchShopDeskPlan(id, i, { name: v })"
+                      />
+                      <v-text-field
+                        :model-value="String(p.days)"
+                        type="number"
+                        density="compact"
+                        hide-details
+                        :label="$t('setting.tgBotShopPlanDays')"
+                        style="max-width: 6rem"
+                        @update:model-value="(v: string) => patchShopDeskPlan(id, i, { days: Number(v) || 0 })"
+                      />
+                      <v-text-field
+                        :model-value="String(p.gb)"
+                        type="number"
+                        density="compact"
+                        hide-details
+                        :label="$t('setting.tgBotShopPlanGB')"
+                        style="max-width: 8rem"
+                        @update:model-value="(v: string) => patchShopDeskPlan(id, i, { gb: Number(v) || 0 })"
+                      />
+                      <v-text-field
+                        :model-value="p.price"
+                        density="compact"
+                        hide-details
+                        :label="$t('setting.tgBotShopPlanPrice')"
+                        style="max-width: 8rem"
+                        @update:model-value="(v: string) => patchShopDeskPlan(id, i, { price: v })"
+                      />
+                      <v-btn
+                        icon="mdi-close"
+                        variant="text"
+                        size="small"
+                        @click="removeShopDeskPlan(id, i)"
+                      />
+                    </div>
+                    <v-btn
+                      variant="tonal"
+                      size="small"
+                      class="me-2"
+                      @click="addShopDeskPlan(id)"
+                    >
+                      {{ $t('setting.tgBotShopAddPlan') }}
+                    </v-btn>
+                    <v-btn
+                      variant="text"
+                      size="small"
+                      color="error"
+                      @click="removeShopDesk(id)"
+                    >
+                      {{ $t('setting.tgBotShopRemoveDesk') }}
+                    </v-btn>
+                  </v-expansion-panel-text>
+                </v-expansion-panel>
+              </v-expansion-panels>
+              <div class="d-flex flex-wrap ga-2 align-center">
+                <v-text-field
+                  v-model="newDeskId"
+                  density="compact"
+                  hide-details
+                  :label="$t('setting.tgBotShopDeskId')"
+                  style="max-width: 16rem"
+                />
+                <v-btn
+                  variant="tonal"
+                  size="small"
+                  @click="addShopDesk"
+                >
+                  {{ $t('setting.tgBotShopAddDesk') }}
+                </v-btn>
+              </div>
             </v-col>
           </v-row>
         </v-window-item>
@@ -1054,7 +1189,8 @@ const tgBotNotify = computed({
 })
 
 type ShopPlan = { id: string, name: string, days: number, gb: number, price: string }
-type ShopRef = { id: string, word: string, group: string }
+type ShopRef = { id: string, word: string, group: string, admin: string }
+type ShopDesk = { payCard: string, payWallet: string, payHint: string, plans: ShopPlan[] }
 type Shop = {
   welcomeFa: string
   guideFa: string
@@ -1065,17 +1201,41 @@ type Shop = {
   trialHours: number
   plans: ShopPlan[]
   refs: ShopRef[]
+  desks: Record<string, ShopDesk>
 }
 
+const emptyDesk = (): ShopDesk => ({ payCard: '', payWallet: '', payHint: '', plans: [] })
 const emptyShop = (): Shop => ({
   welcomeFa: '', guideFa: '', payCard: '', payWallet: '', payHint: '',
-  trialGB: 0, trialHours: 0, plans: [], refs: [],
+  trialGB: 0, trialHours: 0, plans: [], refs: [], desks: {},
+})
+
+const parsePlans = (plans: unknown): ShopPlan[] => {
+  if (!Array.isArray(plans)) return []
+  return plans.map((p: { id?: string, name?: string, days?: number, gb?: number, price?: string }, i: number) => ({
+    id: String(p?.id || String(i + 1)),
+    name: String(p?.name || ''),
+    days: Math.max(0, Math.trunc(Number(p?.days) || 0)),
+    gb: Math.max(0, Math.trunc(Number(p?.gb) || 0)),
+    price: String(p?.price || ''),
+  }))
+}
+
+const parseDesk = (o: { payCard?: string, payWallet?: string, payHint?: string, plans?: unknown } | undefined): ShopDesk => ({
+  payCard: String(o?.payCard || ''),
+  payWallet: String(o?.payWallet || ''),
+  payHint: String(o?.payHint || ''),
+  plans: parsePlans(o?.plans),
 })
 
 const parseShop = (raw: string): Shop => {
   try {
     const o = JSON.parse(raw || '{}')
-    const plans = Array.isArray(o.plans) ? o.plans : []
+    const desksIn = o.desks && typeof o.desks === 'object' ? o.desks as Record<string, { payCard?: string, payWallet?: string, payHint?: string, plans?: unknown }> : {}
+    const desks: Record<string, ShopDesk> = {}
+    for (const [id, d] of Object.entries(desksIn)) {
+      if (/^\d+$/.test(id)) desks[id] = parseDesk(d)
+    }
     const refs = Array.isArray(o.refs) ? o.refs : []
     return {
       welcomeFa: String(o.welcomeFa || ''),
@@ -1085,18 +1245,14 @@ const parseShop = (raw: string): Shop => {
       payHint: String(o.payHint || ''),
       trialGB: Math.max(0, Math.trunc(Number(o.trialGB) || 0)),
       trialHours: Math.max(0, Math.trunc(Number(o.trialHours) || 0)),
-      plans: plans.map((p: { id?: string, name?: string, days?: number, gb?: number, price?: string }, i: number) => ({
-        id: String(p?.id || String(i + 1)),
-        name: String(p?.name || ''),
-        days: Math.max(0, Math.trunc(Number(p?.days) || 0)),
-        gb: Math.max(0, Math.trunc(Number(p?.gb) || 0)),
-        price: String(p?.price || ''),
-      })),
-      refs: refs.map((r: { id?: string, word?: string, group?: string }, i: number) => ({
+      plans: parsePlans(o.plans),
+      refs: refs.map((r: { id?: string, word?: string, group?: string, admin?: number | string }, i: number) => ({
         id: String(r?.id || String(i + 1)),
         word: String(r?.word || ''),
         group: String(r?.group || ''),
+        admin: r?.admin ? String(r.admin) : '',
       })),
+      desks,
     }
   } catch {
     return emptyShop()
@@ -1106,13 +1262,18 @@ const parseShop = (raw: string): Shop => {
 const writeShop = (s: Shop) => {
   let cur: Record<string, unknown>
   try { cur = JSON.parse(settings.value.tgBotShop || '{}') || {} } catch { cur = {} }
+  const refs = s.refs.map((r) => {
+    const admin = Number(r.admin)
+    return admin > 0 ? { id: r.id, word: r.word, group: r.group, admin } : { id: r.id, word: r.word, group: r.group }
+  })
   settings.value.tgBotShop = JSON.stringify({
     ...cur,
     welcomeFa: s.welcomeFa, guideFa: s.guideFa,
     payCard: s.payCard, payWallet: s.payWallet, payHint: s.payHint,
     trialGB: s.trialGB, trialHours: s.trialHours,
     plans: s.plans,
-    refs: s.refs,
+    refs,
+    desks: s.desks,
   })
 }
 
@@ -1145,11 +1306,57 @@ const patchShopRef = (i: number, partial: Partial<ShopRef>) => {
 const addShopRef = () => {
   const s = shop.value
   const id = String((s.refs.reduce((m, r) => Math.max(m, Number(r.id) || 0), 0) || 0) + 1)
-  writeShop({ ...s, refs: [...s.refs, { id, word: '', group: '' }] })
+  writeShop({ ...s, refs: [...s.refs, { id, word: '', group: '', admin: '' }] })
 }
 
 const removeShopRef = (i: number) => {
   writeShop({ ...shop.value, refs: shop.value.refs.filter((_, idx) => idx !== i) })
+}
+
+const newDeskId = ref('')
+const shopAdminIds = computed(() => {
+  const ids: string[] = []
+  const add = (s: string) => {
+    const v = String(s || '').trim()
+    if (/^\d+$/.test(v) && !ids.includes(v)) ids.push(v)
+  }
+  add(settings.value.tgBotOwner)
+  String(settings.value.tgBotAdmins || '').split(/[,\s]+/).forEach(add)
+  Object.keys(shop.value.desks).forEach(add)
+  return ids
+})
+const deskOf = (id: string): ShopDesk => shop.value.desks[id] || emptyDesk()
+const patchShopDesk = (id: string, partial: Partial<ShopDesk>) => {
+  const desks = { ...shop.value.desks, [id]: { ...deskOf(id), ...partial } }
+  writeShop({ ...shop.value, desks })
+}
+const patchShopDeskPlan = (id: string, i: number, partial: Partial<ShopPlan>) => {
+  const d = deskOf(id)
+  const plans = d.plans.map((p, idx) => idx === i ? { ...p, ...partial } : p)
+  patchShopDesk(id, { plans })
+}
+const addShopDeskPlan = (id: string) => {
+  const d = deskOf(id)
+  const pid = String((d.plans.reduce((m, p) => Math.max(m, Number(p.id) || 0), 0) || 0) + 1)
+  patchShopDesk(id, { plans: [...d.plans, { id: pid, name: '', days: 30, gb: 50, price: '' }] })
+}
+const removeShopDeskPlan = (id: string, i: number) => {
+  patchShopDesk(id, { plans: deskOf(id).plans.filter((_, idx) => idx !== i) })
+}
+const addShopDesk = () => {
+  const id = newDeskId.value.trim()
+  if (!/^\d+$/.test(id)) return
+  if (!shop.value.desks[id]) patchShopDesk(id, emptyDesk())
+  const listed = String(settings.value.tgBotAdmins || '')
+  if (!listed.split(/[,\s]+/).includes(id) && settings.value.tgBotOwner.trim() !== id) {
+    settings.value.tgBotAdmins = listed.trim() ? listed.trim().replace(/,?\s*$/, '') + ', ' + id : id
+  }
+  newDeskId.value = ''
+}
+const removeShopDesk = (id: string) => {
+  const desks = { ...shop.value.desks }
+  delete desks[id]
+  writeShop({ ...shop.value, desks })
 }
 
 const subLoadOrder = computed({
