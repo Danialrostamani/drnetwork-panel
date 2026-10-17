@@ -51,7 +51,7 @@ func TestOwnerSetsAnAdminsVolumeLimit(t *testing.T) {
 
 	// A preset starts a limit; a top-up adds to it.
 	out = e.runPress(ownerID, "a:qa:42:100")
-	mustContain(t, out, "Total: <b>100.00 GiB</b>", "Used: 0 B", "Left: <b>100.00 GiB</b>", "Clients counted: 0", "Nothing is deducted when this admin creates a client")
+	mustContain(t, out, "Total: <b>100.00 GiB</b>", "Used: 0 B", "Left: <b>100.00 GiB</b>", "Clients counted: 0", "When this admin's shop sale is approved")
 	e.runPress(ownerID, "a:qa:42:50")
 	if q := quotaRow(t, 42); q.Total != 150*gib || q.Banked != 0 {
 		t.Fatalf("after the preset and a top-up: %+v", q)
