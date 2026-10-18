@@ -80,6 +80,10 @@ func (b *bot) as(id int64) *bot {
 		r := a.roleOf(id)
 		sb.scope, sb.sections = r.group, r.sections
 		sb.owner = a.isOwner(id)
+		if !sb.owner && adminMeta(id).Suspended {
+			// Suspended by the owner: still known, but with no access at all.
+			sb.scope, sb.sections, sb.paused = "", sectionSet{}, true
+		}
 	}
 	return &sb
 }

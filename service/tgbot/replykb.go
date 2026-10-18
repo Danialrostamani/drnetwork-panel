@@ -32,6 +32,7 @@ var menuItems = []menuItem{
 	{"📋 سفارش‌ها", "📋 Orders", "k:ordsP"},
 	{"📊 گزارش فروش", "📊 Sales report", "k:sales"},
 	{"🔙 پنل مدیریت", "🔙 Admin panel", "k:admin"},
+	{"👑 پنل مالک", "👑 Owner panel", "q:home"},
 	{"🏠 خانه", "🏠 Home", "h:home"},
 	{"📋 منوی اصلی", "📋 Main menu", "m:menu"},
 	{"👥 کلاینت‌ها", "👥 Clients", "c:ls:a:0"},
@@ -94,7 +95,11 @@ func (b *bot) adminMenu() [][]string {
 	if !b.restricted() || b.isAdmin(b.self) {
 		extra = append(extra, "k:edit", "k:ordsP", "k:sales")
 	}
-	return append(rows, extra)
+	rows = append(rows, extra)
+	if b.canManageAdmins() {
+		rows = append(rows, []string{"q:home"})
+	}
+	return rows
 }
 
 func (b *bot) replyMarkup(rows [][]string) map[string]any {
@@ -141,6 +146,8 @@ func (b *bot) menuPress(ctx context.Context, chatID int64, from *fromUser, data 
 			if !bb.allowed([]string{"k", "edit"}) {
 				return false
 			}
+			// The bottom menu opens the owner's own shop, not a seller's.
+			b.clearDesk(chatID)
 			text, kb := bb.shopEditHome()
 			bb.sendKeyboard(ctx, chatID, text, kb)
 			return true

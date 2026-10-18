@@ -322,6 +322,7 @@ const (
 	secNone  = ""         // anybody
 	secOwner = "#owner"   // the owner only
 	secDeny  = "#unknown" // not a button of a section: administrators with full access only
+	secBoss  = "#boss"    // the owner's tools: the owner, or a full administrator when there is no owner
 )
 
 // kindSection maps the object kinds of the bot (kindList) to their sections.
@@ -389,6 +390,8 @@ func callbackSection(parts []string) string {
 		return secNone
 	case "k":
 		return secNone
+	case "q":
+		return secBoss
 	case "u":
 		// A bound client's own buttons (their usage and subscription). They
 		// belong to no section: pressing one is checked against the client's
@@ -421,6 +424,8 @@ func pendingSection(p *pending) string {
 	switch {
 	case strings.HasPrefix(p.kind, "ad."):
 		return secOwner
+	case strings.HasPrefix(p.kind, "q."):
+		return secBoss
 	case strings.HasPrefix(p.kind, "cl."), strings.HasPrefix(p.kind, "bk."), p.kind == "wiz":
 		return "clients"
 	case p.kind == "in.port":
@@ -467,6 +472,8 @@ func (b *bot) allowedBy(sec string) bool {
 		return true
 	case secOwner:
 		return b.owner
+	case secBoss:
+		return b.canManageAdmins()
 	case secDeny:
 		return !b.restricted()
 	}

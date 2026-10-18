@@ -131,7 +131,11 @@ func (b *bot) customerPending(ctx context.Context, chatID int64, from *fromUser,
 		topic = p.data["topic"]
 	}
 	b.pend.clear(chatID)
-	b.notifyAdmins(ctx, b.customerNotice(from, topic, text))
+	sid := fmt.Sprintf("%d", from.ID)
+	b.notifyStaff(ctx, b.customerNotice(from, topic, text), [][]button{{
+		{Text: b.tr("✉️ پاسخ", "✉️ Reply"), Data: "q:cm:" + sid},
+		{Text: b.tr("👤 پروفایل", "👤 Profile"), Data: "q:cv:" + sid},
+	}})
 	b.sendMenu(ctx, chatID, b.tr(
 		"✅ پیام شما به پشتیبانی رسید.",
 		"✅ Your message was sent to support."), b.customerMenu(from.ID))

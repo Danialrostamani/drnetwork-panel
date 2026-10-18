@@ -207,7 +207,7 @@ func (b *bot) customerCancel(ctx context.Context, chatID int64, from *fromUser, 
 		return
 	}
 	if o.WalletPaid && o.Amount > 0 {
-		_, _ = walletCredit(o.TgId, o.Amount)
+		_, _ = walletCredit(o.TgId, o.Amount, walletMemo{kind: walletRefund, order: o.Id})
 	}
 	// A receipt sent after this must not reach staff for a cancelled order.
 	if p := b.pend.get(chatID); p != nil && p.kind == "cu.receipt" && p.data != nil && p.data["id"] == strconv.FormatUint(uint64(o.Id), 10) {
@@ -229,25 +229,43 @@ func (b *bot) maybeQuotaWarn(ctx context.Context, adminID int64) {
 	if pct > 100 {
 		pct = 100
 	}
+	db := database.GetDB().Model(&model.BotQuota{}).Where("tg_id = ?", adminID)
+	if pct < 100 && q.Warn100 {
+		_ = database.GetDB().Model(&model.BotQuota{}).Where("tg_id = ?", adminID).Update("warn100", false).Error
+	}
 	if pct < 80 {
 		if q.Warn80 {
-			_ = database.GetDB().Model(&model.BotQuota{}).Where("tg_id = ?", adminID).Update("warn80", false).Error
+			_ = db.Update("warn80", false).Error
 		}
 		return
 	}
-	if q.Warn80 {
-		return
-	}
-	if err := database.GetDB().Model(&model.BotQuota{}).Where("tg_id = ?", adminID).Update("warn80", true).Error; err != nil {
-		return
-	}
 	owner := b.access().owner
-	if owner == 0 {
+	if !q.Warn80 {
+		if err := database.GetDB().Model(&model.BotQuota{}).Where("tg_id = ?", adminID).Update("warn80", true).Error; err != nil {
+			return
+		}
+		if owner != 0 && pct < 100 {
+			text := b.tr(
+				fmt.Sprintf("⚠️ سهمیه ادمین <code>%d</code> به %d٪ رسیده است (%s از %s).", adminID, pct, humanBytes(q.Used), humanBytes(q.Total)),
+				fmt.Sprintf("⚠️ Admin <code>%d</code> has reached %d%% of their quota (%s of %s).", adminID, pct, humanBytes(q.Used), humanBytes(q.Total)),
+			)
+			b.notifyIDs(ctx, []int64{owner}, text, nil)
+		}
+	}
+	if pct < 100 || q.Warn100 {
 		return
 	}
-	text := b.tr(
-		fmt.Sprintf("⚠️ سهمیه ادمین <code>%d</code> به %d٪ رسیده است (%s از %s).", adminID, pct, humanBytes(q.Used), humanBytes(q.Total)),
-		fmt.Sprintf("⚠️ Admin <code>%d</code> has reached %d%% of their quota (%s of %s).", adminID, pct, humanBytes(q.Used), humanBytes(q.Total)),
-	)
-	b.notifyIDs(ctx, []int64{owner}, text, nil)
+	if err := database.GetDB().Model(&model.BotQuota{}).Where("tg_id = ?", adminID).Update("warn100", true).Error; err != nil {
+		return
+	}
+	if owner != 0 && owner != adminID && prefOn(prefQuotaFull) {
+		sid := strconv.FormatInt(adminID, 10)
+		b.notifyIDs(ctx, []int64{owner}, b.tr(
+			fmt.Sprintf("🚫 سهمیه ادمین <code>%d</code> تمام شد (%s از %s). تا شارژ نشود نمی‌تواند بفروشد.", adminID, humanBytes(q.Used), humanBytes(q.Total)),
+			fmt.Sprintf("🚫 Admin <code>%d</code> used up their quota (%s of %s). They cannot sell until it is topped up.", adminID, humanBytes(q.Used), humanBytes(q.Total))),
+			[][]button{{{Text: b.tr("📦 شارژ سهمیه", "📦 Top up quota"), Data: "a:q:" + sid}, {Text: b.tr("👮 فروشنده", "👮 Seller"), Data: "q:ad:" + sid}}})
+	}
+	b.notifyIDs(ctx, []int64{adminID}, b.tr(
+		"🚫 سهمیه حجم شما تمام شد. تا مالک سهمیه را شارژ نکند فروش و ساخت کلاینت جدید ممکن نیست.",
+		"🚫 Your volume quota is used up. Until the owner tops it up you cannot sell or create clients."), nil)
 }

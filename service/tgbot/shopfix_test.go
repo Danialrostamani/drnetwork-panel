@@ -198,7 +198,7 @@ func TestWalletPaymentGoesBackWhenTheSaleFails(t *testing.T) {
 	e := newAccessEnv(t)
 	giveQuota(t, salesAdmin, 5)
 	setShop(t, shopConfig{Plans: []shopPlan{{ID: "1", Name: "Gold", Days: 30, GB: 40, Price: "100"}}})
-	if _, err := walletCredit(99, 500); err != nil {
+	if _, err := walletCredit(99, 500, walletMemo{kind: walletManual}); err != nil {
 		t.Fatal(err)
 	}
 	o := &model.BotOrder{TgId: 99, Topic: "buy", PlanID: "1", AdminId: salesAdmin, Status: orderPending,

@@ -39,6 +39,9 @@ func (b *bot) mainMenu() [][]button {
 		{{Text: t("💾 پشتیبان", "💾 Backup"), Data: "m:backup"}, {Text: t("🔁 همگام‌سازی", "🔁 Sync"), Data: "m:sync"}},
 		{{Text: t("🚧 نگهداری", "🚧 Maintenance"), Data: "m:maint"}, {Text: t("♻️ ریستارت هسته", "♻️ Restart core"), Data: "m:restart"}},
 	}
+	if b.canManageAdmins() {
+		kb = append(kb, []button{{Text: t("👑 پنل مالک", "👑 Owner panel"), Data: "q:home"}})
+	}
 	return kb
 }
 
@@ -128,6 +131,20 @@ func (b *bot) handle(ctx context.Context, u update) {
 	chatID, from := m.Chat.ID, m.From.ID
 	b = b.as(from)
 	text := m.Text
+	if b.paused {
+		if cmd, _ := parseCommand(text); cmd == "id" {
+			b.send(ctx, chatID, b.t("yourId", from))
+			return
+		}
+		b.send(ctx, chatID, b.pausedText())
+		return
+	}
+	if !b.isAdmin(from) {
+		fu := &fromUser{ID: from, FirstName: m.From.FirstName, LastName: m.From.LastName, Username: m.From.Username}
+		if b.customerGate(ctx, chatID, fu) {
+			return
+		}
+	}
 	// A bottom-menu button comes first, and abandons a half-typed answer.
 	if data := b.menuLookup(text); data != "" {
 		fu := &fromUser{ID: from, FirstName: m.From.FirstName, LastName: m.From.LastName, Username: m.From.Username}
@@ -636,9 +653,12 @@ func (b *bot) handleCallback(ctx context.Context, u update) {
 		return
 	}
 	if parts[0] == "u" {
-		b.userCallback(ctx, cb.ID, chatID, msgID, &fromUser{
-			ID: cb.From.ID, FirstName: cb.From.FirstName, LastName: cb.From.LastName, Username: cb.From.Username,
-		}, parts)
+		fu := &fromUser{ID: cb.From.ID, FirstName: cb.From.FirstName, LastName: cb.From.LastName, Username: cb.From.Username}
+		if !b.isAdmin(fu.ID) && customerBlocked(fu.ID) {
+			b.answer(ctx, cb.ID, plainText(b.blockedText()))
+			return
+		}
+		b.userCallback(ctx, cb.ID, chatID, msgID, fu, parts)
 		return
 	}
 	if !b.isAdmin(cb.From.ID) {
@@ -646,6 +666,10 @@ func (b *bot) handleCallback(ctx context.Context, u update) {
 		return
 	}
 	b = b.as(cb.From.ID)
+	if b.paused {
+		b.answer(ctx, cb.ID, plainText(b.pausedText()))
+		return
+	}
 	if !b.allowed(parts) {
 		b.answer(ctx, cb.ID, b.denied())
 		return
@@ -653,6 +677,10 @@ func (b *bot) handleCallback(ctx context.Context, u update) {
 	show := func(text string, kb [][]button) {
 		b.answer(ctx, cb.ID, "")
 		b.edit(ctx, chatID, msgID, text, kb)
+	}
+	if parts[0] == "m" && parts[1] == "menu" {
+		// Back at the menu: the owner no longer edits a seller's shop.
+		b.clearDesk(chatID)
 	}
 	// Any navigation abandons a half-finished prompt.
 	if parts[0] != "w" {
@@ -681,6 +709,8 @@ func (b *bot) handleCallback(ctx context.Context, u update) {
 		b.shopEditCallback(ctx, cb.ID, chatID, msgID, parts)
 	case "j":
 		b.orderCallback(ctx, cb.ID, chatID, msgID, parts)
+	case "q":
+		b.ownerCallback(ctx, cb.ID, chatID, msgID, parts)
 	case "t":
 		text, kb := b.statsScreen(parts[1])
 		show(text, kb)

@@ -338,6 +338,11 @@ type bot struct {
 	configService *service.ConfigService
 	pend          *pendingStore
 	menus         *menuState
+	// seen throttles customer visit records; desks is the seller whose shop
+	// the owner edits, per chat; drafts are the owner's unsent broadcasts.
+	seen   *customerSeen
+	desks  *sync.Map
+	drafts *sync.Map
 
 	// acc is who may do what. It is live: the supervisor and the owner's edits
 	// replace it while the bot runs, and every copy of the bot shares it.
@@ -354,6 +359,10 @@ type bot struct {
 	sections sectionSet
 	owner    bool
 	self     int64
+	// paused is set for an administrator the owner suspended; deskBy is the
+	// owner editing this administrator's shop on their behalf.
+	paused bool
+	deskBy int64
 }
 
 func newBot(cfg botConfig) *bot {
@@ -381,6 +390,9 @@ func newBot(cfg botConfig) *bot {
 		pend:   &pendingStore{},
 		menus:  &menuState{},
 		acc:    newAccessState(cfg.access()),
+		seen:   &customerSeen{},
+		desks:  &sync.Map{},
+		drafts: &sync.Map{},
 	}
 }
 

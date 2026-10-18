@@ -104,6 +104,8 @@ type BotQuota struct {
 	// their limit, so the same crossing is not announced again until usage
 	// drops back below 80%.
 	Warn80 bool `json:"warn80" gorm:"default:false;not null"`
+	// Warn100 is the same for the limit being used up.
+	Warn100 bool `json:"warn100" gorm:"default:false;not null"`
 	// Adopted is set once the clients the administrator created through the
 	// bot before the limit existed have been looked up in the change history.
 	Adopted bool `json:"adopted" gorm:"default:false;not null"`
@@ -158,9 +160,13 @@ type BotOrder struct {
 	// units for a buy or renew (0 when the price is not a number).
 	Amount int64 `json:"amount" gorm:"default:0;not null"`
 	// WalletPaid is set when a buy or renew was paid from the wallet balance.
-	WalletPaid bool  `json:"walletPaid" gorm:"default:false;not null"`
-	CreatedAt  int64 `json:"createdAt" gorm:"index"`
-	UpdatedAt  int64 `json:"updatedAt"`
+	WalletPaid bool `json:"walletPaid" gorm:"default:false;not null"`
+	// SettlementId is the settlement with the seller that covered this sale.
+	SettlementId uint `json:"settlementId" gorm:"default:0;not null;index"`
+	// Reminded is set once the owner was told the order waits too long.
+	Reminded  bool  `json:"reminded" gorm:"default:false;not null"`
+	CreatedAt int64 `json:"createdAt" gorm:"index"`
+	UpdatedAt int64 `json:"updatedAt"`
 }
 
 func (BotOrder) TableName() string { return "bot_orders" }
@@ -185,6 +191,77 @@ type BotWallet struct {
 }
 
 func (BotWallet) TableName() string { return "bot_wallets" }
+
+// BotWalletTx is one change of a wallet balance: a top-up, a payment, a
+// refund or a manual correction by the owner.
+type BotWalletTx struct {
+	Id      uint   `json:"id" gorm:"primaryKey;autoIncrement"`
+	TgId    int64  `json:"tgId" gorm:"index;not null"`
+	Delta   int64  `json:"delta" gorm:"default:0;not null"`
+	Balance int64  `json:"balance" gorm:"default:0;not null"`
+	Kind    string `json:"kind"`
+	OrderId uint   `json:"orderId"`
+	// Actor is the Telegram ID of who made a manual change (0 otherwise).
+	Actor     int64  `json:"actor"`
+	Note      string `json:"note"`
+	CreatedAt int64  `json:"createdAt" gorm:"index"`
+}
+
+func (BotWalletTx) TableName() string { return "bot_wallet_txs" }
+
+// BotCustomer is somebody who used the shop: who they are, when they were
+// seen, and what the owner decided about them.
+type BotCustomer struct {
+	TgId     int64  `json:"tgId" gorm:"primaryKey;autoIncrement:false"`
+	Name     string `json:"name"`
+	Username string `json:"username" gorm:"index"`
+	Blocked  bool   `json:"blocked" gorm:"default:false;not null"`
+	// AdminId, when set, is the seller the owner gave this customer to; it
+	// wins over the introducer.
+	AdminId   int64  `json:"adminId" gorm:"default:0;not null"`
+	Note      string `json:"note"`
+	FirstSeen int64  `json:"firstSeen"`
+	LastSeen  int64  `json:"lastSeen" gorm:"index"`
+}
+
+func (BotCustomer) TableName() string { return "bot_customers" }
+
+// BotAdminMeta is what the owner decided about one bot administrator as a
+// seller: suspended, approvals only by the owner, the lowest price per GB
+// they may sell at and the rate per GB they owe the owner.
+type BotAdminMeta struct {
+	TgId         int64 `json:"tgId" gorm:"primaryKey;autoIncrement:false"`
+	Suspended    bool  `json:"suspended" gorm:"default:false;not null"`
+	RequireOwner bool  `json:"requireOwner" gorm:"default:false;not null"`
+	MinPerGB     int64 `json:"minPerGB" gorm:"default:0;not null"`
+	RatePerGB    int64 `json:"ratePerGB" gorm:"default:0;not null"`
+}
+
+func (BotAdminMeta) TableName() string { return "bot_admin_meta" }
+
+// BotSettlement is a settling of accounts between the owner and a seller:
+// what was sold from From to To and the amount that was settled.
+type BotSettlement struct {
+	Id        uint  `json:"id" gorm:"primaryKey;autoIncrement"`
+	AdminId   int64 `json:"adminId" gorm:"index;not null"`
+	Orders    int64 `json:"orders"`
+	Revenue   int64 `json:"revenue"`
+	GB        int64 `json:"gb"`
+	Amount    int64 `json:"amount"`
+	From      int64 `json:"from"`
+	To        int64 `json:"to"`
+	CreatedAt int64 `json:"createdAt"`
+}
+
+func (BotSettlement) TableName() string { return "bot_settlements" }
+
+// BotPref is a small bot preference of the owner, such as an alert switch.
+type BotPref struct {
+	Key   string `json:"key" gorm:"primaryKey"`
+	Value string `json:"value"`
+}
+
+func (BotPref) TableName() string { return "bot_prefs" }
 
 type Tokens struct {
 	Id     uint   `json:"id" form:"id" gorm:"primaryKey;autoIncrement"`

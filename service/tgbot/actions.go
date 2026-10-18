@@ -99,12 +99,15 @@ func (b *bot) save(act string, payload interface{}) error {
 	if err != nil {
 		return err
 	}
+	// What a seller deletes or gives away is told to the owner.
+	watched := b.adminActNote(act, payload)
 	// ConfigService counts the clients this creates against the limit, in the
 	// same transaction as the creation.
 	if _, err := b.configService.Save("clients", act, data, "", b.actor(), b.host()); err != nil {
 		return err
 	}
 	b.fanOut()
+	b.tellOwnerAct(watched)
 	return nil
 }
 

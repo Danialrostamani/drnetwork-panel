@@ -62,7 +62,7 @@ func (b *bot) watch(ctx context.Context) {
 	nodes := map[uint]*nodeWatch{}
 	reported := map[string]bool{}
 	core := &coreWatch{}
-	var lastClientCheck time.Time
+	var lastClientCheck, lastOwnerCheck time.Time
 	var report *reportSchedule
 	if b.cfg.Report != "" {
 		sched, err := service.CronParser.Parse(b.cfg.Report)
@@ -91,6 +91,10 @@ func (b *bot) watch(ctx context.Context) {
 				lastClientCheck = time.Now()
 				b.checkClients(ctx, reported)
 			}
+		}
+		if time.Since(lastOwnerCheck) >= ownerCheckEvery {
+			lastOwnerCheck = time.Now()
+			b.ownerWatch(ctx, lastOwnerCheck)
 		}
 		if report != nil && !time.Now().Before(report.next) {
 			report.next = report.sched.Next(time.Now().In(b.loc))

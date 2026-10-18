@@ -40,7 +40,7 @@ func (b *bot) canManageAdmins() bool {
 		return true
 	}
 	a := b.access()
-	return a.owner == 0 && b.self > 0 && !b.restricted() && a.isMember(b.self)
+	return a.owner == 0 && b.self > 0 && !b.restricted() && !b.paused && a.isMember(b.self)
 }
 
 // accessErrText explains the errors of this file; it is "" for any other.
@@ -455,7 +455,7 @@ func (b *bot) adminEditScreen(ctx context.Context, id int64) (string, [][]button
 			{Text: groupLabel, Data: "a:g:" + sid},
 			{Text: b.tr("📦 محدودیت حجم", "📦 Volume limit"), Data: "a:q:" + sid},
 		},
-		[]button{{Text: b.tr("🏷📦 گروه و حجم", "🏷📦 Group and volume"), Data: "a:gv:" + sid}},
+		[]button{{Text: b.tr("🏷📦 گروه و حجم", "🏷📦 Group and volume"), Data: "a:gv:" + sid}, {Text: b.tr("👑 فروش و نظارت", "👑 Sales and oversight"), Data: "q:ad:" + sid}},
 		[]button{{Text: b.tr("🗑 حذف ادمین", "🗑 Remove admin"), Data: "a:rm:" + sid}},
 		b.navRow("a:ls"))
 	lines = append(lines, "", b.tr(

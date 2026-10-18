@@ -18,6 +18,9 @@ func (b *bot) shopEditHome() (string, [][]button) {
 			"Plans, price and card number for this admin. Customers in your group see this.")
 	}
 	lines := []string{"🛍 <b>" + title + "</b>", hint}
+	if b.deskBy != 0 {
+		lines = append(lines, "👑 "+b.tr("ویرایش فروشگاه این ادمین توسط مالک: ", "The owner is editing this admin's shop: ")+fmt.Sprintf("<code>%d</code>", b.self))
+	}
 	lines = append(lines, fmt.Sprintf("\n%s: %d · %s: %d · %s: %d · %s: %s",
 		b.tr("پلن", "Plans"), len(s.Plans),
 		b.tr("مبالغ کیف پول", "Wallet amounts"), len(s.Wallets),
@@ -38,6 +41,9 @@ func (b *bot) shopEditHome() (string, [][]button) {
 		[]button{{Text: b.tr("📋 سفارش‌ها", "📋 Orders"), Data: "k:ordsP"}, {Text: b.tr("📊 گزارش فروش", "📊 Sales report"), Data: "k:sales"}},
 		[]button{{Text: b.tr("👁 نمای مشتری", "👁 Customer view"), Data: "k:shop"}},
 	)
+	if b.deskBy != 0 {
+		kb = append(kb, []button{{Text: b.tr("🚪 خروج از فروشگاه این ادمین", "🚪 Leave this admin's shop"), Data: "q:dx"}})
+	}
 	return strings.Join(lines, "\n"), kb
 }
 
@@ -105,6 +111,14 @@ func (b *bot) shopPlanScreen(id string) (string, [][]button) {
 		b.tr("مدت", "Duration"), days,
 		b.tr("حجم", "Volume"), vol,
 		b.tr("قیمت", "Price"), nonempty(p.Price, "—"))
+	if !b.owner && b.self > 0 {
+		if min := b.sellerMinPrice(b.self, p.GB); min > 0 {
+			text += "\n" + b.tr("حداقل قیمت مجاز: ", "Lowest allowed price: ") + formatMoney(min)
+			if n, ok := parseMoney(p.Price); ok && n < min {
+				text += "\n⚠️ " + b.tr("قیمت این پلن کمتر از حداقل است؛ مشتری نمی‌تواند آن را بخرد.", "This plan is priced under the minimum; customers cannot buy it.")
+			}
+		}
+	}
 	kb := [][]button{
 		{{Text: b.tr("✏️ نام", "✏️ Name"), Data: "k:pn:" + id}, {Text: b.tr("📅 مدت", "📅 Days"), Data: "k:pd:" + id}},
 		{{Text: b.tr("📦 حجم", "📦 Volume"), Data: "k:pg:" + id}, {Text: b.tr("💵 قیمت", "💵 Price"), Data: "k:pp:" + id}},
@@ -254,6 +268,7 @@ func shopPriceButtons(id string) [][]button {
 }
 
 func (b *bot) shopEditCallback(ctx context.Context, cbID string, chatID, msgID int64, parts []string) {
+	b = b.deskView(chatID)
 	show := func(text string, kb [][]button) {
 		b.answer(ctx, cbID, "")
 		b.edit(ctx, chatID, msgID, text, kb)
@@ -512,6 +527,7 @@ func (b *bot) patchPlan(id string, fn func(*shopPlan)) {
 }
 
 func (b *bot) shopPending(ctx context.Context, chatID int64, p *pending, text string, retry func(error), finish func(string, [][]button)) {
+	b = b.deskView(chatID)
 	text = strings.TrimSpace(text)
 	if text == "" {
 		retry(fmt.Errorf("%s", b.tr("خالی بود", "it was empty")))

@@ -127,6 +127,8 @@ func (b *bot) handlePending(ctx context.Context, chatID, userMsgID int64, text s
 		b.adminPending(ctx, chatID, p, text, retry, finish)
 	case strings.HasPrefix(p.kind, "shop."):
 		b.shopPending(ctx, chatID, p, text, retry, finish)
+	case strings.HasPrefix(p.kind, "q."):
+		b.ownerPending(ctx, chatID, p, text, retry, finish)
 	case p.kind == "set":
 		v := strings.TrimSpace(text)
 		if v == "-" {

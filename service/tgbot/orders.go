@@ -181,6 +181,17 @@ func (b *bot) placeOrder(ctx context.Context, chatID int64, from *fromUser, topi
 		if n, ok := parseMoney(p.Price); ok {
 			o.Amount = n
 		}
+		if min := b.sellerMinPrice(o.AdminId, p.GB); min > 0 && o.Amount > 0 && o.Amount < min {
+			// The seller prices under what the owner allows: the sale waits
+			// until the plan is fixed.
+			b.sendMenu(ctx, chatID, b.tr(
+				"❌ این پلن فعلاً قابل خرید نیست. لطفاً پلن دیگری انتخاب کنید یا به پشتیبانی پیام دهید.",
+				"❌ This plan cannot be bought right now. Pick another plan or message support."), b.customerMenu(from.ID))
+			b.notifyIDs(ctx, b.sellerAndOwner(o.AdminId), b.tr(
+				fmt.Sprintf("⚠️ قیمت پلن «%s» (%s) کمتر از حداقل مجاز است (%s برای %d گیگ). خرید مشتری <code>%d</code> انجام نشد؛ قیمت را اصلاح کنید.", esc(p.Name), esc(p.Price), formatMoney(min), p.GB, from.ID),
+				fmt.Sprintf("⚠️ The price of plan “%s” (%s) is under the allowed minimum (%s for %d GB). Customer <code>%d</code> could not buy it; fix the price.", esc(p.Name), esc(p.Price), formatMoney(min), p.GB, from.ID)), nil)
+			return
+		}
 	case "wallet":
 		w := s.wallet(planID)
 		n, ok := int64(0), false
@@ -279,6 +290,7 @@ func (b *bot) finishPendingOrder(ctx context.Context, chatID int64, from *fromUs
 		{Text: b.tr("✅ تأیید", "✅ Approve"), Data: fmt.Sprintf("j:ok:%d", o.Id)},
 		{Text: b.tr("❌ رد", "❌ Reject"), Data: fmt.Sprintf("j:no:%d", o.Id)},
 	}}
+	ownerOnly := b.ownerApproves(o.AdminId)
 	ids := []int64{}
 	seen := map[int64]bool{}
 	add := func(id int64) {
@@ -295,7 +307,14 @@ func (b *bot) finishPendingOrder(ctx context.Context, chatID int64, from *fromUs
 	if len(ids) == 0 {
 		ids = b.staffIDs()
 	}
-	b.notifyIDs(ctx, ids, text, kb)
+	for _, id := range ids {
+		if ownerOnly && id == o.AdminId {
+			// This seller's sales are approved by the owner alone.
+			b.notifyIDs(ctx, []int64{id}, text+"\n"+b.tr("🔒 تأیید این سفارش با مالک است.", "🔒 The owner approves this order."), nil)
+			continue
+		}
+		b.notifyIDs(ctx, []int64{id}, text, kb)
+	}
 	if o.ReceiptID != "" {
 		staff := b.staffBot()
 		for _, id := range ids {
@@ -381,7 +400,7 @@ func (b *bot) payFromWallet(ctx context.Context, chatID int64, from *fromUser, o
 		b.sendMenu(ctx, chatID, b.tr("این سفارش با کیف پول قابل پرداخت نیست.", "That order cannot be paid from the wallet."), b.customerMenu(from.ID))
 		return
 	}
-	ok, err := walletSpend(o.TgId, o.Amount)
+	ok, err := walletSpend(o.TgId, o.Amount, walletMemo{kind: walletPay, order: o.Id})
 	if err != nil || !ok {
 		b.sendMenu(ctx, chatID, b.tr(
 			"❌ موجودی کیف پول کافی نیست. موجودی: ",
@@ -393,7 +412,7 @@ func (b *bot) payFromWallet(ctx context.Context, chatID int64, from *fromUser, o
 	}
 	o.WalletPaid = true
 	if err := b.approveOrder(o); err != nil {
-		_, _ = walletCredit(o.TgId, o.Amount)
+		_, _ = walletCredit(o.TgId, o.Amount, walletMemo{kind: walletRefund, order: o.Id})
 		if fresh, lerr := loadOrder(o.Id); lerr == nil {
 			fresh.WalletPaid = false
 			_ = b.saveOrder(fresh)
@@ -434,6 +453,10 @@ func (b *bot) orderCallback(ctx context.Context, cbID string, chatID, msgID int6
 		b.edit(ctx, chatID, msgID, b.tr("قبلاً رسیدگی شده.", "Already handled."), nil)
 		return
 	}
+	if parts[1] == "ok" && !b.canApprove() && b.ownerApproves(b.self) {
+		b.answer(ctx, cbID, b.tr("تأیید سفارش‌های شما با مالک است.", "The owner approves your orders."))
+		return
+	}
 	switch parts[1] {
 	case "ok":
 		if err := b.approveOrder(o); err != nil {
@@ -445,10 +468,11 @@ func (b *bot) orderCallback(ctx context.Context, cbID string, chatID, msgID int6
 		b.edit(ctx, chatID, msgID, b.tr("✅ تأیید شد.", "✅ Approved.")+"\n"+esc(o.Detail), nil)
 		b.notifyCustomerOrder(ctx, o, true)
 		b.maybeQuotaWarn(ctx, o.AdminId)
+		b.tellOwnerApproval(ctx, o)
 	case "no":
 		o.Status = orderRejected
 		if err := b.saveOrder(o); err == nil && o.WalletPaid && o.Amount > 0 {
-			_, _ = walletCredit(o.TgId, o.Amount)
+			_, _ = walletCredit(o.TgId, o.Amount, walletMemo{kind: walletRefund, order: o.Id, actor: b.self})
 		}
 		b.answer(ctx, cbID, "")
 		b.edit(ctx, chatID, msgID, b.tr("❌ رد شد.", "❌ Rejected."), nil)
@@ -623,7 +647,7 @@ func (b *bot) approveOrder(o *model.BotOrder) error {
 		if err := b.saveOrder(o); err != nil {
 			return err
 		}
-		if _, err := walletCredit(o.TgId, amount); err != nil {
+		if _, err := walletCredit(o.TgId, amount, walletMemo{kind: walletTopUp, order: o.Id, actor: b.self}); err != nil {
 			o.Status = orderPending
 			_ = b.saveOrder(o)
 			return err

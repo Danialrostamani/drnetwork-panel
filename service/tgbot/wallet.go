@@ -96,32 +96,90 @@ func walletBalance(tgID int64) int64 {
 	return w.Balance
 }
 
+// walletMemo says why a balance changes, for the wallet history.
+type walletMemo struct {
+	kind  string // topup, pay, refund or manual
+	order uint
+	actor int64
+	note  string
+}
+
+const (
+	walletTopUp  = "topup"
+	walletPay    = "pay"
+	walletRefund = "refund"
+	walletManual = "manual"
+)
+
 // walletCredit adds amount, which may be negative to undo a credit, to a
-// balance, and returns the new balance.
-func walletCredit(tgID, amount int64) (int64, error) {
+// balance, and returns the new balance. The change goes in the history.
+func walletCredit(tgID, amount int64, m walletMemo) (int64, error) {
+	var balance int64
 	err := database.GetDB().Transaction(func(tx *gorm.DB) error {
 		now := time.Now().Unix()
 		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).
 			Create(&model.BotWallet{TgId: tgID, UpdatedAt: now}).Error; err != nil {
 			return err
 		}
-		return tx.Model(&model.BotWallet{}).Where("tg_id = ?", tgID).
-			Updates(map[string]any{"balance": gorm.Expr("MAX(balance + ?, 0)", amount), "updated_at": now}).Error
+		var before model.BotWallet
+		if err := tx.Where("tg_id = ?", tgID).First(&before).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&model.BotWallet{}).Where("tg_id = ?", tgID).
+			Updates(map[string]any{"balance": gorm.Expr("MAX(balance + ?, 0)", amount), "updated_at": now}).Error; err != nil {
+			return err
+		}
+		var after model.BotWallet
+		if err := tx.Where("tg_id = ?", tgID).First(&after).Error; err != nil {
+			return err
+		}
+		balance = after.Balance
+		return logWalletTx(tx, tgID, after.Balance-before.Balance, after.Balance, m)
 	})
 	if err != nil {
 		return 0, err
 	}
-	return walletBalance(tgID), nil
+	return balance, nil
 }
 
 // walletSpend takes amount from a balance when it is enough; ok is false and
 // nothing changes when it is not.
-func walletSpend(tgID, amount int64) (ok bool, err error) {
+func walletSpend(tgID, amount int64, m walletMemo) (ok bool, err error) {
 	if amount <= 0 {
 		return false, nil
 	}
-	res := database.GetDB().Model(&model.BotWallet{}).
-		Where("tg_id = ? AND balance >= ?", tgID, amount).
-		Updates(map[string]any{"balance": gorm.Expr("balance - ?", amount), "updated_at": time.Now().Unix()})
-	return res.RowsAffected == 1, res.Error
+	err = database.GetDB().Transaction(func(tx *gorm.DB) error {
+		res := tx.Model(&model.BotWallet{}).
+			Where("tg_id = ? AND balance >= ?", tgID, amount).
+			Updates(map[string]any{"balance": gorm.Expr("balance - ?", amount), "updated_at": time.Now().Unix()})
+		if res.Error != nil || res.RowsAffected != 1 {
+			return res.Error
+		}
+		ok = true
+		var after model.BotWallet
+		if err := tx.Where("tg_id = ?", tgID).First(&after).Error; err != nil {
+			return err
+		}
+		return logWalletTx(tx, tgID, -amount, after.Balance, m)
+	})
+	if err != nil {
+		return false, err
+	}
+	return ok, nil
+}
+
+func logWalletTx(tx *gorm.DB, tgID, delta, balance int64, m walletMemo) error {
+	if delta == 0 {
+		return nil
+	}
+	return tx.Create(&model.BotWalletTx{
+		TgId: tgID, Delta: delta, Balance: balance, Kind: m.kind, OrderId: m.order,
+		Actor: m.actor, Note: m.note, CreatedAt: time.Now().Unix(),
+	}).Error
+}
+
+func walletHistory(tgID int64, limit int) []model.BotWalletTx {
+	var out []model.BotWalletTx
+	database.GetDB().Where("tg_id = ?", tgID).Order("id desc").Limit(limit).Find(&out)
+	return out
 }

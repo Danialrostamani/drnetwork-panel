@@ -142,16 +142,22 @@ func deskFrom(s shopConfig) shopDesk {
 
 func (b *bot) customerAdminID(customerID int64) int64 {
 	a := b.access()
+	// A seller the owner suspended sells nothing: their customers go to the
+	// owner meanwhile.
+	usable := func(id int64) bool { return a.isMember(id) && (a.isOwner(id) || !adminMeta(id).Suspended) }
+	if c, ok := customerRow(customerID); ok && c.AdminId != 0 && usable(c.AdminId) {
+		return c.AdminId
+	}
 	stored := loadBotRef(customerID)
 	if stored != nil {
 		s := b.loadShopRaw()
-		if r := s.findRef(stored.Word); r != nil && r.Admin != 0 {
+		if r := s.findRef(stored.Word); r != nil && r.Admin != 0 && usable(r.Admin) {
 			return r.Admin
 		}
 		g := strings.TrimSpace(stored.Group)
 		if g != "" {
 			for _, id := range a.order {
-				if strings.EqualFold(strings.TrimSpace(a.roleOf(id).group), g) {
+				if strings.EqualFold(strings.TrimSpace(a.roleOf(id).group), g) && usable(id) {
 					return id
 				}
 			}
