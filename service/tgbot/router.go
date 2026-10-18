@@ -42,7 +42,7 @@ func (b *bot) mainMenu() [][]button {
 	if b.canManageAdmins() {
 		kb = append(kb, []button{{Text: t("👑 پنل مالک", "👑 Owner panel"), Data: "q:home"}})
 	}
-	return kb
+	return b.keepAllowed(kb)
 }
 
 func (b *bot) menuRow() []button { return []button{b.btn("btnMenu", "m:menu")} }
@@ -458,7 +458,7 @@ func (b *bot) adminCommand(ctx context.Context, chatID int64, cmd, arg string) {
 		case b.sections != nil:
 			b.send(ctx, chatID, b.restrictedHelp())
 		default:
-			b.send(ctx, chatID, b.t("help")+b.t("helpAdmin2"))
+			b.send(ctx, chatID, b.panelHelp(b.t("help")+b.t("helpAdmin2")))
 		}
 	case "status", "home":
 		b.sendKeyboard(ctx, chatID, b.homeText(), b.homeKeyboard())

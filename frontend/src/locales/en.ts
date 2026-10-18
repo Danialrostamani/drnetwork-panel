@@ -200,6 +200,8 @@ export default {
     tgBotHint: "Manage the panel from Telegram. Create a bot with @BotFather, paste its token here, and add your numeric Telegram ID (send /id to the bot to get it) as an admin. Only listed admins get any data.",
     tgBotEnable: "Enable bot",
     tgBotNotify: "Alerts (node down, volume and expiry)",
+    tgBotPanel: "Panel management in the bot",
+    tgBotPanelHint: "Inbounds, outbounds, TLS, rules, DNS, settings and logs in the bot. Off: the bot keeps clients, the shop, the owner panel, stats, backup and node monitoring.",
     tgBotLang: "Bot language",
     tgBotSkin: "Bot look",
     tgBotSkinColorful: "Colorful",

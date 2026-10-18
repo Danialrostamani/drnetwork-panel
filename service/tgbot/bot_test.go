@@ -196,7 +196,7 @@ func fakeTelegram(t *testing.T) (*bot, func() []sent) {
 	previous := apiBase
 	apiBase = srv.URL
 	t.Cleanup(func() { apiBase = previous })
-	b := newBot(botConfig{Token: "1:abc", Admins: []int64{42}, Lang: "en"})
+	b := newBot(botConfig{Token: "1:abc", Admins: []int64{42}, Lang: "en", Panel: true})
 	return b, func() []sent {
 		mu.Lock()
 		defer mu.Unlock()

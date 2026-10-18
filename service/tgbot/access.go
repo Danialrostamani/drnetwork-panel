@@ -460,6 +460,9 @@ func (b *bot) actor() string {
 // can reports whether the administrator being served may use a section. A
 // group-limited administrator only has the clients, and only of their group.
 func (b *bot) can(section string) bool {
+	if b.panelOff(section) {
+		return false
+	}
 	if b.scope != "" {
 		return section == "clients"
 	}
@@ -489,6 +492,14 @@ func (b *bot) allowed(parts []string) bool {
 	if len(parts) >= 2 && parts[0] == "a" && parts[1] != "ls" && b.canManageAdmins() {
 		return true
 	}
+	// Restarting the panel is in the owner panel too, with the settings
+	// hidden from the bot.
+	if len(parts) >= 2 && parts[0] == "m" && (parts[1] == "prest" || parts[1] == "prestY") && b.canManageAdmins() {
+		return true
+	}
+	if !b.cfg.Panel && len(parts) >= 3 && parts[0] == "o" && parts[1] == "nd" && nodeEditVerbs[parts[2]] {
+		return false
+	}
 	return b.allowedBy(callbackSection(parts))
 }
 
@@ -504,6 +515,9 @@ func (b *bot) allowedCommand(cmd string) bool {
 // the prompt the bot is waiting on. Rights can change between the question and
 // the answer.
 func (b *bot) pendingAllowed(p *pending) bool {
+	if !b.cfg.Panel && strings.HasPrefix(p.kind, "obj.") && p.key == "nd" {
+		return false
+	}
 	if b.scope != "" {
 		return scopedPendingKind(p.kind)
 	}

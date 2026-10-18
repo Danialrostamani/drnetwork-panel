@@ -141,9 +141,9 @@ func (b *bot) homeKeyboard() [][]button {
 	if b.scope != "" {
 		return b.scopedHomeKeyboard()
 	}
-	return [][]button{
+	return b.keepAllowed([][]button{
 		{{Text: b.tr("🔄 به‌روزرسانی", "🔄 Refresh"), Data: "h:home"}, {Text: b.tr("🏠 منو", "🏠 Menu"), Data: "m:menu"}},
 		{{Text: b.tr("♻️ ریستارت هسته", "♻️ Restart core"), Data: "m:restart"}, {Text: b.tr("🚧 نگهداری", "🚧 Maintenance"), Data: "m:maint"}},
 		{{Text: b.tr("📜 لاگ‌ها", "📜 Logs"), Data: "m:logs:info"}, {Text: b.tr("💾 پشتیبان", "💾 Backup"), Data: "m:backup"}},
-	}
+	})
 }

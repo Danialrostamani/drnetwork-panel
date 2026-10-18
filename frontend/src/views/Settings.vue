@@ -561,6 +561,19 @@
                   sm="6"
                   md="4"
                 >
+                  <v-switch
+                    v-model="tgBotPanel"
+                    color="primary"
+                    :label="$t('setting.tgBotPanel')"
+                    :hint="$t('setting.tgBotPanelHint')"
+                    persistent-hint
+                  />
+                </v-col>
+                <v-col
+                  cols="12"
+                  sm="6"
+                  md="4"
+                >
                   <v-select
                     v-model="settings.tgBotLang"
                     :items="[{ title: 'فارسی', value: 'fa' }, { title: 'English', value: 'en' }]"
@@ -1120,6 +1133,7 @@ const settings = ref({
   tgBotLang: "fa",
   tgBotSkin: "colorful",
   tgBotNotify: "true",
+  tgBotPanel: "false",
   tgBotReport: "",
   tgBotReportBackup: "false",
   tgBotShop: "{}",
@@ -1227,6 +1241,10 @@ const tgBotEnable = computed({
 const tgBotReportBackup = computed({
   get: () => { return settings.value.tgBotReportBackup == "true" },
   set: (v:boolean) => { settings.value.tgBotReportBackup = v ? "true" : "false" }
+})
+const tgBotPanel = computed({
+  get: () => { return settings.value.tgBotPanel == "true" },
+  set: (v:boolean) => { settings.value.tgBotPanel = v ? "true" : "false" }
 })
 const tgBotNotify = computed({
   get: () => { return settings.value.tgBotNotify == "true" },

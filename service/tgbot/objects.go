@@ -245,7 +245,10 @@ func (b *bot) objListScreen(k *kindInfo, page int) (string, [][]button) {
 	if pg := pager("o:"+k.code+":ls", page, pages); pg != nil {
 		kb = append(kb, pg)
 	}
-	actions := []button{{Text: b.tr("➕ جدید", "➕ New"), Data: "o:" + k.code + ":n:0"}}
+	var actions []button
+	if k.code != "nd" || b.cfg.Panel {
+		actions = append(actions, button{Text: b.tr("➕ جدید", "➕ New"), Data: "o:" + k.code + ":n:0"})
+	}
 	if k.code == "out" {
 		actions = append(actions, button{Text: b.tr("🔗 افزودن با لینک / ساب", "🔗 Add from links / sub"), Data: "o:out:lnk:0"})
 	}
@@ -391,9 +394,11 @@ func (b *bot) objCard(k *kindInfo, id uint) (string, [][]button) {
 	default:
 		lines = append(lines, summarize(m)...)
 	}
-	kb := append(actions,
-		[]button{{Text: "📄 JSON", Data: pre + "j:" + sid}, {Text: b.tr("✏️ ویرایش", "✏️ Edit"), Data: pre + "e:" + sid}, {Text: b.tr("🗑 حذف", "🗑 Delete"), Data: pre + "d:" + sid}},
-		[]button{{Text: b.tr("⬅️ فهرست", "⬅️ List"), Data: pre + "ls:0"}, {Text: "🏠", Data: "m:menu"}})
+	kb := actions
+	if k.code != "nd" || b.cfg.Panel {
+		kb = append(kb, []button{{Text: "📄 JSON", Data: pre + "j:" + sid}, {Text: b.tr("✏️ ویرایش", "✏️ Edit"), Data: pre + "e:" + sid}, {Text: b.tr("🗑 حذف", "🗑 Delete"), Data: pre + "d:" + sid}})
+	}
+	kb = append(kb, []button{{Text: b.tr("⬅️ فهرست", "⬅️ List"), Data: pre + "ls:0"}, {Text: "🏠", Data: "m:menu"}})
 	return strings.Join(lines, "\n"), kb
 }
 

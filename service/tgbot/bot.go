@@ -186,6 +186,8 @@ type botConfig struct {
 	Lang     string
 	Notify   bool
 	Skin     string
+	// Panel keeps the panel's management sections in the bot.
+	Panel bool
 
 	Report       string
 	ReportBackup bool
@@ -195,7 +197,7 @@ type botConfig struct {
 // may do what is not among them: accessKey covers it, and a change there is
 // applied to the running bot.
 func (c botConfig) fingerprint() string {
-	return fmt.Sprint(c.Enable, "|", c.Token, "|", c.Proxy, "|", c.Outbound, "|", c.Lang, "|", c.Skin, "|", c.Notify, "|", c.Report, "|", c.ReportBackup)
+	return fmt.Sprint(c.Enable, "|", c.Token, "|", c.Proxy, "|", c.Outbound, "|", c.Lang, "|", c.Skin, "|", c.Notify, "|", c.Panel, "|", c.Report, "|", c.ReportBackup)
 }
 
 // accessKey identifies the settings that say who may do what. fmt prints maps
@@ -324,6 +326,7 @@ func loadConfig() (botConfig, error) {
 		Outbound: strings.TrimSpace(s.Outbound),
 		Lang:     lang,
 		Notify:   s.Notify,
+		Panel:    s.Panel,
 		Skin:     normSkin(s.Skin),
 
 		Report:       strings.TrimSpace(s.Report),
