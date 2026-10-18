@@ -60,3 +60,39 @@ func TestBrowsersGetTheAccountPage(t *testing.T) {
 		t.Fatal("head got html")
 	}
 }
+
+func TestThePageSaysWhenTheSubscriptionEnded(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0)
+	cases := []struct {
+		c    model.Client
+		want string
+	}{
+		{model.Client{Enable: true, Volume: 10, Up: 3, Down: 3, Expiry: now.Unix() + 60}, ""},
+		{model.Client{Enable: true}, ""},
+		{model.Client{Enable: true, Volume: 10, Up: 6, Down: 4}, "volume"},
+		{model.Client{Enable: false, Expiry: now.Unix() - 1}, "expired"},
+		{model.Client{Enable: false, Volume: 10, Down: 11, Expiry: now.Unix()}, "both"},
+		{model.Client{Enable: false, Volume: 10}, "disabled"},
+	}
+	for i, tc := range cases {
+		if got := endedReason(&tc.c, now); got != tc.want {
+			t.Fatalf("case %d: %q, want %q", i, got, tc.want)
+		}
+	}
+	if !strings.Contains(subPageHTML, subStateMark) {
+		t.Fatal("the page lost its state mark")
+	}
+	live := pageFor(&cases[0].c, now)
+	if live != subPageHTML {
+		t.Fatal("a live subscription got a state")
+	}
+	ended := pageFor(&cases[2].c, now)
+	if !strings.Contains(ended, `const SERVER_STATE = {"ended":true,"reason":"volume"};`) {
+		t.Fatal("ended state not in the page")
+	}
+	for _, s := range []string{`id="endedCard"`, "اشتراک شما به پایان رسیده است", "channelLink:", "endedSupport"} {
+		if !strings.Contains(ended, s) {
+			t.Fatalf("page misses %q", s)
+		}
+	}
+}

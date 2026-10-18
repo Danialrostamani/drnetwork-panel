@@ -227,6 +227,17 @@ a.iconbtn{text-decoration:none}
 .linklike{background:none;border:none;color:var(--accent);cursor:pointer;font:inherit;font-size:13px;font-weight:600;padding:10px 2px}
 
 /* error */
+.ended{max-width:640px;margin:4vh auto 22px;text-align:center;padding:34px 26px;border:2px solid var(--red);background:linear-gradient(180deg,var(--red-soft),var(--surface) 70%);animation:popIn .45s cubic-bezier(.16,1,.3,1) both}
+.ended-ico{width:74px;height:74px;margin:0 auto;border-radius:50%;display:grid;place-items:center;background:var(--red);color:#fff;box-shadow:0 10px 30px rgba(225,77,90,.35)}
+.ended h1{font-size:clamp(24px,5.6vw,32px);line-height:1.35;margin:16px 0 8px;color:var(--red);letter-spacing:-.01em}
+.ended-reason{font-size:17px;font-weight:700;margin:0 0 6px}
+.ended-lead{margin:0 0 20px}
+.ended-links{display:grid;gap:12px}
+.ended-links .btn{display:block;width:100%;font-size:16px;padding:14px 18px;text-decoration:none}
+.ended-link{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:14px;border:1px solid var(--border);background:var(--surface);color:inherit;text-decoration:none;text-align:start;font-weight:700;transition:border-color .2s ease,transform .2s ease}
+.ended-link:hover{border-color:var(--accent);transform:translateY(-1px)}
+.ended-link .el-txt{display:flex;flex-direction:column;gap:2px;min-width:0}
+.ended-link .el-sub{font-weight:600;font-size:13.5px;color:var(--accent);word-break:break-all}
 .error{background:var(--red-soft);border:1px solid rgba(225,77,90,.25);border-radius:12px;padding:14px 16px;margin-top:16px;text-align:right;font-size:14px;animation:shake .45s cubic-bezier(.36,.07,.19,.97) both}
 .error strong{color:var(--red)}
 .error p{margin:6px 0 0}
@@ -470,6 +481,27 @@ ul.checks li::before{content:"✓";position:absolute;inset-inline-start:0;top:1p
     </div>
   </header>
 
+  <!-- پایان اشتراک: بزرگ و واضح، با کانال و پشتیبانی -->
+  <section id="endedCard" class="card ended" hidden role="alert">
+    <div class="ended-ico" aria-hidden="true">
+      <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5"/><path d="M5.5 5.5l13 13"/></svg>
+    </div>
+    <h1 id="endedTitle" data-i18n="end.title">اشتراک شما به پایان رسیده است</h1>
+    <p class="ended-reason" id="endedReason"></p>
+    <p class="muted ended-lead" data-i18n="end.lead">برای تمدید یا خرید اشتراک جدید، از کانال ما دیدن کنید یا مستقیم به پشتیبانی پیام بدهید.</p>
+    <div class="ended-links">
+      <a class="btn" id="endedRenew" hidden target="_blank" rel="noopener" data-i18n="end.renew">درخواست تمدید اشتراک</a>
+      <a class="ended-link" id="endedChannel" hidden target="_blank" rel="noopener">
+        <span class="stat-ico tm" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/></svg></span>
+        <span class="el-txt"><span data-i18n="end.channel">کانال اطلاع‌رسانی</span><span class="el-sub" dir="ltr" id="endedChannelTxt"></span></span>
+      </a>
+      <a class="ended-link" id="endedSupport" hidden target="_blank" rel="noopener">
+        <span class="stat-ico tm" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+        <span class="el-txt"><span data-i18n="end.support">پیام مستقیم به کانال (پشتیبانی)</span><span class="el-sub" dir="ltr" id="endedSupportTxt"></span></span>
+      </a>
+    </div>
+  </section>
+
   <!-- اسکلتون بارگذاری -->
   <section id="skeleton" hidden aria-hidden="true">
     <div class="grid2">
@@ -702,6 +734,9 @@ const CONFIG = {
   // لینک پشتیبانی (مثلا تلگرام). خالی بگذارید تا دکمه مخفی شود: "https://t.me/YourID"
   supportLink: "https://t.me/DrNetWorkSingBox?direct",
 
+  // کانال اطلاع‌رسانی؛ در کارت «اشتراک شما تمام شده» و پایین صفحه نشان داده می‌شود.
+  channelLink: "https://t.me/DrNetWorkSingBox",
+
   // ربات تمدید/فروش (اختیاری). با تنظیم آن، دکمه «درخواست تمدید» به
   // https://t.me/<bot>?start=<شناسه> می‌رود و کاربر خودکار شناسایی می‌شود.
   renewBot: "",                 // اگر پر شود، لینک ربات می‌شود: t.me/<ربات>?start=<شناسه>؛ مثال: "DrNetWorkShopBot"
@@ -762,6 +797,8 @@ const CONFIG = {
 /* ════════════════════════ پایان تنظیمات ════════════════════════ */
 
 const $ = (s) => document.querySelector(s);
+// وضعیتی که خود پنل هنگام سرو صفحه می‌گذارد (مثلاً اشتراک تمام‌شده)؛ null یعنی چیزی نیست.
+const SERVER_STATE = /*SUB_STATE*/null;
 
 /* ── v20: زبان و قالب‌بندی ── */
 /* نام برند پنل: در حالت انگلیسی اگر panelNameEn خالی باشد، نام پیش‌فرض انگلیسی استفاده می‌شود */
@@ -1011,6 +1048,15 @@ const I18N = {
     "sum.id": "شناسه", "sum.used": "مصرف", "sum.remain": "باقی‌مانده", "sum.days": "اعتبار", "sum.expire": "انقضا",
     "summary.unlimited": "نامحدود",
     "summary.noExpiry": "بدون تاریخ انقضا",
+    "end.title": "اشتراک شما به پایان رسیده است",
+    "end.volume": "حجم اشتراک شما تمام شده است.",
+    "end.expired": "زمان اشتراک شما تمام شده است.",
+    "end.both": "زمان و حجم اشتراک شما تمام شده است.",
+    "end.disabled": "اشتراک شما غیرفعال شده است.",
+    "end.lead": "برای تمدید یا خرید اشتراک جدید، از کانال ما دیدن کنید یا مستقیم به پشتیبانی پیام بدهید.",
+    "end.renew": "درخواست تمدید اشتراک",
+    "end.channel": "کانال اطلاع‌رسانی",
+    "end.support": "پیام مستقیم به کانال (پشتیبانی)",
     "contact.channel": "کانال اطلاع‌رسانی",
     "contact.support": "ارتباط با پشتیبانی",
     "contact.supportSub": "ارسال پیام در تلگرام",
@@ -1188,6 +1234,15 @@ const I18N = {
     "sum.id": "ID", "sum.used": "Used", "sum.remain": "Remaining", "sum.days": "Time left", "sum.expire": "Expiry",
     "summary.unlimited": "Unlimited",
     "summary.noExpiry": "No expiry date",
+    "end.title": "Your subscription has ended",
+    "end.volume": "Your data allowance is used up.",
+    "end.expired": "Your subscription time is over.",
+    "end.both": "Your subscription time and data are both used up.",
+    "end.disabled": "Your subscription is disabled.",
+    "end.lead": "To renew or buy a new subscription, visit our channel or message support directly.",
+    "end.renew": "Request renewal",
+    "end.channel": "Announcement channel",
+    "end.support": "Direct message to the channel (support)",
     "contact.channel": "Announcement channel",
     "contact.support": "Support",
     "contact.supportSub": "Send a Telegram message",
@@ -1391,6 +1446,7 @@ function renderDash() {
 
   $("#demoBanner").hidden = !state.demo;
   $("#noInfoBanner").hidden = !state.headerMissing;
+  renderEnded(endedReasonOf(info));
 
   const used = info ? (info.upload || 0) + (info.download || 0) : null;
   const total = info && info.total > 0 ? info.total : 0;
@@ -1559,7 +1615,7 @@ function resolveSubUrl(raw) {
 /* ── دریافت داده ── */
 async function load(url, opts) {
   opts = opts || {};
-  if (!opts.fromRefresh && $("#dash").hidden) showSkeleton(true);
+  if (!opts.fromRefresh && $("#dash").hidden && $("#endedCard").hidden) showSkeleton(true);
   if (location.protocol === "https:" && /^http:\/\//i.test(url)) {
     failUi(opts, t("err.mixedTitle"), t("err.mixedMsg"), "mixed-content");
     return;
@@ -1571,6 +1627,7 @@ async function load(url, opts) {
     const res = await fetch(url, { method: "HEAD", cache: "no-store", redirect: "follow" });
     if (!res.ok) {
       if (res.status === 400 || res.status === 403 || res.status === 404 || res.status === 410) {
+        if (serverEnded() && url === selfSubUrl()) { state.url = url; showEndedOnly(serverEnded()); return; }
         failUi(opts, t("err.expiredTitle"), t("err.expiredMsg"), "http-" + res.status);
       } else if (res.status === 429) {
         failUi(opts, t("err.tooManyTitle"), t("err.tooManyMsg"), "http-429");
@@ -1615,7 +1672,56 @@ async function load(url, opts) {
   }
 }
 
+/* ── پایان اشتراک ── */
+// endedReasonOf از روی هدر اشتراک می‌گوید زمان یا حجم تمام شده؛ "" یعنی هنوز فعال است.
+function endedReasonOf(info) {
+  if (!info) return "";
+  const total = info.total > 0 ? info.total : 0;
+  const used = (info.upload || 0) + (info.download || 0);
+  const exp = normalizeExpire(info.expire);
+  const vol = total > 0 && used >= total;
+  const time = !!exp && exp <= Date.now();
+  return vol && time ? "both" : vol ? "volume" : time ? "expired" : "";
+}
+function renderEnded(reason) {
+  const card = $("#endedCard");
+  if (!card) return;
+  state.endReason = reason || "";
+  if (!reason || state.demo) { card.hidden = true; return; }
+  $("#endedReason").textContent = t("end." + reason);
+  const ch = $("#endedChannel");
+  if (CONFIG.channelLink) {
+    ch.href = CONFIG.channelLink;
+    $("#endedChannelTxt").textContent = CONFIG.channelLink.replace(/^https?:\/\//, "");
+  }
+  ch.hidden = !CONFIG.channelLink;
+  const sp = $("#endedSupport");
+  if (CONFIG.supportLink) {
+    sp.href = CONFIG.supportLink;
+    $("#endedSupportTxt").textContent = CONFIG.supportLink.replace(/^https?:\/\//, "");
+  }
+  sp.hidden = !CONFIG.supportLink;
+  const rn = $("#endedRenew");
+  const ru = state.url ? renewUrl() : "";
+  rn.hidden = !ru;
+  if (ru) rn.href = ru;
+  card.hidden = false;
+}
+// showEndedOnly: پنل گفته اشتراک تمام شده و لینک دیگر جواب نمی‌دهد؛ فقط همین کارت بماند.
+function showEndedOnly(reason) {
+  $("#skeleton").hidden = true;
+  $("#setup").hidden = true;
+  $("#dash").hidden = true;
+  $("#refreshBtn").hidden = true;
+  renderEnded(reason);
+}
+function serverEnded() {
+  return SERVER_STATE && SERVER_STATE.ended ? (SERVER_STATE.reason || "disabled") : "";
+}
+
 function failUi(opts, title, msg, tech) {
+  // پنل گفته اشتراک تمام شده: به‌جای خطا همان کارت پایان اشتراک می‌ماند.
+  if (!opts.fromRefresh && serverEnded()) { showEndedOnly(serverEnded()); return; }
   if (opts.fromRefresh) {
     toast(t("toast.refreshFail"));
     return;
@@ -2455,6 +2561,7 @@ function setLang(next) {
   applyTheme();
   if (state.info) renderDash();
   else {
+    if (state.endReason) renderEnded(state.endReason);
     document.title = brandName();
     renderGuide();
     renderFixList();
@@ -2464,6 +2571,8 @@ function setLang(next) {
 }
 
 /* ── شروع ── */
+function selfSubUrl() { return location.origin + location.pathname.replace(/\/+$/, ""); }
+
 function init() {
   syncQrVisibility();
   applyTheme();
@@ -2476,6 +2585,10 @@ function init() {
   }
   $("#panelName").textContent = brandName();
   document.title = brandName();
+  if (CONFIG.channelLink) {
+    $("#channelCard").href = CONFIG.channelLink;
+    $("#channelHandle").textContent = CONFIG.channelLink.replace(/^https?:\/\//, "");
+  }
   if (CONFIG.supportLink) {
     const sb = $("#supportBtn");
     sb.href = CONFIG.supportLink;
@@ -2517,7 +2630,8 @@ function init() {
     if (r.url) { $("#subInput").value = r.url; load(r.url); }
     else showError(r.error, false);
   } else {
-    const selfUrl = location.origin + location.pathname.replace(/\/+$/, "");
+    const selfUrl = selfSubUrl();
+    if (serverEnded()) showEndedOnly(serverEnded());
     load(selfUrl);
   }
 

@@ -430,7 +430,7 @@ func pendingSection(p *pending) string {
 		return "clients"
 	case p.kind == "in.port":
 		return "inbounds"
-	case p.kind == "obj.edit", p.kind == "obj.new":
+	case p.kind == "obj.edit", p.kind == "obj.new", p.kind == "obj.links":
 		if sec, ok := kindSection[p.key]; ok {
 			return sec
 		}

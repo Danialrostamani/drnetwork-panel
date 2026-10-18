@@ -42,6 +42,7 @@ func schema() []table {
 		{"bot_admin_meta", &model.BotAdminMeta{}, copyRows[model.BotAdminMeta]},
 		{"bot_settlements", &model.BotSettlement{}, copyRows[model.BotSettlement]},
 		{"bot_prefs", &model.BotPref{}, copyRows[model.BotPref]},
+		{"bot_renew_notes", &model.BotRenewNote{}, copyRows[model.BotRenewNote]},
 		{"node_metrics", &model.NodeMetric{}, copyRows[model.NodeMetric]},
 		{"node_outages", &model.NodeOutage{}, copyRows[model.NodeOutage]},
 		{"node_traffic", &model.NodeTraffic{}, copyRows[model.NodeTraffic]},

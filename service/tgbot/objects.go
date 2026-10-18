@@ -246,6 +246,9 @@ func (b *bot) objListScreen(k *kindInfo, page int) (string, [][]button) {
 		kb = append(kb, pg)
 	}
 	actions := []button{{Text: b.tr("➕ جدید", "➕ New"), Data: "o:" + k.code + ":n:0"}}
+	if k.code == "out" {
+		actions = append(actions, button{Text: b.tr("🔗 افزودن با لینک / ساب", "🔗 Add from links / sub"), Data: "o:out:lnk:0"})
+	}
 	if k.code == "nd" {
 		actions = append(actions, button{Text: b.tr("🔁 همگام‌سازی همه", "🔁 Sync all"), Data: "m:sync"}, button{Text: b.tr("🩺 بررسی", "🩺 Probe"), Data: "o:nd:probe:0"})
 	}
@@ -377,6 +380,7 @@ func (b *bot) objCard(k *kindInfo, id uint) (string, [][]button) {
 			tog = b.tr("✅ فعال", "✅ Enable")
 		}
 		actions = append(actions, []button{{Text: tog, Data: pre + "tog:" + sid}, {Text: b.tr("🔁 همگام‌سازی", "🔁 Sync"), Data: pre + "sync:" + sid}, {Text: b.tr("🩺 تست", "🩺 Test"), Data: pre + "probe:" + sid}})
+		actions = append(actions, []button{{Text: b.tr("🧪 تست اتصال", "🧪 Connection test"), Data: pre + "ntest:" + sid}, {Text: b.tr("📉 قطعی‌ها", "📉 Outages"), Data: pre + "otg:" + sid}})
 		if m["enable"] != false {
 			more := []button{{Text: b.tr("♻️ ری‌استارت هسته", "♻️ Restart core"), Data: pre + "rsb:" + sid}}
 			if b.can("backup") {
@@ -743,6 +747,7 @@ func (b *bot) objCallback(ctx context.Context, cbID string, chatID, msgID int64,
 		show(text, kb)
 	}
 	listBack := "o:" + k.code + ":ls:0"
+	pre := func(verb, arg string) string { return "o:" + k.code + ":" + verb + ":" + arg }
 	switch verb {
 	case "ls":
 		b.answer(ctx, cbID, "")
@@ -764,6 +769,28 @@ func (b *bot) objCallback(ctx context.Context, cbID string, chatID, msgID int64,
 			return
 		}
 		card()
+	case "ntest":
+		if k.code != "nd" {
+			b.answer(ctx, cbID, "")
+			return
+		}
+		b.answer(ctx, cbID, b.tr("در حال تست…", "Testing…"))
+		b.sendKeyboard(ctx, chatID, b.nodeTestText(id), [][]button{{{Text: b.tr("📉 قطعی‌ها", "📉 Outages"), Data: pre("otg", arg)}, {Text: b.tr("🖥 کارت نود", "🖥 Node card"), Data: pre("v", arg)}}})
+	case "otg":
+		if k.code != "nd" {
+			b.answer(ctx, cbID, "")
+			return
+		}
+		b.answer(ctx, cbID, "")
+		show(b.nodeOutagesScreen(id))
+	case "lnk":
+		if k.code != "out" {
+			b.answer(ctx, cbID, "")
+			return
+		}
+		b.answer(ctx, cbID, "")
+		b.pend.set(chatID, &pending{kind: "obj.links", key: k.code, msgID: msgID, back: listBack, data: map[string]string{}})
+		show(b.outboundLinkPrompt(), [][]button{b.cancelRow()})
 	case "j":
 		b.answer(ctx, cbID, "")
 		if m, err := b.objEditable(k, id); err == nil {

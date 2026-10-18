@@ -879,6 +879,7 @@ var ownerAlerts = []alertDef{
 	{prefAdminActs, "🗑 حذف کلاینت / افزایش حجم توسط ادمین‌ها", "🗑 Admins deleting clients / giving volume"},
 	{prefApprovals, "✅ تأیید سفارش توسط ادمین‌ها", "✅ Admins approving orders"},
 	{prefNewCust, "🆕 مشتری جدید", "🆕 New customer"},
+	{prefRenew, "⏳ یادآوری تمدید به مشتری‌ها", "⏳ Renewal reminders to customers"},
 }
 
 var staleHourChoices = []int{1, 3, 6, 12, 24}
@@ -889,6 +890,7 @@ func (b *bot) alertsScreen() (string, [][]button) {
 		b.tr("روی هر مورد بزنید تا روشن یا خاموش شود.", "Tap an item to switch it on or off."),
 		b.tr(fmt.Sprintf("سفارش معطل: سفارشی که رسیدش آمده و بیش از %d ساعت تأیید نشده.", hrs), fmt.Sprintf("A waiting order: one with a receipt not handled for more than %d hours.", hrs)),
 		b.tr("هشدار نود و هسته و گزارش زمان‌بندی‌شده در تنظیمات ربات (پنل وب) است.", "Node/core alerts and the scheduled report are in the bot settings of the web panel.")}
+	lines = append(lines, b.renewLines()...)
 	var kb [][]button
 	for _, d := range ownerAlerts {
 		kb = append(kb, []button{{Text: onOff(prefOn(d.key)) + " " + b.tr(d.fa, d.en), Data: "q:alt:" + d.key}})
@@ -901,7 +903,16 @@ func (b *bot) alertsScreen() (string, [][]button) {
 		}
 		row = append(row, button{Text: label, Data: fmt.Sprintf("q:alh:%d", h)})
 	}
-	kb = append(kb, row, b.navRow("q:home"))
+	days := prefInt(prefRenewDays, 3)
+	var drow []button
+	for _, d := range renewDayChoices {
+		label := b.tr(fmt.Sprintf("⏳ %d روز", d), fmt.Sprintf("⏳ %dd", d))
+		if d == days {
+			label = "• " + label
+		}
+		drow = append(drow, button{Text: label, Data: fmt.Sprintf("q:ald:%d", d)})
+	}
+	kb = append(kb, row, drow, b.navRow("q:home"))
 	return strings.Join(lines, "\n"), kb
 }
 
@@ -1277,6 +1288,14 @@ func (b *bot) ownerCallback(ctx context.Context, cbID string, chatID, msgID int6
 			return
 		}
 		_ = setPref(prefStaleHrs, strconv.Itoa(h))
+		show(b.alertsScreen())
+	case "ald":
+		d, _ := strconv.Atoi(arg(2))
+		if d <= 0 || d > 30 {
+			b.answer(ctx, cbID, "")
+			return
+		}
+		_ = setPref(prefRenewDays, strconv.Itoa(d))
 		show(b.alertsScreen())
 	case "up":
 		show(b.updateScreen(arg(2) == "c"))

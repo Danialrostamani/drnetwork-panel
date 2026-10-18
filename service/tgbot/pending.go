@@ -83,6 +83,20 @@ func (b *bot) handlePending(ctx context.Context, chatID, userMsgID int64, text s
 		}
 		t, kb := b.objCard(kindByCode("in"), p.id)
 		finish(b.t("done")+"\n\n"+t, kb)
+	case p.kind == "obj.links":
+		r := b.importOutbounds(text)
+		if len(r.added) == 0 {
+			msg := b.tr("هیچ اوت‌باندی از این متن ساخته نشد.", "No outbound could be made from that.")
+			if rep := b.importReport(r); rep != "" {
+				msg += "\n" + rep
+			}
+			// The report is HTML already: told as it is, not through retry.
+			b.pend.set(chatID, p)
+			b.reply(ctx, chatID, p.msgID, "❌ "+msg+"\n\n"+b.tr("دوباره بفرستید یا انصراف دهید.", "Send it again or cancel."), [][]button{b.cancelRow()})
+			return
+		}
+		t, kb := b.objListScreen(kindByCode("out"), 0)
+		finish(b.importReport(r)+"\n\n"+t, kb)
 	case p.kind == "obj.edit" || p.kind == "obj.new":
 		k := kindByCode(p.key)
 		m, err := parseObjectInput(k, text)

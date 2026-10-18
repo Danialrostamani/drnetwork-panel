@@ -95,6 +95,7 @@ func (b *bot) watch(ctx context.Context) {
 		if time.Since(lastOwnerCheck) >= ownerCheckEvery {
 			lastOwnerCheck = time.Now()
 			b.ownerWatch(ctx, lastOwnerCheck)
+			b.renewWatch(ctx, lastOwnerCheck)
 		}
 		if report != nil && !time.Now().Before(report.next) {
 			report.next = report.sched.Next(time.Now().In(b.loc))
@@ -375,7 +376,9 @@ func (b *bot) checkClients(ctx context.Context, reported map[string]bool) {
 		}
 		fresh = append(fresh, clientAlert{owner.Group, fmt.Sprintf("• <b>%s</b> — %s", esc(owner.Name), reason)})
 		// A client bound to Telegram hears about its own limits directly.
-		if owner.TgId != 0 && !b.isAdmin(owner.TgId) {
+		// With the renewal reminders on, those tell it instead (once, and
+		// with a renew button).
+		if owner.TgId != 0 && !b.isAdmin(owner.TgId) && !prefOn(prefRenew) {
 			b.send(ctx, owner.TgId, b.t("userAlertTitle", esc(owner.Name))+"\n"+reason)
 		}
 	}

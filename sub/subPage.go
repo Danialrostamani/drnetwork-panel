@@ -2,7 +2,9 @@ package sub
 
 import (
 	_ "embed"
+	"encoding/json"
 	"strings"
+	"time"
 
 	"github.com/Danialrostamani/drnetwork-panel/database"
 	"github.com/Danialrostamani/drnetwork-panel/database/model"
@@ -32,6 +34,39 @@ func (s *SubHandler) page(c *gin.Context, subID string) bool {
 	}
 	c.Header("Cache-Control", "no-store")
 	c.Header("X-Robots-Tag", "noindex")
-	c.Data(200, "text/html; charset=utf-8", []byte(subPageHTML))
+	c.Data(200, "text/html; charset=utf-8", []byte(pageFor(&client, time.Now())))
 	return true
+}
+
+// subStateMark is where the page reads what the panel already knows.
+const subStateMark = "/*SUB_STATE*/null"
+
+// pageFor is the page with the state of the client put in: a subscription
+// that has ended -- time or data used up, or switched off -- tells the page so,
+// since its link no longer answers and the page would have nothing to show.
+func pageFor(client *model.Client, now time.Time) string {
+	reason := endedReason(client, now)
+	if reason == "" {
+		return subPageHTML
+	}
+	state, _ := json.Marshal(map[string]any{"ended": true, "reason": reason})
+	return strings.Replace(subPageHTML, subStateMark, string(state), 1)
+}
+
+// endedReason is why a client cannot use its subscription any more: "volume",
+// "expired", "both", "disabled", or "" while it still can.
+func endedReason(c *model.Client, now time.Time) string {
+	vol := c.Volume > 0 && c.Up+c.Down >= c.Volume
+	exp := c.Expiry > 0 && c.Expiry <= now.Unix()
+	switch {
+	case vol && exp:
+		return "both"
+	case vol:
+		return "volume"
+	case exp:
+		return "expired"
+	case !c.Enable:
+		return "disabled"
+	}
+	return ""
 }

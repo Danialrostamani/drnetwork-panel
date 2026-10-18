@@ -32,6 +32,7 @@ const (
 
 var prefDefaults = map[string]string{
 	prefStale: "1", prefStaleHrs: "3", prefQuotaFull: "1", prefAdminActs: "1", prefApprovals: "1", prefNewCust: "0",
+	prefRenew: "1", prefRenewDays: "3",
 }
 
 func getPref(key string) string {

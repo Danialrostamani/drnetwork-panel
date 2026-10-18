@@ -263,6 +263,20 @@ type BotPref struct {
 
 func (BotPref) TableName() string { return "bot_prefs" }
 
+// BotRenewNote is what the bot already reminded a customer about for one
+// client in its current term: a renewal (new expiry or volume) starts over.
+type BotRenewNote struct {
+	ClientId uint  `json:"clientId" gorm:"primaryKey;autoIncrement:false"`
+	Expiry   int64 `json:"expiry"`
+	Volume   int64 `json:"volume"`
+	Soon     bool  `json:"soon"`
+	Low      bool  `json:"low"`
+	Ended    bool  `json:"ended"`
+	At       int64 `json:"at"`
+}
+
+func (BotRenewNote) TableName() string { return "bot_renew_notes" }
+
 type Tokens struct {
 	Id     uint   `json:"id" form:"id" gorm:"primaryKey;autoIncrement"`
 	Desc   string `json:"desc" form:"desc"`
