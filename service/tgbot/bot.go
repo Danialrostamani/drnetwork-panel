@@ -22,6 +22,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -357,18 +358,17 @@ type bot struct {
 
 func newBot(cfg botConfig) *bot {
 	transport := &http.Transport{Proxy: http.ProxyFromEnvironment, IdleConnTimeout: 60 * time.Second}
-	if cfg.Outbound != "" {
-		tag := cfg.Outbound
-		transport.Proxy = nil
-		transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-			return service.DialOutbound(ctx, tag, network, addr)
-		}
-	} else if cfg.Proxy != "" {
+	var proxyURL *url.URL
+	if cfg.Proxy != "" {
 		if u, err := url.Parse(cfg.Proxy); err == nil && u.Host != "" {
+			proxyURL = u
 			transport.Proxy = http.ProxyURL(u)
 		} else {
 			logger.Warning("telegram bot: ignoring invalid proxy URL")
 		}
+	}
+	if cfg.Outbound != "" {
+		useOutbound(transport, cfg.Outbound, proxyURL)
 	}
 	loc := time.Local
 	if l, err := (&service.SettingService{}).GetTimeLocation(); err == nil && l != nil {
@@ -381,6 +381,36 @@ func newBot(cfg botConfig) *bot {
 		pend:   &pendingStore{},
 		menus:  &menuState{},
 		acc:    newAccessState(cfg.access()),
+	}
+}
+
+// useOutbound sends the bot's requests through a panel outbound. While the
+// core is down or the outbound is missing -- a broken config, a restart, a
+// renamed tag -- the bot falls back to the proxy, or to a direct connection,
+// so the owner can still reach the bot to fix the panel.
+func useOutbound(transport *http.Transport, tag string, proxyURL *url.URL) {
+	var fellBack atomic.Bool
+	direct := &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}
+	transport.Proxy = func(r *http.Request) (*url.URL, error) {
+		if service.OutboundReady(tag) {
+			return nil, nil
+		}
+		if proxyURL != nil {
+			return proxyURL, nil
+		}
+		return http.ProxyFromEnvironment(r)
+	}
+	transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		if service.OutboundReady(tag) {
+			if fellBack.CompareAndSwap(true, false) {
+				logger.Info("telegram bot: outbound ", tag, " is available again")
+			}
+			return service.DialOutbound(ctx, tag, network, addr)
+		}
+		if !fellBack.Swap(true) {
+			logger.Warning("telegram bot: outbound ", tag, " is not available (core stopped or tag missing); connecting without it until it is back")
+		}
+		return direct.DialContext(ctx, network, addr)
 	}
 }
 

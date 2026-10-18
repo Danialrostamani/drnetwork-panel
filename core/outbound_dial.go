@@ -33,3 +33,14 @@ func (c *Core) DialOutbound(ctx context.Context, tag, network, address string) (
 	}
 	return ob.DialContext(ctx, n, dest)
 }
+
+// HasOutbound tells whether the core is running and has an outbound with
+// this tag, so a caller can fall back to another route when it has not.
+func (c *Core) HasOutbound(tag string) bool {
+	box, err := c.running()
+	if err != nil {
+		return false
+	}
+	_, ok := box.outbound.Outbound(tag)
+	return ok
+}

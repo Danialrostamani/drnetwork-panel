@@ -172,28 +172,40 @@ func addQuotaSold(id, bytes int64) error {
 // customer shop sale is approved. The owner, and admins with no limit, are
 // not charged. An unlimited plan (0 bytes) cannot be sold by a limited admin.
 func (b *bot) consumeSaleQuota(adminID, bytes int64) error {
-	if adminID == 0 {
-		return nil
-	}
-	if b.access().isOwner(adminID) {
-		return nil
+	_, err := b.saleQuota(adminID, bytes, true)
+	return err
+}
+
+// saleQuota checks that an administrator's limit allows a sale of bytes and,
+// when charge is set, takes it from the limit; charged tells whether it was
+// taken. Without charge it only checks, for volume given to a client whose
+// traffic already counts against the limit.
+func (b *bot) saleQuota(adminID, bytes int64, charge bool) (charged bool, err error) {
+	if adminID == 0 || b.access().isOwner(adminID) {
+		return false, nil
 	}
 	q, ok, err := b.quotaOf(adminID)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if !ok {
-		return nil
+		return false, nil
 	}
 	if bytes <= 0 {
-		return &quotaError{b.tr(
+		return false, &quotaError{b.tr(
 			"این ادمین محدودیت حجم دارد؛ پلن نامحدود برای فروش مجاز نیست.",
 			"This admin has a volume limit; an unlimited plan cannot be sold.")}
 	}
 	if q.Left() < bytes {
-		return b.errQuotaUsedUp(q)
+		return false, b.errQuotaUsedUp(q)
 	}
-	return addQuotaSold(adminID, bytes)
+	if !charge {
+		return false, nil
+	}
+	if err := addQuotaSold(adminID, bytes); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // quotaCatchUp makes sure the clients that count for an administrator are all

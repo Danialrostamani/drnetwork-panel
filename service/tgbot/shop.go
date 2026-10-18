@@ -205,9 +205,10 @@ func (s shopConfig) plan(id string) *shopPlan {
 }
 
 func (s shopConfig) wallet(id string) *shopWallet {
-	for i := range s.Wallets {
-		if s.Wallets[i].ID == id {
-			return &s.Wallets[i]
+	list := s.walletList()
+	for i := range list {
+		if list[i].ID == id {
+			return &list[i]
 		}
 	}
 	return nil
@@ -343,9 +344,9 @@ func (b *bot) customerBuy(ctx context.Context, chatID int64, from *fromUser, ren
 	s := b.loadShop()
 	if len(s.Plans) == 0 {
 		b.sendKeyboard(ctx, chatID, b.tr(
-			"🔐 هنوز پلنی در فروشگاه نیست. درخواست برای پشتیبانی فرستاده می‌شود.",
-			"🔐 No plan is in the shop yet. A request is sent to support."),
-			[][]button{{{Text: b.tr("📩 ارسال درخواست خرید", "📩 Send buy request"), Data: "u:ask:buy"}}})
+			"🔐 هنوز پلنی در فروشگاه نیست. می‌توانید درخواستتان را برای پشتیبانی بنویسید.",
+			"🔐 No plan is in the shop yet. You can write your request to support."),
+			[][]button{{{Text: b.tr("📩 پیام به پشتیبانی", "📩 Message support"), Data: "u:ask:buy"}}})
 		return
 	}
 	prefix := "u:buy:"
@@ -359,26 +360,18 @@ func (b *bot) customerBuy(ctx context.Context, chatID int64, from *fromUser, ren
 
 func (b *bot) customerWallet(ctx context.Context, chatID int64, from *fromUser) {
 	s := b.loadShop()
-	wallets := s.Wallets
-	if len(wallets) == 0 {
-		wallets = []shopWallet{
-			{ID: "50", Label: "50,000", Amount: "50000"},
-			{ID: "100", Label: "100,000", Amount: "100000"},
-			{ID: "200", Label: "200,000", Amount: "200000"},
-			{ID: "500", Label: "500,000", Amount: "500000"},
-		}
-	}
 	var rows [][]button
-	for _, w := range wallets {
+	for _, w := range s.walletList() {
 		label := w.Label
 		if label == "" {
 			label = w.Amount
 		}
 		rows = append(rows, []button{{Text: label, Data: "u:wal:" + w.ID}})
 	}
+	bal := esc(formatMoney(walletBalance(from.ID)))
 	b.sendKeyboard(ctx, chatID, b.tr(
-		"🏦 <b>کیف پول</b>\nمبلغ شارژ را انتخاب کنید.",
-		"🏦 <b>Wallet</b>\nPick the amount to add."), rows)
+		"🏦 <b>کیف پول</b>\nموجودی: <b>"+bal+"</b>\nمبلغ شارژ را انتخاب کنید. بعد از تأیید رسید، به موجودی اضافه می‌شود و می‌توانید پلن را از کیف پول پرداخت کنید.",
+		"🏦 <b>Wallet</b>\nBalance: <b>"+bal+"</b>\nPick the amount to add. It is added once the receipt is approved, and plans can then be paid from the wallet."), rows)
 }
 
 func (b *bot) customerTariff(ctx context.Context, chatID int64, from *fromUser) {
@@ -440,11 +433,19 @@ func (b *bot) customerShopCallback(ctx context.Context, cbID string, chatID, msg
 		id, _ := strconv.ParseUint(parts[2], 10, 32)
 		b.askReceipt(ctx, chatID, fu, uint(id))
 	case "skip":
+		// Old wallet screens offered a request without a receipt; a top-up
+		// needs one, so the button now asks for it.
 		if len(parts) < 3 {
 			return
 		}
 		id, _ := strconv.ParseUint(parts[2], 10, 32)
-		b.skipReceipt(ctx, chatID, fu, uint(id))
+		b.askReceipt(ctx, chatID, fu, uint(id))
+	case "wp":
+		if len(parts) < 3 {
+			return
+		}
+		id, _ := strconv.ParseUint(parts[2], 10, 32)
+		b.payFromWallet(ctx, chatID, fu, uint(id))
 	case "cx":
 		if len(parts) < 3 {
 			return
@@ -465,11 +466,15 @@ func (b *bot) customerShopCallback(ctx context.Context, cbID string, chatID, msg
 		b.pend.clear(chatID)
 		b.placeOrder(ctx, chatID, fu, topic, planID, extra)
 	case "ask":
+		// A request without a plan is a message to support, not an order:
+		// approving an order without a plan would have nothing to deliver.
 		topic := "buy"
 		if len(parts) > 2 {
 			topic = parts[2]
 		}
-		b.placeOrder(ctx, chatID, fu, topic, "", "")
+		b.customerAsk(ctx, chatID, fu, topic, b.tr(
+			"📩 درخواستتان را بنویسید (مثلاً حجم و مدت دلخواه)؛ برای پشتیبانی ارسال می‌شود.",
+			"📩 Write your request (for example the data and duration you want); it is sent to support."))
 	case "ren":
 		if len(parts) < 3 {
 			return

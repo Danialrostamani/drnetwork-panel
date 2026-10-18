@@ -57,7 +57,7 @@ func BotQuotaUsage(db *gorm.DB, tg int64) (used int64, live int, err error) {
 		COALESCE((SELECT banked FROM bot_quotas WHERE tg_id = ?), 0) +
 		COALESCE((SELECT SUM(MAX(c.total_up + c.total_down + c.up + c.down - m.base, 0))
 			FROM bot_quota_clients m JOIN clients c ON c.id = m.client_id
-			WHERE m.tg_id = ?), 0) AS used,
+			WHERE m.tg_id = ? AND NOT m.prepaid), 0) AS used,
 		(SELECT COUNT(*) FROM bot_quota_clients m JOIN clients c ON c.id = m.client_id
 			WHERE m.tg_id = ?) AS live`, tg, tg, tg).Scan(&row).Error
 	return row.Used, row.Live, err
@@ -81,6 +81,25 @@ func BotQuotaAttach(db *gorm.DB, tg int64, names []string) error {
 		}
 	}
 	return nil
+}
+
+// BotQuotaPrepaid records that a client was sold through tg's shop and its
+// plan volume already taken from tg's limit, so its traffic never counts
+// against the limit as well. It also keeps the client from being adopted by
+// tg's group later.
+func BotQuotaPrepaid(db *gorm.DB, tg int64, clientID uint) error {
+	return db.Exec(`INSERT INTO bot_quota_clients (client_id, tg_id, base, prepaid)
+		VALUES (?, ?, 0, 1)
+		ON CONFLICT(client_id) DO UPDATE SET tg_id = excluded.tg_id, prepaid = 1`, clientID, tg).Error
+}
+
+// BotQuotaMetered tells whether a client counts against tg's limit by its
+// traffic, so giving it more volume must not also be charged up front.
+func BotQuotaMetered(db *gorm.DB, tg int64, clientID uint) (bool, error) {
+	var n int64
+	err := db.Model(&model.BotQuotaClient{}).
+		Where("client_id = ? AND tg_id = ? AND NOT prepaid", clientID, tg).Count(&n).Error
+	return n > 0, err
 }
 
 // botQuotaAdopt makes clients that existed before count for tg from now on:
@@ -266,7 +285,7 @@ func bankDeletedClients(tx *gorm.DB, ids []uint) error {
 		err := tx.Exec(`UPDATE bot_quotas SET banked = banked + COALESCE((
 				SELECT SUM(MAX(c.total_up + c.total_down + c.up + c.down - m.base, 0))
 				FROM bot_quota_clients m JOIN clients c ON c.id = m.client_id
-				WHERE m.tg_id = bot_quotas.tg_id AND m.client_id IN ?), 0)
+				WHERE m.tg_id = bot_quotas.tg_id AND NOT m.prepaid AND m.client_id IN ?), 0)
 			WHERE tg_id IN (SELECT tg_id FROM bot_quota_clients WHERE client_id IN ?)`, chunk, chunk).Error
 		if err != nil {
 			return err

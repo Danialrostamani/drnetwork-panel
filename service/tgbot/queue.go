@@ -206,6 +206,13 @@ func (b *bot) customerCancel(ctx context.Context, chatID int64, from *fromUser, 
 		b.sendMenu(ctx, chatID, b.tr("❌ لغو ممکن نشد.", "❌ Could not cancel."), b.customerMenu(from.ID))
 		return
 	}
+	if o.WalletPaid && o.Amount > 0 {
+		_, _ = walletCredit(o.TgId, o.Amount)
+	}
+	// A receipt sent after this must not reach staff for a cancelled order.
+	if p := b.pend.get(chatID); p != nil && p.kind == "cu.receipt" && p.data != nil && p.data["id"] == strconv.FormatUint(uint64(o.Id), 10) {
+		b.pend.clear(chatID)
+	}
 	b.notifyOrderStaff(ctx, o, b.tr("❌ مشتری سفارش را لغو کرد.", "❌ The customer cancelled the order.")+"\n"+esc(o.Detail)+fmt.Sprintf("\n<code>%d</code>", o.TgId), nil)
 	b.sendMenu(ctx, chatID, b.tr("✅ سفارش لغو شد.", "✅ Order cancelled."), b.customerMenu(from.ID))
 }

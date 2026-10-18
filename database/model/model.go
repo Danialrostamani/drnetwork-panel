@@ -121,6 +121,10 @@ type BotQuotaClient struct {
 	ClientId uint  `json:"clientId" gorm:"primaryKey;autoIncrement:false"`
 	TgId     int64 `json:"tgId" gorm:"index;not null"`
 	Base     int64 `json:"base" gorm:"default:0;not null"`
+	// Prepaid marks a client sold through the administrator's shop: its plan
+	// volume was already taken from the limit (BotQuota.Sold) when the sale
+	// was approved, so its traffic is not counted a second time.
+	Prepaid bool `json:"prepaid" gorm:"default:false;not null"`
 }
 
 // TableName pins the name, for the same reason as BotQuota's.
@@ -142,9 +146,21 @@ type BotOrder struct {
 	Ref       string `json:"ref"`
 	// Hint is a readable client name taken from the customer's Telegram
 	// username (or a sanitized first name) when the order is placed.
-	Hint      string `json:"hint"`
-	CreatedAt int64  `json:"createdAt" gorm:"index"`
-	UpdatedAt int64  `json:"updatedAt"`
+	Hint string `json:"hint"`
+	// The plan as the customer saw it when the order was placed, so a plan
+	// edited or deleted before approval cannot change what is delivered.
+	// PlanSet tells these apart from orders placed by older versions.
+	PlanSet   bool   `json:"planSet" gorm:"default:false;not null"`
+	PlanGB    int    `json:"planGB" gorm:"default:0;not null"`
+	PlanDays  int    `json:"planDays" gorm:"default:0;not null"`
+	PlanGroup string `json:"planGroup"`
+	// Amount is the top-up of a wallet order, and the plan price in wallet
+	// units for a buy or renew (0 when the price is not a number).
+	Amount int64 `json:"amount" gorm:"default:0;not null"`
+	// WalletPaid is set when a buy or renew was paid from the wallet balance.
+	WalletPaid bool  `json:"walletPaid" gorm:"default:false;not null"`
+	CreatedAt  int64 `json:"createdAt" gorm:"index"`
+	UpdatedAt  int64 `json:"updatedAt"`
 }
 
 func (BotOrder) TableName() string { return "bot_orders" }
@@ -158,6 +174,17 @@ type BotRef struct {
 }
 
 func (BotRef) TableName() string { return "bot_refs" }
+
+// BotWallet is a shop customer's wallet balance, in the shop's currency
+// unit. It is credited when a top-up order is approved and spent when the
+// customer pays a plan from it.
+type BotWallet struct {
+	TgId      int64 `json:"tgId" gorm:"primaryKey;autoIncrement:false"`
+	Balance   int64 `json:"balance" gorm:"default:0;not null"`
+	UpdatedAt int64 `json:"updatedAt"`
+}
+
+func (BotWallet) TableName() string { return "bot_wallets" }
 
 type Tokens struct {
 	Id     uint   `json:"id" form:"id" gorm:"primaryKey;autoIncrement"`

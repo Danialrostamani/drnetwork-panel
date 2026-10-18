@@ -139,7 +139,7 @@ func (b *bot) handle(ctx context.Context, u update) {
 	if p := b.pend.get(chatID); p != nil && p.kind == "cu.receipt" {
 		fileID := ""
 		if m.Document != nil {
-			fileID = m.Document.FileID
+			fileID = receiptDocPrefix + m.Document.FileID
 		} else if len(m.Photo) > 0 {
 			fileID = m.Photo[len(m.Photo)-1].FileID
 		}
@@ -786,7 +786,7 @@ func (b *bot) userCallback(ctx context.Context, cbID string, chatID, msgID int64
 		return
 	}
 	switch parts[1] {
-	case "buy", "wal", "nm", "ask", "ren", "rb", "pay", "skip", "cx":
+	case "buy", "wal", "nm", "ask", "ren", "rb", "pay", "skip", "cx", "wp":
 		b.customerShopCallback(ctx, cbID, chatID, msgID, from, parts)
 		return
 	}
