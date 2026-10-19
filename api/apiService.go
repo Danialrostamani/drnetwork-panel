@@ -375,15 +375,6 @@ func (a *ApiService) GetDb(c *gin.Context) {
 	c.Writer.Write(db)
 }
 
-func (a *ApiService) postActions(c *gin.Context) (string, json.RawMessage, error) {
-	var data map[string]json.RawMessage
-	err := c.ShouldBind(&data)
-	if err != nil {
-		return "", nil, err
-	}
-	return string(data["action"]), data["data"], nil
-}
-
 func (a *ApiService) Login(c *gin.Context) {
 	remoteIP := getRemoteIp(c)
 	loginUser, err := a.UserService.LoginWithCode(c.Request.FormValue("user"), c.Request.FormValue("pass"), c.Request.FormValue("code"), remoteIP)

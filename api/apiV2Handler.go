@@ -64,6 +64,8 @@ func (a *APIv2Handler) postHandler(c *gin.Context) {
 		a.ApiService.ImportDb(c)
 	case "closeSessions":
 		a.ApiService.CloseSessions(c)
+	case "resetSubToken":
+		a.ApiService.ResetSubToken(c, username)
 	case "getCertPing":
 		a.ApiService.GetCertPing(c)
 	case "clusterBans":

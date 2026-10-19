@@ -65,20 +65,6 @@ func jsonMsgObj(c *gin.Context, msg string, obj interface{}, err error) {
 	c.JSON(http.StatusOK, m)
 }
 
-func pureJsonMsg(c *gin.Context, success bool, msg string) {
-	if success {
-		c.JSON(http.StatusOK, Msg{
-			Success: true,
-			Msg:     msg,
-		})
-	} else {
-		c.JSON(http.StatusOK, Msg{
-			Success: false,
-			Msg:     msg,
-		})
-	}
-}
-
 func checkLogin(c *gin.Context) {
 	if IsLogin(c) {
 		c.Next()

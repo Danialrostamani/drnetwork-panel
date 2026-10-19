@@ -33,17 +33,3 @@ func buildInboundQUICOptions(options option.HysteriaInboundOptions) qtls.QUICOpt
 	}
 	return quicOptions
 }
-
-func buildOutboundQUICOptions(options option.HysteriaOutboundOptions) qtls.QUICOptions {
-	quicOptions := buildBaseQUICOptions(options.QUICOptions)
-	if quicOptions.ConnectionReceiveWindow == 0 {
-		quicOptions.ConnectionReceiveWindow = options.ReceiveWindowConn //nolint:staticcheck
-	}
-	if quicOptions.StreamReceiveWindow == 0 {
-		quicOptions.StreamReceiveWindow = options.ReceiveWindow //nolint:staticcheck
-	}
-	if !quicOptions.DisablePathMTUDiscovery {
-		quicOptions.DisablePathMTUDiscovery = options.DisableMTUDiscovery //nolint:staticcheck
-	}
-	return quicOptions
-}

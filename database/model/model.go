@@ -1,6 +1,12 @@
 package model
 
-import "encoding/json"
+import (
+	"crypto/rand"
+	"encoding/json"
+	"math/big"
+
+	"gorm.io/gorm"
+)
 
 type Setting struct {
 	Id    uint   `json:"id" form:"id" gorm:"primaryKey;autoIncrement"`
@@ -32,7 +38,12 @@ type Client struct {
 	// ClientService.validateClientName -- a unique index would need existing
 	// duplicates renamed, and a name is the subscription ID, so renaming one
 	// breaks that user's link.
-	Name     string          `json:"name" form:"name" gorm:"index"`
+	Name string `json:"name" form:"name" gorm:"index"`
+	// SubToken is the random ID of the client's subscription link. The name
+	// served as that ID before, and a name anybody can guess opened anybody's
+	// configs; the panel makes the token itself (BeforeCreate) and only
+	// ClientService.ResetSubToken changes it.
+	SubToken string          `json:"subToken" form:"subToken" gorm:"index;default:'';not null"`
 	Config   json.RawMessage `json:"config,omitempty" form:"config"`
 	Inbounds json.RawMessage `json:"inbounds" form:"inbounds"`
 	Links    json.RawMessage `json:"links,omitempty" form:"links"`
@@ -63,6 +74,34 @@ type Client struct {
 	NextReset  int64 `json:"nextReset" form:"nextReset" gorm:"default:0;not null"`
 	TotalUp    int64 `json:"totalUp" form:"totalUp" gorm:"default:0;not null"`
 	TotalDown  int64 `json:"totalDown" form:"totalDown" gorm:"default:0;not null"`
+}
+
+// SubTokenLength is how long a subscription token is: 24 letters and digits,
+// far beyond guessing.
+const SubTokenLength = 24
+
+const subTokenAlphabet = "abcdefghijklmnopqrstuvwxyz0123456789"
+
+// NewSubToken makes a subscription token from crypto/rand.
+func NewSubToken() string {
+	out := make([]byte, SubTokenLength)
+	max := big.NewInt(int64(len(subTokenAlphabet)))
+	for i := range out {
+		n, err := rand.Int(rand.Reader, max)
+		if err != nil {
+			panic("subscription token: " + err.Error())
+		}
+		out[i] = subTokenAlphabet[n.Int64()]
+	}
+	return string(out)
+}
+
+// BeforeCreate gives a new client its subscription token.
+func (c *Client) BeforeCreate(tx *gorm.DB) error {
+	if c.SubToken == "" {
+		c.SubToken = NewSubToken()
+	}
+	return nil
 }
 
 type Stats struct {

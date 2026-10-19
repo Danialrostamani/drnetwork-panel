@@ -78,6 +78,8 @@ func (a *APIHandler) postHandler(c *gin.Context) {
 		a.ApiService.SaveTotp(c)
 	case "panelUpdate":
 		a.ApiService.StartPanelUpdate(c, loginUser)
+	case "resetSubToken":
+		a.ApiService.ResetSubToken(c, loginUser)
 	default:
 		jsonMsg(c, "failed", common.NewError("unknown action: ", action))
 	}

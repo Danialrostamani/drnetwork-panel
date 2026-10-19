@@ -122,12 +122,35 @@ func InitDB(dbPath string) error {
 	if err != nil {
 		return err
 	}
+	if err = fillSubTokens(); err != nil {
+		return err
+	}
 	err = initUser()
 	if err != nil {
 		return err
 	}
 
 	return nil
+}
+
+// fillSubTokens gives a subscription token to every client without one: the
+// clients from before tokens, and those of an older backup just restored.
+func fillSubTokens() error {
+	var ids []uint
+	if err := db.Model(model.Client{}).Where("sub_token = '' OR sub_token IS NULL").Pluck("id", &ids).Error; err != nil {
+		return err
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	return db.Transaction(func(tx *gorm.DB) error {
+		for _, id := range ids {
+			if err := tx.Model(model.Client{}).Where("id = ?", id).Update("sub_token", model.NewSubToken()).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // dedupStats merges traffic for duplicate groups of (resource, tag, date_time, direction)

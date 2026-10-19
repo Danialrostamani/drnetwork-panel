@@ -2,6 +2,7 @@ package cronjob
 
 import (
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -15,15 +16,29 @@ import (
 	"github.com/op/go-logging"
 )
 
+// The jobs log from goroutines that outlive the test that started them, so the
+// logger is set up once, before any test, never again under a running one.
+func TestMain(m *testing.M) {
+	logger.InitLogger(logging.ERROR)
+	kickDelay = 0
+	os.Exit(m.Run())
+}
+
+// waitKicks lets the disconnects a test started end before the next test
+// replaces the database and the core under them.
+func waitKicks(t *testing.T) {
+	t.Cleanup(kicking.Wait)
+}
+
 // A client past its volume is disabled on the master and the nodes are marked
 // for a sync at once, so they stop serving it too.
 func TestDepleteJobMarksNodesForSync(t *testing.T) {
-	logger.InitLogger(logging.ERROR)
 	// A core that is not running: the inbound update has nothing to touch.
 	service.NewConfigService(core.NewCore())
 	if err := database.InitDB(filepath.Join(t.TempDir(), "d.db")); err != nil {
 		t.Fatal(err)
 	}
+	waitKicks(t)
 	db := database.GetDB()
 	node := model.Node{Name: "nl", Enable: true, BaseUrl: "http://127.0.0.1:1", Token: "t"}
 	db.Create(&node)
@@ -49,12 +64,11 @@ func TestDepleteJobMarksNodesForSync(t *testing.T) {
 // The quick check cuts a client off the moment its usage reaches the volume
 // -- not one byte later -- or its time is up, and leaves the others alone.
 func TestQuickDepleteJobCutsAtTheLimit(t *testing.T) {
-	logger.InitLogger(logging.ERROR)
 	service.NewConfigService(core.NewCore())
 	if err := database.InitDB(filepath.Join(t.TempDir(), "q.db")); err != nil {
 		t.Fatal(err)
 	}
-	kickDelay = 0
+	waitKicks(t)
 	db := database.GetDB()
 	mk := func(name string, volume, used, expiry int64) {
 		db.Create(&model.Client{Name: name, Enable: true, Volume: volume, Down: used, Expiry: expiry, Config: json.RawMessage(`{}`), Inbounds: json.RawMessage(`[]`), Links: json.RawMessage(`[]`)})

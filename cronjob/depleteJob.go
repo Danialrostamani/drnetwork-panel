@@ -28,6 +28,9 @@ var depleteMu sync.Mutex
 // were being synced.
 var kickDelay = 15 * time.Second
 
+// kicking counts the disconnects still running, for the tests to wait on.
+var kicking sync.WaitGroup
+
 func (s *DepleteJob) Run() {
 	depleteMu.Lock()
 	defer depleteMu.Unlock()
@@ -49,10 +52,13 @@ func (s *DepleteJob) Run() {
 	// connections of the clients everywhere, so nobody keeps using a running
 	// download or an idle tunnel past the volume or the expiry.
 	s.NodeSyncService.MarkAllDirty()
+	delay := kickDelay
+	kicking.Add(1)
 	go func() {
+		defer kicking.Done()
 		s.NodeSyncService.ReconcileDirtyOnlineWait()
 		s.kick(users)
-		time.Sleep(kickDelay)
+		time.Sleep(delay)
 		s.kick(users)
 	}()
 }

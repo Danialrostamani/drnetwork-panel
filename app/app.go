@@ -22,7 +22,6 @@ type APP struct {
 	webServer     *web.Server
 	subServer     *sub.Server
 	cronJob       *cronjob.CronJob
-	logger        *logging.Logger
 	core          *core.Core
 }
 

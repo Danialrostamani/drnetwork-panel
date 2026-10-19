@@ -29,6 +29,7 @@ export interface Client {
   createdAt?: number
   onlineAt?: number
   limitIp?: number
+  subToken?: string
 }
 
 const defaultClient: Client = {

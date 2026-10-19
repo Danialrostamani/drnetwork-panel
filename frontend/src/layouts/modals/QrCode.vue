@@ -51,6 +51,20 @@
           <v-window-item value="sub">
             <v-row>
               <v-col style="text-align: center;">
+                <v-btn
+                  size="small"
+                  variant="tonal"
+                  color="warning"
+                  prepend-icon="mdi-link-variant-remove"
+                  :loading="resetting"
+                  @click="resetSubLink"
+                >
+                  {{ $t('client.resetSubLink') }}
+                </v-btn>
+              </v-col>
+            </v-row>
+            <v-row>
+              <v-col style="text-align: center;">
                 <v-chip>{{ $t('setting.sub') }}</v-chip><br>
                 <QrcodeVue
                   :value="clientSub"
@@ -144,11 +158,12 @@ export default {
       // subscription domain is a wildcard.
       subUrl: '',
       loading: false,
+      resetting: false,
     }
   },
   computed: {
     clientSub(): string {
-      return this.subUrl || Data().subURI + this.client.name
+      return this.subUrl || Data().subURI + (this.client.subToken || this.client.name)
     },
     singbox() {
       const url = this.clientSub + "?format=json"
@@ -181,7 +196,19 @@ export default {
       if (msg.success && msg.obj?.url) this.subUrl = msg.obj.url
       this.loading = false
     },
-    copyToClipboard(txt:string) {
+    // A new token: the client's current link stops working, for a link that
+    // leaked. The new one has to be given to the client again.
+    async resetSubLink() {
+      if (!window.confirm(i18n.global.t('client.resetSubLinkConfirm'))) return
+      this.resetting = true
+      const msg = await HttpUtils.post<{ url: string }>('api/resetSubToken', { id: this.$props.id })
+      this.resetting = false
+      if (msg.success) {
+        if (msg.obj?.url) this.subUrl = msg.obj.url
+        push.success({ message: i18n.global.t('client.resetSubLinkDone'), duration: 5000 })
+      }
+    },
+        copyToClipboard(txt:string) {
       const hiddenButton = document.createElement('button')
       hiddenButton.className = 'clipboard-btn'
       document.body.appendChild(hiddenButton)

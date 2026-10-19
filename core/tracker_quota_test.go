@@ -296,10 +296,10 @@ func TestQuotaRefusesNewConnectionsOutright(t *testing.T) {
 
 	// The request does not go upstream.
 	client, conn := refused()
-	go func() {
+	go func(client net.Conn) {
 		_, _ = client.Write([]byte("GET / HTTP/1.1\r\nHost: example.com\r\n\r\n"))
 		_ = client.Close()
-	}()
+	}(client)
 	var upstream bytes.Buffer
 	if n, _ := bufio.Copy(&upstream, conn); n != 0 {
 		t.Errorf("a refused connection sent %q upstream", upstream.String())
@@ -309,10 +309,10 @@ func TestQuotaRefusesNewConnectionsOutright(t *testing.T) {
 	// No answer comes back.
 	client, conn = refused()
 	answer := make(chan []byte, 1)
-	go func() {
+	go func(client net.Conn) {
 		got, _ := io.ReadAll(client)
 		answer <- got
-	}()
+	}(client)
 	if n, _ := bufio.Copy(conn, strings.NewReader("HTTP/1.1 200 OK\r\n\r\n")); n != 0 {
 		t.Errorf("%d bytes of an answer went down a refused connection", n)
 	}
