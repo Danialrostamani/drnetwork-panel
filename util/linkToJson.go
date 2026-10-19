@@ -38,6 +38,20 @@ func GetOutbound(uri string, i int) (*map[string]interface{}, string, error) {
 	return nil, "", common.NewError("Unsupported link format")
 }
 
+// vmessNumber reads a number of a vmess link, which writers give as a JSON
+// number or as a string ("port":"443", this panel's own links among them).
+// Passed on as a string it made sing-box refuse the whole subscription.
+func vmessNumber(v interface{}) (int, bool) {
+	switch n := v.(type) {
+	case float64:
+		return int(n), true
+	case string:
+		parsed, err := strconv.Atoi(strings.TrimSpace(n))
+		return parsed, err == nil
+	}
+	return 0, false
+}
+
 func vmess(data string, i int) (*map[string]interface{}, string, error) {
 	dataByte, err := B64StrToByte(data)
 	if err != nil {
@@ -118,14 +132,18 @@ func vmess(data string, i int) (*map[string]interface{}, string, error) {
 		tag = fmt.Sprintf("%d.%s", i, tag)
 	}
 	alter_id := 0
-	if aid, ok := dataJson["aid"].(float64); ok {
-		alter_id = int(aid)
+	if aid, ok := vmessNumber(dataJson["aid"]); ok {
+		alter_id = aid
+	}
+	port, ok := vmessNumber(dataJson["port"])
+	if !ok || port <= 0 || port > 65535 {
+		return nil, "", common.NewError("Invalid vmess port")
 	}
 	vmess := map[string]interface{}{
 		"type":        "vmess",
 		"tag":         tag,
 		"server":      dataJson["add"],
-		"server_port": dataJson["port"],
+		"server_port": port,
 		"uuid":        dataJson["id"],
 		"security":    "auto",
 		"alter_id":    alter_id,

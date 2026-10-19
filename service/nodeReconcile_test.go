@@ -172,3 +172,106 @@ func TestReconcileCreatesUpdatesAndDeletesOnlyClusterClients(t *testing.T) {
 		t.Fatalf("node sync state not finalized: dirty=%v lastSync=%d", node.Dirty, node.LastSync)
 	}
 }
+
+// A client the node refuses no longer ends the sync: the others are still sent
+// and get the node's links, and the refusal is reported with the node left
+// dirty for the next sync.
+func TestReconcileKeepsGoingPastARefusedClient(t *testing.T) {
+	if err := database.InitDB(filepath.Join(t.TempDir(), "refused.db")); err != nil {
+		t.Fatal(err)
+	}
+	const token = "node-token"
+	var mu sync.Mutex
+	var pushed []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Token") != token {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/app/apiv2/inbounds":
+			if r.URL.Query().Get("id") != "" {
+				_, _ = w.Write([]byte(`{"success":true,"obj":{"inbounds":[{"id":77,"type":"vless","tag":"remote-vless","listen_port":443,"addrs":[],"out_json":{"type":"vless","tag":"remote-vless","server":"node.example","server_port":443}}]}}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"success":true,"obj":{"inbounds":[{"id":77,"type":"vless","tag":"remote-vless"}]}}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/app/apiv2/clients":
+			_, _ = w.Write([]byte(`{"success":true,"obj":{"clients":[]}}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/app/apiv2/save":
+			_ = r.ParseForm()
+			var c struct {
+				Name string `json:"name"`
+			}
+			_ = json.Unmarshal([]byte(r.FormValue("data")), &c)
+			if c.Name == "aaa-taken" {
+				_, _ = w.Write([]byte(`{"success":false,"msg":"client name already exists"}`))
+				return
+			}
+			mu.Lock()
+			pushed = append(pushed, c.Name)
+			mu.Unlock()
+			_, _ = w.Write([]byte(`{"success":true,"obj":{}}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	node := model.Node{Name: "node-b", Enable: true, BaseUrl: srv.URL, WebPath: "/app/", Token: token}
+	if err := database.GetDB().Create(&node).Error; err != nil {
+		t.Fatal(err)
+	}
+	replica := model.Inbound{Type: "vless", Tag: "remote-vless", NodeId: &node.Id, Options: json.RawMessage(`{"listen_port":443}`)}
+	if err := database.GetDB().Create(&replica).Error; err != nil {
+		t.Fatal(err)
+	}
+	inbounds, _ := json.Marshal([]uint{replica.Id})
+	// "aaa-taken" sorts first, so the old code stopped before "zed".
+	for _, name := range []string{"aaa-taken", "zed"} {
+		c := model.Client{Name: name, Enable: true, Config: json.RawMessage(`{"vless":{"uuid":"11111111-1111-1111-1111-111111111111","name":"` + name + `"}}`), Inbounds: inbounds, Links: json.RawMessage(`[]`)}
+		if err := database.GetDB().Create(&c).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	svc := NodeSyncService{}
+	svc.MarkAllDirty()
+	err := svc.ReconcileNow(node.Id)
+	if err == nil || !strings.Contains(err.Error(), "aaa-taken") || !strings.Contains(err.Error(), "client name already exists") {
+		t.Fatalf("refusal not reported: %v", err)
+	}
+	mu.Lock()
+	got := strings.Join(pushed, ",")
+	mu.Unlock()
+	if got != "zed" {
+		t.Fatalf("pushed %q, want zed", got)
+	}
+	linksOf := func(name string) []map[string]string {
+		var c model.Client
+		if err := database.GetDB().Where("name = ?", name).First(&c).Error; err != nil {
+			t.Fatal(err)
+		}
+		var links []map[string]string
+		_ = json.Unmarshal(c.Links, &links)
+		return links
+	}
+	if links := linksOf("zed"); len(links) != 1 || links[0]["remark"] != "[node-b] remote-vless" {
+		t.Fatalf("zed has no node link: %#v", links)
+	}
+	if links := linksOf("aaa-taken"); len(links) != 0 {
+		t.Fatalf("refused client got links: %#v", links)
+	}
+	var stored model.Node
+	if err := database.GetDB().First(&stored, node.Id).Error; err != nil {
+		t.Fatal(err)
+	}
+	if !stored.Dirty {
+		t.Fatal("node marked clean after a refused client")
+	}
+	var report SyncReport
+	_ = json.Unmarshal(stored.SyncReport, &report)
+	if report.AddedCount != 1 || !strings.Contains(report.Error, "aaa-taken") {
+		t.Fatalf("report %#v", report)
+	}
+}

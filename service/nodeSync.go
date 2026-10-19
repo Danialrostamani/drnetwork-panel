@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"sort"
@@ -446,9 +447,16 @@ func (s *NodeSyncService) runReconcile(nodeID uint, startGen uint64, trigger str
 	if err != nil {
 		return err
 	}
-	if s.refreshReplicas(node, client, tagToID) {
-		s.refreshNodeLinks(node)
-	}
+	// The links are written once the clients are sent, so a client the node
+	// refuses keeps the links it had; a sync that stops before then still
+	// writes them when the node's inbounds changed.
+	replicasChanged := s.refreshReplicas(node, client, tagToID)
+	linksDone := false
+	defer func() {
+		if replicasChanged && !linksDone {
+			s.refreshNodeLinks(node, nil)
+		}
+	}()
 	expected, skipped, err := s.expectedClientsFor(node, tagToID)
 	if err != nil {
 		return err
@@ -460,9 +468,21 @@ func (s *NodeSyncService) runReconcile(nodeID uint, startGen uint64, trigger str
 	}
 	plan := planSync(expected, actual, trigger == syncFull)
 	report.Unchanged = plan.Same
+	// One client the node refuses (a name it already has for a client of its
+	// own, say) used to end the whole sync there: the clients after it were
+	// never sent and nobody got the node's links. Every client is tried now,
+	// the links are written for those the node took, and the refusals are
+	// reported together, the node staying dirty so the next sync tries again.
+	failed := map[string]bool{}
+	var pushErrs []string
+	refuse := func(name string, err error) {
+		failed[name] = true
+		pushErrs = append(pushErrs, name+": "+err.Error())
+	}
 	for _, name := range plan.Add {
 		if err := s.pushClient(node, client, "new", expected[name]); err != nil {
-			return common.NewErrorf("push new client %s to %s: %v", name, node.Name, err)
+			refuse(name, err)
+			continue
 		}
 		report.note(&report.Added, &report.AddedCount, name)
 	}
@@ -470,17 +490,27 @@ func (s *NodeSyncService) runReconcile(nodeID uint, startGen uint64, trigger str
 		want := expected[name]
 		want["id"] = actual[name].Id
 		if err := s.pushClient(node, client, "edit", want); err != nil {
-			return common.NewErrorf("push edit client %s to %s: %v", name, node.Name, err)
+			refuse(name, err)
+			continue
 		}
 		report.note(&report.Edited, &report.EditedCount, name)
 	}
 	for _, name := range plan.Del {
 		if err := s.pushClient(node, client, "del", actual[name].Id); err != nil {
-			return common.NewErrorf("delete stale client %s from %s: %v", name, node.Name, err)
+			pushErrs = append(pushErrs, name+": "+err.Error())
+			continue
 		}
 		report.note(&report.Deleted, &report.DeletedCount, name)
 	}
-	s.refreshNodeLinks(node)
+	s.refreshNodeLinks(node, failed)
+	linksDone = true
+	if len(pushErrs) > 0 {
+		shown := pushErrs
+		if len(shown) > 5 {
+			shown = shown[:5]
+		}
+		return common.NewErrorf("%d client(s) not synced to %s: %s", len(pushErrs), node.Name, strings.Join(shown, "; "))
+	}
 	now := time.Now().Unix()
 	db := database.GetDB()
 	if !s.dirtyUnchangedSince(startGen) {
@@ -697,7 +727,37 @@ func jsonEqual(a interface{}, b json.RawMessage) bool {
 	return string(leftJSON) == string(rightJSON)
 }
 
-func genNodeReplicaLinks(replica *model.Inbound, client *model.Client) (links []string) {
+// nodeLinkHost is the host of a node's panel address, for the links of an
+// inbound whose own address is missing or only reaches the node itself.
+func nodeLinkHost(baseURL string) string {
+	parsed, err := url.Parse(strings.TrimSpace(baseURL))
+	if err != nil {
+		return ""
+	}
+	host := parsed.Hostname()
+	if unusableLinkHost(host) {
+		return ""
+	}
+	return host
+}
+
+// unusableLinkHost tells a link address no client can connect to: none, or
+// one that names the machine it is read on.
+func unusableLinkHost(host string) bool {
+	host = strings.TrimSpace(strings.Trim(host, "[]"))
+	if host == "" || strings.EqualFold(host, "localhost") {
+		return true
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.IsLoopback() || ip.IsUnspecified()
+	}
+	return false
+}
+
+// genNodeReplicaLinks makes a client's links to a node's inbound. fallback is
+// the address used when the inbound's own is missing or a loopback one (an
+// inbound saved on the node through an SSH tunnel, say), or "" for none.
+func genNodeReplicaLinks(replica *model.Inbound, client *model.Client, fallback string) (links []string) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			logger.Warning("nodes: link generation panic for ", replica.Tag, ": ", recovered)
@@ -712,6 +772,9 @@ func genNodeReplicaLinks(replica *model.Inbound, client *model.Client) (links []
 		return nil
 	}
 	server, _ := outbound["server"].(string)
+	if unusableLinkHost(server) {
+		server = fallback
+	}
 	if server == "" {
 		return nil
 	}
@@ -817,7 +880,10 @@ func (s *NodeSyncService) refreshReplicas(node *model.Node, client *http.Client,
 	return touched
 }
 
-func (s *NodeSyncService) refreshNodeLinks(node *model.Node) {
+// refreshNodeLinks writes every client's links to the node's inbounds. The
+// clients in skip, those the node refused in this sync, keep the links they
+// had: links made from a config the node does not have would not connect.
+func (s *NodeSyncService) refreshNodeLinks(node *model.Node, skip map[string]bool) {
 	refreshLinksMu.Lock()
 	defer refreshLinksMu.Unlock()
 	var replicas []model.Inbound
@@ -835,9 +901,13 @@ func (s *NodeSyncService) refreshNodeLinks(node *model.Node) {
 		return
 	}
 	prefix := nodeLinkPrefix(node.Name)
+	fallback := nodeLinkHost(node.BaseUrl)
 	touched := false
 	for i := range clients {
 		client := &clients[i]
+		if skip[client.Name] {
+			continue
+		}
 		var inboundIDs []uint
 		_ = json.Unmarshal(client.Inbounds, &inboundIDs)
 		desired := []map[string]string{}
@@ -850,7 +920,7 @@ func (s *NodeSyncService) refreshNodeLinks(node *model.Node) {
 			if !exists {
 				continue
 			}
-			for _, uri := range genNodeReplicaLinks(replica, client) {
+			for _, uri := range genNodeReplicaLinks(replica, client, fallback) {
 				desired = append(desired, map[string]string{"remark": prefix + replica.Tag, "type": "external", "uri": uri})
 			}
 		}
