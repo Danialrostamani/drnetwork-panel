@@ -52,14 +52,24 @@ func GetExternalLink(url string) string {
 }
 
 func GetExternalSub(url string) ([]map[string]interface{}, error) {
-	var err error
-	var result []map[string]interface{}
-
 	if len(url) == 0 {
 		return nil, common.NewError("no url")
 	}
+	return parseExternalSub(GetExternalLink(url))
+}
 
-	data := GetExternalLink(url)
+// GetExternalSubCached is GetExternalSub through the cache of
+// GetExternalLinkCached, for the subscriptions.
+func GetExternalSubCached(url string) ([]map[string]interface{}, error) {
+	if len(url) == 0 {
+		return nil, common.NewError("no url")
+	}
+	return parseExternalSub(GetExternalLinkCached(url))
+}
+
+func parseExternalSub(data string) ([]map[string]interface{}, error) {
+	var err error
+	var result []map[string]interface{}
 	if len(data) == 0 {
 		return nil, common.NewError("no result")
 	}
@@ -82,10 +92,7 @@ func GetExternalSub(url string) ([]map[string]interface{}, error) {
 			if ok && len(outboundMap) > 0 {
 				oType, _ := outboundMap["type"].(string)
 				switch oType {
-				case "urltest":
-				case "direct":
-				case "selector":
-				case "block":
+				case "urltest", "direct", "selector", "block", "dns":
 					continue
 				default:
 					result = append(result, outboundMap)
