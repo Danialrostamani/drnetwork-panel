@@ -32,15 +32,6 @@ func (s shopConfig) findRef(word string) *shopReferrer {
 	return nil
 }
 
-func (s shopConfig) refByID(id string) *shopReferrer {
-	for i := range s.Refs {
-		if s.Refs[i].ID == id {
-			return &s.Refs[i]
-		}
-	}
-	return nil
-}
-
 func loadBotRef(tgID int64) *model.BotRef {
 	var r model.BotRef
 	if err := database.GetDB().First(&r, tgID).Error; err != nil {

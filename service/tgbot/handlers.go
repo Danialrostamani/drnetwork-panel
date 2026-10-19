@@ -1,7 +1,6 @@
 package tgbot
 
 import (
-	"encoding/json"
 	"fmt"
 	"html"
 	"sort"
@@ -364,36 +363,6 @@ func (b *bot) ipsText(name string) string {
 	lines := []string{b.t("ipsTitle", esc(client.Name), len(ips))}
 	for _, ip := range ips {
 		lines = append(lines, "• <code>"+esc(ip.IP)+"</code>")
-	}
-	return strings.Join(lines, "\n")
-}
-
-func (b *bot) inboundsText() string {
-	var inbounds []model.Inbound
-	if err := database.GetDB().Order("id").Find(&inbounds).Error; err != nil || len(inbounds) == 0 {
-		return b.t("noInbounds")
-	}
-	online := map[string]bool{}
-	if o, err := (&service.StatsService{}).GetClusterOnlines(); err == nil {
-		for _, tag := range o.Inbound {
-			online[tag] = true
-		}
-	}
-	lines := []string{b.t("inboundsHead", len(inbounds))}
-	for _, in := range inbounds {
-		icon := "⚪️"
-		if online[in.Tag] {
-			icon = "🟢"
-		}
-		var opts struct {
-			Port int `json:"listen_port"`
-		}
-		_ = json.Unmarshal(in.Options, &opts)
-		line := fmt.Sprintf("%s <b>%s</b> — %s", icon, esc(in.Tag), esc(in.Type))
-		if opts.Port > 0 {
-			line += fmt.Sprintf(" :%d", opts.Port)
-		}
-		lines = append(lines, line)
 	}
 	return strings.Join(lines, "\n")
 }

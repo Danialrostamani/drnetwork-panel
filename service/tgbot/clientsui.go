@@ -135,7 +135,7 @@ func (b *bot) clientKeyboard(c model.Client) [][]button {
 		{toggle, b.btn("btnReset", "c:rst:"+id)},
 		{b.btn("btnAddVol", "c:gb10:"+id, 10), b.btn("btnAddVol", "c:gb50:"+id, 50), b.btn("btnAddDays", "c:d30:"+id, 30)},
 		{{Text: b.tr("✏️ ویرایش", "✏️ Edit"), Data: "c:edit:" + id}, {Text: b.tr("🔑 پیکربندی", "🔑 Config"), Data: "c:cfg:" + id}, {Text: b.tr("🔗 لینک خارجی", "🔗 Ext. links"), Data: "c:xl:" + id}},
-		{{Text: b.tr("📡 اینباندها", "📡 Inbounds"), Data: "c:inb:" + id}, b.btn("btnSub", "c:sub:"+id)},
+		{{Text: b.tr("📡 اینباندها", "📡 Inbounds"), Data: "c:inb:" + id}, b.btn("btnSub", "c:sub:"+id), {Text: b.tr("♻️ لینک جدید", "♻️ New link"), Data: "c:nsub:" + id}},
 		{{Text: b.tr("📋 لینک‌ها", "📋 Links"), Data: "c:lnk:" + id}, b.btn("btnIps", "c:ips:"+id), {Text: b.tr("⏏️ قطع", "⏏️ Kick"), Data: "c:kick:" + id}},
 		{{Text: b.tr("🔔 تلگرام", "🔔 Telegram"), Data: "c:ask:tg:" + id}, {Text: "{ } JSON", Data: "c:json:" + id}, b.btn("btnDelete", "c:del:"+id)},
 		{b.btn("btnRefresh", "c:view:"+id), {Text: b.tr("⬅️ کلاینت‌ها", "⬅️ Clients"), Data: "c:ls:a:0"}, {Text: b.tr("🏠", "🏠"), Data: "m:menu"}},
@@ -725,6 +725,19 @@ func (b *bot) clientCallback(ctx context.Context, cbID string, chatID, msgID int
 	case "sub":
 		b.answer(ctx, cbID, "")
 		b.sendSub(ctx, chatID, *client)
+	case "nsub":
+		b.answer(ctx, cbID, "")
+		show(b.tr("♻️ برای <b>"+esc(client.Name)+"</b> لینک اشتراک جدید ساخته شود؟\nلینک فعلی دیگر کار نمی‌کند و لینک جدید را باید دوباره به کاربر بدهید.",
+			"♻️ Make a new subscription link for <b>"+esc(client.Name)+"</b>?\nThe current link stops working; the new one has to be given to the client."), b.confirmKeyboard("c:nsuby:", id))
+	case "nsuby":
+		if _, err := (&service.ClientService{}).ResetSubToken(id, b.actor()); err != nil {
+			mutate(err, func() {})
+			return
+		}
+		b.answer(ctx, cbID, b.tr("لینک جدید ساخته شد", "New link made"))
+		if fresh := b.clientByID(id); fresh != nil {
+			b.sendSub(ctx, chatID, *fresh)
+		}
 	case "lnk":
 		b.answer(ctx, cbID, "")
 		b.sendLinks(ctx, chatID, id)

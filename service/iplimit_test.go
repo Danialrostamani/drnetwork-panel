@@ -17,11 +17,6 @@ func addr(t *testing.T, s string) netip.Addr {
 	return a
 }
 
-// live builds an IP window that is active as of now.
-func live(firstSeen int64) core.IPWindow {
-	return core.IPWindow{FirstSeen: firstSeen, LastSeen: firstSeen}
-}
-
 func dropSet(drop []netip.Addr) map[netip.Addr]struct{} {
 	set := make(map[netip.Addr]struct{}, len(drop))
 	for _, a := range drop {

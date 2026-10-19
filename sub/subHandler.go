@@ -32,7 +32,11 @@ func (s *SubHandler) subs(c *gin.Context) {
 	var headers []string
 	var result *string
 	var err error
-	subId := c.Param("subid")
+	subId, ok := s.resolveSub(c, c.Param("subid"))
+	if !ok {
+		c.String(400, "Error!")
+		return
+	}
 	if !s.hostServes(c, subId) {
 		return
 	}
@@ -78,7 +82,11 @@ func (s *SubHandler) hostServes(c *gin.Context, subId string) bool {
 }
 
 func (s *SubHandler) subHeaders(c *gin.Context) {
-	subId := c.Param("subid")
+	subId, ok := s.resolveSub(c, c.Param("subid"))
+	if !ok {
+		c.String(400, "Error!")
+		return
+	}
 	if !s.hostServes(c, subId) {
 		return
 	}

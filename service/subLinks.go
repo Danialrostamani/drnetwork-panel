@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/Danialrostamani/drnetwork-panel/database"
+	"github.com/Danialrostamani/drnetwork-panel/database/model"
 	"github.com/Danialrostamani/drnetwork-panel/logger"
 	"github.com/Danialrostamani/drnetwork-panel/util"
 	"github.com/Danialrostamani/drnetwork-panel/util/common"
@@ -86,8 +87,13 @@ func (s *SettingService) SubLabelOK(host, subID string) bool {
 
 // ClientSubURL is the subscription link of one client: the base link of
 // GetFinalSubURI with the client's label in place of a wildcard, then the
-// client's name.
+// client's subscription token (its name for a client not in the database).
 func (s *SettingService) ClientSubURL(name, host string) (string, error) {
+	id := name
+	var client model.Client
+	if err := database.GetDB().Select("sub_token").Where("name = ?", name).First(&client).Error; err == nil && client.SubToken != "" {
+		id = client.SubToken
+	}
 	base, err := s.GetFinalSubURI(host)
 	if err != nil {
 		return "", err
@@ -106,5 +112,5 @@ func (s *SettingService) ClientSubURL(name, host string) (string, error) {
 	if !strings.HasSuffix(base, "/") {
 		base += "/"
 	}
-	return base + url.PathEscape(name), nil
+	return base + url.PathEscape(id), nil
 }

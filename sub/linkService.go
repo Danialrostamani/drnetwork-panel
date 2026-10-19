@@ -34,7 +34,7 @@ func (s *LinkService) GetLinks(linkJson *json.RawMessage, types string, clientIn
 		case "external":
 			result = append(result, s.named(link, n, clientRemark))
 		case "sub":
-			subLinks := util.GetExternalLink(link.Uri)
+			subLinks := util.GetExternalLinkCached(link.Uri)
 			result = append(result, strings.Split(subLinks, "\n")...)
 		case "local":
 			if types == "all" {
@@ -96,7 +96,7 @@ func (s *LinkService) externalOutbounds(linkJson *json.RawMessage, n *namer, cli
 				infos = append(infos, info)
 			}
 		case "sub":
-			subOutbounds, err := util.GetExternalSub(link.Uri)
+			subOutbounds, err := util.GetExternalSubCached(link.Uri)
 			if err != nil {
 				logger.Warning("sub: Error getting external sub:", err)
 				continue

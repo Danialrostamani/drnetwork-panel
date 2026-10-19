@@ -218,7 +218,7 @@ func (s *WarpService) SetWarpLicense(old_license string, ep *model.Endpoint) err
 		return err
 	}
 
-	if success, ok := response["success"].(bool); ok && success == false {
+	if success, ok := response["success"].(bool); ok && !success {
 		errorArr, _ := response["errors"].([]interface{})
 		errorObj := errorArr[0].(map[string]interface{})
 		return common.NewError(errorObj["code"], errorObj["message"])

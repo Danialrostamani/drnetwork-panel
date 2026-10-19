@@ -356,7 +356,7 @@ func TestScopedAdminCannotChangeOtherGroupsClients(t *testing.T) {
 			}
 		}
 		for _, cb := range []string{
-			"view", "tog", "rst", "rsty", "gb10", "gb50", "d30", "edit", "cfg", "cfga", "xl", "inb", "sub", "lnk", "ips", "kick", "json", "del", "dely", "dly", "ar",
+			"view", "tog", "rst", "rsty", "gb10", "gb50", "d30", "edit", "cfg", "cfga", "xl", "inb", "sub", "nsub", "nsuby", "lnk", "ips", "kick", "json", "del", "dely", "dly", "ar",
 			"ask:vol", "ask:name", "ask:tg", "ask:json", "cfgp", "xld", "ti",
 		} {
 			data := "c:" + cb + ":" + e.cid(name)

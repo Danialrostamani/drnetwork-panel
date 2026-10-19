@@ -168,10 +168,6 @@ func (b *bot) customerNotice(from *fromUser, topic, text string) string {
 	return head + "\n\n" + esc(text)
 }
 
-func (b *bot) notifyAdmins(ctx context.Context, text string) {
-	b.notifyStaff(ctx, text, nil)
-}
-
 func (b *bot) customerGuide() string {
 	return b.tr(
 		`📚 <b>آموزش اتصال</b>

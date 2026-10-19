@@ -191,7 +191,7 @@ func TestForcePanelUpdateInstallsEvenIfNotNewer(t *testing.T) {
 	if err != nil || got != "v48.2" {
 		t.Fatalf("force latest = %q, %v", got, err)
 	}
-	got, err = s.StartAt("fa", "admin", "v99", true)
+	_, err = s.StartAt("fa", "admin", "v99", true)
 	if err == nil || !strings.Contains(err.Error(), "already running") {
 		t.Fatalf("second force started: %v", err)
 	}

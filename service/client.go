@@ -150,6 +150,9 @@ func (s *ClientService) Save(tx *gorm.DB, act string, data json.RawMessage, host
 			s.preserveServerOwnedFields(tx, &client)
 		} else {
 			client.CreatedAt = time.Now().Unix()
+			// The panel makes the token (model.Client.BeforeCreate): one a
+			// request brought could be short or reused.
+			client.SubToken = ""
 			err = json.Unmarshal(client.Inbounds, &inboundIds)
 			if err != nil {
 				return nil, err
@@ -181,6 +184,7 @@ func (s *ClientService) Save(tx *gorm.DB, act string, data json.RawMessage, host
 				return nil, err
 			}
 			client.CreatedAt = now
+			client.SubToken = ""
 			var ids []uint
 			if err = json.Unmarshal(client.Inbounds, &ids); err != nil {
 				return nil, err
@@ -461,9 +465,15 @@ func (s *ClientService) attachAllInbounds(tx *gorm.DB, hostname string, only []u
 func (s *ClientService) preserveServerOwnedFields(tx *gorm.DB, client *model.Client) {
 	var existing model.Client
 	if err := tx.Model(model.Client{}).
-		Select("created_at", "online_at", "tg_id", "up", "down", "total_up", "total_down").
+		Select("created_at", "online_at", "tg_id", "sub_token", "up", "down", "total_up", "total_down").
 		Where("id = ?", client.Id).First(&existing).Error; err != nil {
 		return
+	}
+	// The subscription token changes through ResetSubToken only: a form that
+	// left it out, or sent another, would move the client's link.
+	client.SubToken = existing.SubToken
+	if client.SubToken == "" {
+		client.SubToken = model.NewSubToken()
 	}
 	client.CreatedAt = existing.CreatedAt
 	client.OnlineAt = existing.OnlineAt
@@ -479,6 +489,28 @@ func (s *ClientService) preserveServerOwnedFields(tx *gorm.DB, client *model.Cli
 	client.Down = existing.Down
 	client.TotalUp = existing.TotalUp
 	client.TotalDown = existing.TotalDown
+}
+
+// ResetSubToken gives a client a new subscription token, so the link it had
+// stops working: for a link that leaked. It returns the new token.
+func (s *ClientService) ResetSubToken(id uint, actor string) (string, error) {
+	var client model.Client
+	db := database.GetDB()
+	if err := db.Select("id", "name").Where("id = ?", id).First(&client).Error; err != nil {
+		return "", err
+	}
+	token := model.NewSubToken()
+	err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(model.Client{}).Where("id = ?", id).Update("sub_token", token).Error; err != nil {
+			return err
+		}
+		return tx.Create(&model.Changes{DateTime: time.Now().Unix(), Actor: actor, Key: "clients", Action: "subtoken", Obj: clientNameJSON(client.Name)}).Error
+	})
+	if err != nil {
+		return "", err
+	}
+	LastUpdate = time.Now().Unix()
+	return token, nil
 }
 
 // clientNameJSON encodes a client name for the changes log. Built by string

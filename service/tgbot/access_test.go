@@ -465,16 +465,6 @@ func TestWithoutAnOwnerAFullAdminCanClaimIt(t *testing.T) {
 	}
 }
 
-func adminButtons(kb [][]button) []string {
-	var out []string
-	for _, d := range callbackData(kb) {
-		if strings.HasPrefix(d, "a:") {
-			out = append(out, d)
-		}
-	}
-	return out
-}
-
 func TestOwnerManagesAdminsFromTheBot(t *testing.T) {
 	e := newAccessEnv(t)
 	ctx := context.Background()
@@ -980,7 +970,6 @@ func TestSettingsEditedInTheWebPanelReachTheRunningBot(t *testing.T) {
 		t.Fatalf("900 after: %q", text)
 	}
 	// A pending prompt of a section taken away is dropped, not answered.
-	n = len(e.got())
 	e.say(900, "/add")
 	e.b.pend.set(900, &pending{kind: "wiz", key: "name", data: map[string]string{}})
 	e.configure(map[string]string{"tgBotPerms": "900=logs"})

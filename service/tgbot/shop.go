@@ -46,10 +46,6 @@ type shopDesk struct {
 	TrialGroup string       `json:"trialGroup,omitempty"`
 }
 
-func (s shopConfig) hasPayment() bool {
-	return strings.TrimSpace(s.PayCard) != "" || strings.TrimSpace(s.PayWallet) != "" || strings.TrimSpace(s.PayHint) != ""
-}
-
 func (s shopConfig) trialOn() bool {
 	return s.Trial == nil || *s.Trial
 }
