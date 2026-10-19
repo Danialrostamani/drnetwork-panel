@@ -197,7 +197,8 @@ func TestReconcileKeepsGoingPastARefusedClient(t *testing.T) {
 			}
 			_, _ = w.Write([]byte(`{"success":true,"obj":{"inbounds":[{"id":77,"type":"vless","tag":"remote-vless"}]}}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/app/apiv2/clients":
-			_, _ = w.Write([]byte(`{"success":true,"obj":{"clients":[]}}`))
+			// The node had a user of its own by that name before it joined.
+			_, _ = w.Write([]byte(`{"success":true,"obj":{"clients":[{"id":5,"name":"aaa-taken","enable":true,"group":"local"}]}}`))
 		case r.Method == http.MethodPost && r.URL.Path == "/app/apiv2/save":
 			_ = r.ParseForm()
 			var c struct {
@@ -238,7 +239,7 @@ func TestReconcileKeepsGoingPastARefusedClient(t *testing.T) {
 	svc := NodeSyncService{}
 	svc.MarkAllDirty()
 	err := svc.ReconcileNow(node.Id)
-	if err == nil || !strings.Contains(err.Error(), "aaa-taken") || !strings.Contains(err.Error(), "client name already exists") {
+	if err == nil || !strings.Contains(err.Error(), "aaa-taken") || !strings.Contains(err.Error(), "already exists on the node itself") {
 		t.Fatalf("refusal not reported: %v", err)
 	}
 	mu.Lock()

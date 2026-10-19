@@ -995,6 +995,40 @@ func parseNodeRoutePlan(raw string, nodes []model.Node) nodeRoutePlan {
 	return plan
 }
 
+// addNodeToRoutePlan lists a new node at the end of the subscription route,
+// as backup only, when that route is on. The route hides the nodes it does not
+// list, so a node added after it was set up was left out of every
+// subscription even with all clients attached to it.
+func addNodeToRoutePlan(tx *gorm.DB, id uint) error {
+	var setting model.Setting
+	err := tx.Model(model.Setting{}).Where("key = ?", "subNodeRoute").First(&setting).Error
+	if database.IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	var cfg SubNodeRoute
+	if json.Unmarshal([]byte(strings.TrimSpace(setting.Value)), &cfg) != nil || !cfg.Enable || len(cfg.Entries) == 0 {
+		return nil
+	}
+	for _, e := range cfg.Entries {
+		if e.Id == id {
+			return nil
+		}
+	}
+	cfg.Entries = append(cfg.Entries, SubNodeRouteEntry{Id: id})
+	raw, err := json.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+	if err := tx.Model(model.Setting{}).Where("id = ?", setting.Id).Update("value", string(raw)).Error; err != nil {
+		return err
+	}
+	invalidateNodeLinkRules()
+	return nil
+}
+
 func validateSubNodeRoute(raw string) error {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {

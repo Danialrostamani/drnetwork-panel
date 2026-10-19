@@ -279,7 +279,7 @@ export default {
     subDomainHint: "Several domains: separate them with commas; the first goes in links. A wildcard like *.example.com gives each client its own subdomain.",
     subLoadOrder: "Least loaded nodes first",
     subNodeRoute: "Assign users to nodes by weight",
-    subNodeRouteHint: "Each user is given a default node from the weights. The other listed locations stay in the subscription so they can pick one themselves. Nodes not in the list are hidden. Replaces least-loaded-first.",
+    subNodeRouteHint: "Each user is given a default node from the weights. The other listed locations stay in the subscription so they can pick one themselves. Nodes not in the list are hidden. Replaces least-loaded-first. New nodes join the end of the list as backup only.",
     subNodeRouteWeight: "Weight",
     subNodeRouteAdd: "Add location",
     subNodeRouteNone: "No locations yet. Add them in the order users should fall back.",

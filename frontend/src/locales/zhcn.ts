@@ -209,7 +209,7 @@ export default {
     subPage: "浏览器状态页",
     subLoadOrder: "负载低的节点优先",
     subNodeRoute: "按权重分配用户到节点",
-    subNodeRouteHint: "每位用户按权重获得默认节点。列表中的其他位置仍出现在订阅里，可自行选择。未列入的节点会被隐藏。将取代“负载低的节点优先”。",
+    subNodeRouteHint: "每位用户按权重获得默认节点。列表中的其他位置仍出现在订阅里，可自行选择。未列入的节点会被隐藏。将取代“负载低的节点优先”。新节点会自动以“仅备用”加入列表末尾。",
     subNodeRouteWeight: "权重",
     subNodeRouteAdd: "添加位置",
     subNodeRouteNone: "还没有位置。按备用顺序添加。",

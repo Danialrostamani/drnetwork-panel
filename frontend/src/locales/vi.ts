@@ -209,7 +209,7 @@ export default {
     subPage: "Trang trạng thái trong trình duyệt",
     subLoadOrder: "Ưu tiên node ít tải",
     subNodeRoute: "Chia người dùng theo trọng số node",
-    subNodeRouteHint: "Mỗi người dùng được gán một node mặc định theo trọng số. Các vị trí còn lại vẫn có trong subscription để tự chọn. Node ngoài danh sách bị ẩn. Thay cho ưu tiên node ít tải.",
+    subNodeRouteHint: "Mỗi người dùng được gán một node mặc định theo trọng số. Các vị trí còn lại vẫn có trong subscription để tự chọn. Node ngoài danh sách bị ẩn. Thay cho ưu tiên node ít tải. Node mới được thêm vào cuối danh sách ở chế độ chỉ dự phòng.",
     subNodeRouteWeight: "Trọng số",
     subNodeRouteAdd: "Thêm vị trí",
     subNodeRouteNone: "Chưa có vị trí. Thêm theo thứ tự dự phòng.",

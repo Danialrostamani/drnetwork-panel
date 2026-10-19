@@ -704,6 +704,11 @@ func (s *NodeService) saveNode(tx *gorm.DB, action string, data json.RawMessage)
 	if err := tx.Omit(nodeManagedColumns...).Save(&n).Error; err != nil {
 		return err
 	}
+	if action == "new" {
+		if err := addNodeToRoutePlan(tx, n.Id); err != nil {
+			return err
+		}
+	}
 	if action == "new" && !enable {
 		// The column defaults to true: a create leaves a false bool to the
 		// default, and reads the default back into n.

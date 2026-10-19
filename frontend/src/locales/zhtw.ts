@@ -209,7 +209,7 @@ export default {
     subPage: "瀏覽器狀態頁",
     subLoadOrder: "負載低的節點優先",
     subNodeRoute: "依權重將使用者分配到節點",
-    subNodeRouteHint: "每位使用者依權重得到預設節點。清單中的其他位置仍會出現在訂閱中，可自行選擇。未列入的節點會被隱藏。將取代「負載低的節點優先」。",
+    subNodeRouteHint: "每位使用者依權重得到預設節點。清單中的其他位置仍會出現在訂閱中，可自行選擇。未列入的節點會被隱藏。將取代「負載低的節點優先」。新節點會自動以「僅備用」加入清單末尾。",
     subNodeRouteWeight: "權重",
     subNodeRouteAdd: "新增位置",
     subNodeRouteNone: "尚無位置。依備用順序新增。",

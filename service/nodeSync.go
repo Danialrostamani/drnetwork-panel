@@ -462,7 +462,7 @@ func (s *NodeSyncService) runReconcile(nodeID uint, startGen uint64, trigger str
 		return err
 	}
 	report.Skipped = skipped
-	actual, err := s.actualClusterClients(node, client)
+	actual, own, err := s.nodeClients(node, client)
 	if err != nil {
 		return err
 	}
@@ -481,6 +481,10 @@ func (s *NodeSyncService) runReconcile(nodeID uint, startGen uint64, trigger str
 	}
 	for _, name := range plan.Add {
 		if err := s.pushClient(node, client, "new", expected[name]); err != nil {
+			if own[name] {
+				// The usual cause: the node had its users before it joined.
+				err = common.NewError("a client with this name already exists on the node itself, not sent by the master; delete or rename it on the node")
+			}
 			refuse(name, err)
 			continue
 		}
@@ -647,23 +651,33 @@ func (s *NodeSyncService) GetSyncReport(nodeID uint) (*SyncReport, error) {
 }
 
 func (s *NodeSyncService) actualClusterClients(node *model.Node, client *http.Client) (map[string]nodeClientState, error) {
+	cluster, _, err := s.nodeClients(node, client)
+	return cluster, err
+}
+
+// nodeClients is the node's clients: those the master sent it, by name, and
+// the names of the node's own.
+func (s *NodeSyncService) nodeClients(node *model.Node, client *http.Client) (map[string]nodeClientState, map[string]bool, error) {
 	obj, err := s.nodeGet(node, client, "clients", url.Values{"full": {"1"}})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var payload struct {
 		Clients []nodeClientState `json:"clients"`
 	}
 	if err := json.Unmarshal(obj, &payload); err != nil {
-		return nil, common.NewError("unexpected clients payload from node")
+		return nil, nil, common.NewError("unexpected clients payload from node")
 	}
 	out := map[string]nodeClientState{}
+	own := map[string]bool{}
 	for _, client := range payload.Clients {
 		if client.Group == clusterGroup {
 			out[client.Name] = client
+		} else {
+			own[client.Name] = true
 		}
 	}
-	return out, nil
+	return out, own, nil
 }
 
 func (s *NodeSyncService) nodeInboundTagMap(node *model.Node, client *http.Client) (map[string]uint, error) {
