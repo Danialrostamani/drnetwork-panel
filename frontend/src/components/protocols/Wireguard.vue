@@ -146,6 +146,13 @@
       </v-col>
     </v-row>
     <v-card-actions>
+      <v-btn
+        variant="tonal"
+        prepend-icon="mdi-file-import"
+        @click="importOpen = true"
+      >
+        {{ $t('types.wg.import') }}
+      </v-btn>
       <v-spacer />
       <v-menu
         v-model="menu"
@@ -192,6 +199,50 @@
       </v-menu>
     </v-card-actions>
   </v-card>
+  <v-dialog
+    v-model="importOpen"
+    max-width="560"
+  >
+    <v-card :title="$t('types.wg.import')">
+      <v-card-text>
+        <p style="margin-bottom: .75rem;">
+          {{ $t('types.wg.importHint') }}
+        </p>
+        <v-file-input
+          :label="$t('types.wg.importFile')"
+          accept=".conf,text/plain"
+          prepend-icon="mdi-file-document-outline"
+          density="compact"
+          hide-details
+          @update:model-value="readImportFile"
+        />
+        <v-textarea
+          v-model="importText"
+          :label="$t('types.wg.importPaste')"
+          rows="8"
+          style="margin-top: 1rem; font-family: monospace;"
+          hide-details
+        />
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer />
+        <v-btn
+          variant="text"
+          @click="importOpen = false"
+        >
+          {{ $t('actions.close') }}
+        </v-btn>
+        <v-btn
+          color="primary"
+          variant="tonal"
+          :disabled="importText.trim().length == 0"
+          @click="applyImport"
+        >
+          {{ $t('types.wg.importApply') }}
+        </v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
   <v-card v-if="data.peers != undefined">
     <v-card-subtitle>
       {{ $t('types.wg.peers') }}
@@ -228,8 +279,11 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { push } from 'notivue'
+import { i18n } from '@/locales'
 import Peer from '@/components/WgPeer.vue'
 import { Endpoint, WgPeer } from '@/types/endpoints'
+import { parseWgConf, WgConfError } from '@/plugins/wgConf'
 
 // The panel-only extras carried beside the endpoint's sing-box options: the
 // public key derived from the private one, the key store the peers read their
@@ -274,6 +328,47 @@ const emit = defineEmits<{
 }>()
 
 const menu = ref(false)
+
+// Importing a .conf: pasted, or read from a file into the same box so it can
+// be checked before it replaces anything.
+const importOpen = ref(false)
+const importText = ref('')
+
+async function readImportFile(files: File | File[] | null | undefined) {
+  const file = Array.isArray(files) ? files[0] : files
+  if (!file) return
+  if (file.size > 64 * 1024) {
+    push.error({ message: i18n.global.t('types.wg.importTooBig'), duration: 5000 })
+    return
+  }
+  importText.value = await file.text()
+}
+
+// applyImport replaces the interface and the peers with the file's. The
+// panel's stored peer keys belong to the peers being replaced, so they go too.
+function applyImport() {
+  let conf
+  try {
+    conf = parseWgConf(importText.value)
+  } catch (e) {
+    const key = e instanceof WgConfError ? e.key : 'importNoInterface'
+    push.error({ message: i18n.global.t('types.wg.' + key), duration: 5000 })
+    return
+  }
+  if ((data.value.peers?.length ?? 0) > 0 && !window.confirm(i18n.global.t('types.wg.importReplace'))) return
+  data.value.private_key = conf.private_key
+  data.value.address = conf.address
+  data.value.listen_port = conf.listen_port ?? 0
+  data.value.mtu = conf.mtu
+  data.value.peers = conf.peers
+  if (!data.value.ext) data.value.ext = { keys: [] }
+  data.value.ext.keys = []
+  data.value.ext.public_key = ''
+  emit('getWgPubKey', conf.private_key)
+  importOpen.value = false
+  importText.value = ''
+  push.success({ message: i18n.global.t('types.wg.importDone', { n: conf.peers.length }), duration: 5000 })
+}
 
 const optionUdp = computed({
   get: (): boolean => data.value.udp_timeout != undefined,
