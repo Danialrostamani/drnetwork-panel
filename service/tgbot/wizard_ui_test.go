@@ -72,6 +72,7 @@ func (r *wizardRig) makeClient(name string, volume func()) model.Client {
 	volume()
 	r.press("w:days:0")
 	r.press("w:ip:0")
+	r.press("w:sub:0")
 	return loadByName(r.t, name)
 }
 
@@ -98,8 +99,8 @@ func TestWizardVolumeKeyboardLayout(t *testing.T) {
 	if !hasData(kb, "x:cancel") {
 		t.Fatalf("the volume step lost its cancel button: %v", callbackData(kb))
 	}
-	if !strings.Contains(lastText(msgs, "editMessageText", "sendMessage"), "3/5") {
-		t.Fatalf("volume step is not numbered 3/5: %q", lastText(msgs, "editMessageText", "sendMessage"))
+	if !strings.Contains(lastText(msgs, "editMessageText", "sendMessage"), "3/6") {
+		t.Fatalf("volume step is not numbered 3/6: %q", lastText(msgs, "editMessageText", "sendMessage"))
 	}
 }
 
@@ -157,6 +158,7 @@ func TestWizardCustomVolume(t *testing.T) {
 	}
 	r.press("w:days:30")
 	r.press("w:ip:2")
+	r.press("w:sub:0")
 	c := loadByName(t, "custom")
 	if c.Volume != 75*gib || c.LimitIp != 2 || c.Expiry == 0 {
 		t.Fatalf("custom client = volume %d, ip %d, expiry %d", c.Volume, c.LimitIp, c.Expiry)
@@ -222,6 +224,7 @@ func TestNewGroupButtonInTheWizard(t *testing.T) {
 	r.press("w:vol:10")
 	r.press("w:days:0")
 	r.press("w:ip:0")
+	r.press("w:sub:0")
 	if c := loadByName(t, "grouped"); c.Group != "VIP team" || c.Volume != 10*gib {
 		t.Fatalf("grouped client = group %q, volume %d", c.Group, c.Volume)
 	}

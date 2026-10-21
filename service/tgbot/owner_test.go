@@ -416,7 +416,7 @@ func TestStaleOrdersAreRemindedOnce(t *testing.T) {
 
 func TestSellerDeletingAClientIsToldToTheOwner(t *testing.T) {
 	b, got := ownerBot(t, shopConfig{})
-	if err := b.as(boss).createClient("sales-one", "Sales", 10*gib, 30, 0); err != nil {
+	if err := b.as(boss).createClient("sales-one", "Sales", 10*gib, 30, 0, false); err != nil {
 		t.Fatal(err)
 	}
 	c := loadByName(t, "sales-one")
@@ -428,7 +428,7 @@ func TestSellerDeletingAClientIsToldToTheOwner(t *testing.T) {
 		t.Fatalf("owner told %q", txt)
 	}
 	// The owner's own changes are not reported back to them.
-	if err := b.as(boss).createClient("own", "", 10*gib, 30, 0); err != nil {
+	if err := b.as(boss).createClient("own", "", 10*gib, 30, 0, false); err != nil {
 		t.Fatal(err)
 	}
 	n = len(got())

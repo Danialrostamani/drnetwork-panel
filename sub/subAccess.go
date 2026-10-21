@@ -11,12 +11,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// A subscription link names its client by a random token. The old links name
-// it by the client's name, which can be guessed, so those are let through only
-// while subNameLinks is on, and an address that keeps asking for names that do
-// not exist is cut off from them for a while. Tokens are never cut off: they
-// cannot be guessed, and an address shared behind a CDN or NAT must keep
-// working for everybody else on it.
+// A subscription link names its client by its name, or by a random token for
+// the clients set to use one; such a client's name no longer opens it. Names
+// can be guessed, so an address that keeps asking for names that do not exist
+// is cut off from names for a while. Tokens are never cut off: they cannot be
+// guessed, and an address shared behind a CDN or NAT must keep working for
+// everybody else on it.
 const (
 	subFailLimit  = 30
 	subFailWindow = 10 * time.Minute
@@ -97,7 +97,7 @@ func subRequestIP(c *gin.Context) string {
 }
 
 // resolveSub finds the name of the client a subscription link is for: by its
-// token, or by its name while the old links are allowed.
+// token for a client that uses one, by its name for one that does not.
 func (s *SubHandler) resolveSub(c *gin.Context, subID string) (string, bool) {
 	if subID == "" {
 		return "", false
@@ -105,19 +105,15 @@ func (s *SubHandler) resolveSub(c *gin.Context, subID string) (string, bool) {
 	db := database.GetDB()
 	var client model.Client
 	if len(subID) == model.SubTokenLength {
-		if err := db.Select("name").Where("sub_token = ?", subID).First(&client).Error; err == nil {
+		if err := db.Select("name").Where("sub_token = ? AND use_sub_token = ?", subID, true).First(&client).Error; err == nil {
 			return client.Name, true
 		}
 	}
 	ip := subRequestIP(c)
-	if !s.SettingService.GetSubNameLinks() {
-		subFails.fail(ip)
-		return "", false
-	}
 	if subFails.blocked(ip) {
 		return "", false
 	}
-	if err := db.Select("name").Where("name = ?", subID).First(&client).Error; err == nil {
+	if err := db.Select("name").Where("name = ? AND use_sub_token = ?", subID, false).First(&client).Error; err == nil {
 		return client.Name, true
 	}
 	subFails.fail(ip)

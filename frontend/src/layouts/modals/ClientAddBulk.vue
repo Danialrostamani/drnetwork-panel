@@ -134,6 +134,19 @@
               />
             </v-col>
             <v-col
+              cols="12"
+              sm="6"
+              md="4"
+            >
+              <v-switch
+                v-model="bulkData.useSubToken"
+                color="primary"
+                :label="$t('client.useSubToken')"
+                :hint="$t('client.useSubTokenHint')"
+                persistent-hint
+              />
+            </v-col>
+            <v-col
               v-if="bulkData.autoReset || bulkData.delayStart"
               cols="12"
               sm="6"
@@ -236,6 +249,7 @@ export default {
         Volume: 0,
         delayStart: false,
         autoReset: false,
+        useSubToken: false,
         resetDays: 0,
         limitIp: 0,
       },
@@ -267,6 +281,7 @@ export default {
         Volume: 0,
         delayStart: false,
         autoReset: false,
+        useSubToken: false,
         resetDays: 0,
         limitIp: 0,
       }
@@ -298,6 +313,7 @@ export default {
           group: this.bulkData.group,
           delayStart: this.bulkData.delayStart,
           autoReset: this.bulkData.autoReset,
+          useSubToken: this.bulkData.useSubToken,
           resetDays: this.bulkData.resetDays,
           limitIp: this.bulkData.limitIp > 0 ? Math.floor(this.bulkData.limitIp) : 0,
         }))

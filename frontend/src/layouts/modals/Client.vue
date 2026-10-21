@@ -180,6 +180,19 @@
                     hide-details
                   />
                 </v-col>
+                <v-col
+                  cols="12"
+                  sm="6"
+                  md="4"
+                >
+                  <v-switch
+                    v-model="client.useSubToken"
+                    color="primary"
+                    :label="$t('client.useSubToken')"
+                    :hint="$t('client.useSubTokenHint')"
+                    persistent-hint
+                  />
+                </v-col>
               </v-row>
               <v-row v-if="id > 0">
                 <v-col

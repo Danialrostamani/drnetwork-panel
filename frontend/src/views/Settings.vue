@@ -289,19 +289,6 @@
               md="4"
             >
               <v-switch
-                v-model="subNameLinks"
-                color="primary"
-                :label="$t('setting.subNameLinks')"
-                :hint="$t('setting.subNameLinksHint')"
-                persistent-hint
-              />
-            </v-col>
-            <v-col
-              cols="12"
-              sm="6"
-              md="4"
-            >
-              <v-switch
                 v-model="subLoadOrder"
                 color="primary"
                 :label="$t('setting.subLoadOrder')"
@@ -1124,7 +1111,6 @@ const settings = ref({
 	subEncode: "true",
 	subShowInfo: "false",
 	subPage: "true",
-	subNameLinks: "true",
 	subLoadOrder: "false",
 	subNodeRoute: "{}",
 	webDecoyDir: "",
@@ -1562,11 +1548,6 @@ const addRouteEntry = (id: number) => {
     entries: [...subNodeRoute.value.entries, { id, weight: 100 }],
   }
 }
-
-const subNameLinks = computed({
-  get: () => { return settings.value.subNameLinks != "false" },
-  set: (v:boolean) => { settings.value.subNameLinks = v ? "true" : "false" }
-})
 
 const subPage = computed({
   get: () => { return settings.value.subPage != "false" },

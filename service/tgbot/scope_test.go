@@ -356,7 +356,7 @@ func TestScopedAdminCannotChangeOtherGroupsClients(t *testing.T) {
 			}
 		}
 		for _, cb := range []string{
-			"view", "tog", "rst", "rsty", "gb10", "gb50", "d30", "edit", "cfg", "cfga", "xl", "inb", "sub", "nsub", "nsuby", "lnk", "ips", "kick", "json", "del", "dely", "dly", "ar",
+			"view", "tog", "rst", "rsty", "gb10", "gb50", "d30", "edit", "cfg", "cfga", "xl", "inb", "sub", "tok", "nsub", "nsuby", "lnk", "ips", "kick", "json", "del", "dely", "dly", "ar",
 			"ask:vol", "ask:name", "ask:tg", "ask:json", "cfgp", "xld", "ti",
 		} {
 			data := "c:" + cb + ":" + e.cid(name)
@@ -611,7 +611,7 @@ func TestScopedAdminCreatesOnlyInTheirGroup(t *testing.T) {
 	if p == nil || p.key != "vol" || p.data["grp"] != salesGroup {
 		t.Fatalf("wizard after the name: %+v", p)
 	}
-	if prompt, _ := e.b.as(salesAdmin).wizardPrompt(p); !strings.Contains(prompt, "2/4") {
+	if prompt, _ := e.b.as(salesAdmin).wizardPrompt(p); !strings.Contains(prompt, "2/5") {
 		t.Fatalf("limited wizard numbering:\n%s", prompt)
 	}
 	n := len(e.got())
@@ -625,6 +625,7 @@ func TestScopedAdminCreatesOnlyInTheirGroup(t *testing.T) {
 	e.press(salesAdmin, "w:vol:5")
 	e.press(salesAdmin, "w:days:0")
 	e.press(salesAdmin, "w:ip:0")
+	e.press(salesAdmin, "w:sub:0")
 	if group("w1") != salesGroup || e.client("w1").Volume != 5*gib {
 		t.Fatalf("w1 = %+v", e.client("w1"))
 	}
@@ -702,6 +703,7 @@ func TestScopedAdminCreatesOnlyInTheirGroup(t *testing.T) {
 	e.press(fullAdmin, "w:vol:1")
 	e.press(fullAdmin, "w:days:0")
 	e.press(fullAdmin, "w:ip:0")
+	e.press(fullAdmin, "w:sub:0")
 	if group("full1") != "Brand new" {
 		t.Fatalf("full1 group = %q", group("full1"))
 	}

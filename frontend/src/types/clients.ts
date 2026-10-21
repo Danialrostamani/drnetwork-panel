@@ -30,6 +30,7 @@ export interface Client {
   onlineAt?: number
   limitIp?: number
   subToken?: string
+  useSubToken?: boolean
 }
 
 const defaultClient: Client = {
@@ -47,6 +48,7 @@ const defaultClient: Client = {
   remark: "",
   delayStart: false,
   autoReset: false,
+  useSubToken: false,
   resetDays: 0,
   nextReset: 0,
   totalUp: 0,

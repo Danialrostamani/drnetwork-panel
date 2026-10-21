@@ -575,6 +575,7 @@ func TestClientWizardAndFieldPrompts(t *testing.T) {
 	b.handle(ctx, callbackFrom(42, "w:vol:20"))
 	b.handle(ctx, callbackFrom(42, "w:days:30"))
 	b.handle(ctx, callbackFrom(42, "w:ip:2"))
+	b.handle(ctx, callbackFrom(42, "w:sub:0"))
 	c := loadByName(t, "wiz1")
 	if c.Volume != 20*gib || c.LimitIp != 2 || c.Expiry == 0 {
 		t.Fatalf("wizard client = %+v", c)
@@ -837,6 +838,7 @@ func TestClientsAreListedInCreationOrderAndWizardSuggestsAName(t *testing.T) {
 	b.handle(ctx, callbackFrom(42, "w:vol:1"))
 	b.handle(ctx, callbackFrom(42, "w:days:0"))
 	b.handle(ctx, callbackFrom(42, "w:ip:0"))
+	b.handle(ctx, callbackFrom(42, "w:sub:0"))
 	loadByName(t, suggested)
 
 	// Append to the suggestion with "+".
@@ -847,6 +849,7 @@ func TestClientsAreListedInCreationOrderAndWizardSuggestsAName(t *testing.T) {
 	b.handle(ctx, callbackFrom(42, "w:vol:1"))
 	b.handle(ctx, callbackFrom(42, "w:days:0"))
 	b.handle(ctx, callbackFrom(42, "w:ip:0"))
+	b.handle(ctx, callbackFrom(42, "w:sub:0"))
 	loadByName(t, suggested+"_ali")
 }
 
@@ -945,7 +948,7 @@ func TestClientGroupsAreShownFilteredAndChosenInTheBot(t *testing.T) {
 		t.Fatalf("wizard did not ask for a group: %+v", p)
 	}
 	prompt, choices := b.wizardPrompt(p)
-	if !strings.Contains(prompt, "2/5") {
+	if !strings.Contains(prompt, "2/6") {
 		t.Fatalf("group prompt: %s", prompt)
 	}
 	for _, want := range []string{"w:grp:0", "w:grp:1", "w:grp:-"} {
@@ -958,6 +961,7 @@ func TestClientGroupsAreShownFilteredAndChosenInTheBot(t *testing.T) {
 	press("w:vol:1")
 	press("w:days:0")
 	press("w:ip:0")
+	press("w:sub:0")
 	if groupOf("w1") != "vip" {
 		t.Fatalf("w1 group = %q", groupOf("w1"))
 	}
@@ -968,6 +972,7 @@ func TestClientGroupsAreShownFilteredAndChosenInTheBot(t *testing.T) {
 	press("w:vol:1")
 	press("w:days:0")
 	press("w:ip:0")
+	press("w:sub:0")
 	if groupOf("w2") != "Fresh start" {
 		t.Fatalf("w2 group = %q", groupOf("w2"))
 	}
@@ -981,6 +986,7 @@ func TestClientGroupsAreShownFilteredAndChosenInTheBot(t *testing.T) {
 	press("w:vol:1")
 	press("w:days:0")
 	press("w:ip:0")
+	press("w:sub:0")
 	if groupOf("w3") != "Team" {
 		t.Fatalf("w3 group = %q (case-insensitive reuse)", groupOf("w3"))
 	}
@@ -996,6 +1002,7 @@ func TestClientGroupsAreShownFilteredAndChosenInTheBot(t *testing.T) {
 	press("w:vol:1")
 	press("w:days:0")
 	press("w:ip:0")
+	press("w:sub:0")
 	if groupOf("w4") != "" {
 		t.Fatalf("w4 group = %q", groupOf("w4"))
 	}

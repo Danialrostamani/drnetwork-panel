@@ -49,7 +49,7 @@
           style="margin-top: 10px;"
         >
           <v-window-item value="sub">
-            <v-row>
+            <v-row v-if="client.useSubToken">
               <v-col style="text-align: center;">
                 <v-btn
                   size="small"
@@ -163,7 +163,7 @@ export default {
   },
   computed: {
     clientSub(): string {
-      return this.subUrl || Data().subURI + (this.client.subToken || this.client.name)
+      return this.subUrl || Data().subURI + (this.client.useSubToken && this.client.subToken ? this.client.subToken : this.client.name)
     },
     singbox() {
       const url = this.clientSub + "?format=json"

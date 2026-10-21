@@ -43,32 +43,28 @@ func subCtx(remote, forwarded string) *gin.Context {
 	return c
 }
 
-func setNameLinks(t *testing.T, on string) {
-	t.Helper()
-	db := database.GetDB()
-	db.Where("key = ?", "subNameLinks").Delete(model.Setting{})
-	if err := db.Create(&model.Setting{Key: "subNameLinks", Value: on}).Error; err != nil {
+// A client with the token link is found by its token only; one without, by
+// its name only.
+func TestSubLinksFindTheClientByTokenOrName(t *testing.T) {
+	s, alice := tokenEnv(t)
+	bob := model.Client{Name: "bob", Enable: true, UseSubToken: true, Inbounds: json.RawMessage(`[]`), Links: json.RawMessage(`[]`), Config: json.RawMessage(`{}`)}
+	if err := database.GetDB().Create(&bob).Error; err != nil {
 		t.Fatal(err)
 	}
-}
-
-// The token always finds its client; the name only while the old links are on.
-func TestSubLinksFindTheClientByToken(t *testing.T) {
-	s, c := tokenEnv(t)
-	if name, ok := s.resolveSub(subCtx("203.0.113.5", ""), c.SubToken); !ok || name != "alice" {
-		t.Fatalf("token: %q, %v", name, ok)
+	ctx := func() *gin.Context { return subCtx("203.0.113.5", "") }
+	if name, ok := s.resolveSub(ctx(), "alice"); !ok || name != "alice" {
+		t.Fatalf("name link: %q, %v", name, ok)
 	}
-	if name, ok := s.resolveSub(subCtx("203.0.113.5", ""), "alice"); !ok || name != "alice" {
-		t.Fatalf("old link by name while allowed: %q, %v", name, ok)
+	if _, ok := s.resolveSub(ctx(), alice.SubToken); ok {
+		t.Fatal("the token of a client without the token link worked")
 	}
-	setNameLinks(t, "false")
-	if _, ok := s.resolveSub(subCtx("203.0.113.5", ""), "alice"); ok {
-		t.Fatal("a link by name worked with the old links off")
+	if name, ok := s.resolveSub(ctx(), bob.SubToken); !ok || name != "bob" {
+		t.Fatalf("token link: %q, %v", name, ok)
 	}
-	if name, ok := s.resolveSub(subCtx("203.0.113.5", ""), c.SubToken); !ok || name != "alice" {
-		t.Fatalf("token with the old links off: %q, %v", name, ok)
+	if _, ok := s.resolveSub(ctx(), "bob"); ok {
+		t.Fatal("the name of a client with the token link worked")
 	}
-	if _, ok := s.resolveSub(subCtx("203.0.113.5", ""), "abcdefghijklmnopqrstuvwx"); ok {
+	if _, ok := s.resolveSub(ctx(), "abcdefghijklmnopqrstuvwx"); ok {
 		t.Fatal("an unknown token worked")
 	}
 }
@@ -76,7 +72,11 @@ func TestSubLinksFindTheClientByToken(t *testing.T) {
 // An address that keeps guessing names is cut off from names for a while --
 // not from tokens, and not the other addresses.
 func TestGuessingNamesBlocksTheAddress(t *testing.T) {
-	s, c := tokenEnv(t)
+	s, _ := tokenEnv(t)
+	c := model.Client{Name: "carol", Enable: true, UseSubToken: true, Inbounds: json.RawMessage(`[]`), Links: json.RawMessage(`[]`), Config: json.RawMessage(`{}`)}
+	if err := database.GetDB().Create(&c).Error; err != nil {
+		t.Fatal(err)
+	}
 	now := time.Unix(1_000_000, 0)
 	subFails.now = func() time.Time { return now }
 	for i := 0; i < subFailLimit; i++ {

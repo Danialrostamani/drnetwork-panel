@@ -565,7 +565,7 @@ func (b *bot) approveOrder(o *model.BotOrder) error {
 		if err != nil {
 			return err
 		}
-		if err := staff.createClient(name, group, vol, days, 0); err != nil {
+		if err := staff.createClient(name, group, vol, days, 0, false); err != nil {
 			if charged {
 				_ = addQuotaSold(o.AdminId, -vol)
 			}

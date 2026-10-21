@@ -41,7 +41,7 @@ var extra = map[string][2]string{
 	"syncStarted":    {"همگام‌سازی کلاینت‌ها و اینباندها با نودها شروع شد.", "Syncing clients and inbounds to the nodes."},
 	"deleted":        {"کلاینت <b>%s</b> حذف شد.", "Client <b>%s</b> deleted."},
 	"created":        {"✅ کلاینت <b>%s</b> ساخته شد.", "✅ Client <b>%s</b> created."},
-	"addUsage":       {"/add <code>نام</code> <code>حجم‌GB</code> <code>روز</code> [<code>محدودیت‌IP</code>]\nمثال: <code>/add ali 50 30 2</code>\nحجم یا روز ۰ یعنی نامحدود.", "/add <code>name</code> <code>volumeGB</code> <code>days</code> [<code>ipLimit</code>]\nExample: <code>/add ali 50 30 2</code>\nA volume or days of 0 means unlimited."},
+	"addUsage":       {"/add <code>نام</code> <code>حجم‌GB</code> <code>روز</code> [<code>محدودیت‌IP</code>]\nمثال: <code>/add ali 50 30 2</code>\nحجم یا روز ۰ یعنی نامحدود.\nلینک اشتراک با توکن: <code>token</code> را به آخر اضافه کنید.", "/add <code>name</code> <code>volumeGB</code> <code>days</code> [<code>ipLimit</code>]\nExample: <code>/add ali 50 30 2</code>\nA volume or days of 0 means unlimited.\nSubscription link with a token: add <code>token</code> at the end."},
 	"badName":        {"نام فقط می‌تواند شامل حروف انگلیسی، عدد و _ . - @ باشد (حداکثر ۶۴ کاراکتر).", "A name may only contain English letters, digits and _ . - @ (up to 64 characters)."},
 	"badNumber":      {"عدد نامعتبر است.", "Invalid number."},
 	"volumeUsage":    {"/volume <code>نام</code> <code>GB</code> — تعیین حجم کل (۰ = نامحدود)", "/volume <code>name</code> <code>GB</code> — set the total volume (0 = unlimited)"},

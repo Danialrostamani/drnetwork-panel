@@ -37,7 +37,7 @@ func TestClientCardEndsWithTheSubscriptionLink(t *testing.T) {
 	setSetting(t, "subURI", cardSubURI)
 	c := seedAccount(t, "EgoNgNB9", nil)
 	id := itoa(int64(c.Id))
-	want := "🔗 Subscription:\n<code>https://sub.example.org:2096/sub/" + c.SubToken + "</code>"
+	want := "🔗 Subscription:\n<code>https://sub.example.org:2096/sub/EgoNgNB9</code>"
 
 	check := func(how, text string, kb [][]button) {
 		t.Helper()
@@ -63,7 +63,7 @@ func TestClientCardEndsWithTheSubscriptionLink(t *testing.T) {
 	n = len(e.got())
 	e.press(fullAdmin, "c:sub:"+id)
 	text, photos := subMessages(t, e.since(n))
-	mustContain(t, text, "<code>https://sub.example.org:2096/sub/"+c.SubToken+"</code>")
+	mustContain(t, text, "<code>https://sub.example.org:2096/sub/EgoNgNB9</code>")
 	if photos != 1 {
 		t.Errorf("%d QR pictures", photos)
 	}
@@ -75,7 +75,7 @@ func TestClientCardLinkIsTheOneTheButtonSends(t *testing.T) {
 	e := newAccessEnv(t)
 	c := seedAccount(t, "plain", nil)
 	link, err := e.b.subLink("plain")
-	if err != nil || !strings.HasSuffix(link, "/"+c.SubToken) {
+	if err != nil || !strings.HasSuffix(link, "/plain") {
 		t.Fatalf("link %q, %v", link, err)
 	}
 	n := len(e.got())
@@ -95,7 +95,7 @@ func TestClientCardSubscriptionLineInPersian(t *testing.T) {
 	n := len(e.got())
 	e.press(fullAdmin, "c:view:"+itoa(int64(c.Id)))
 	text := lastText(e.since(n), "editMessageText")
-	if !strings.HasSuffix(text, "🔗 لینک اشتراک:\n<code>https://sub.example.org:2096/sub/"+c.SubToken+"</code>") {
+	if !strings.HasSuffix(text, "🔗 لینک اشتراک:\n<code>https://sub.example.org:2096/sub/fa-card</code>") {
 		t.Errorf("card:\n%s", text)
 	}
 }
@@ -109,7 +109,7 @@ func TestClientCardEscapesTheLink(t *testing.T) {
 	n := len(e.got())
 	e.press(fullAdmin, "c:view:"+itoa(int64(c.Id)))
 	text := lastText(e.since(n), "editMessageText")
-	if !strings.HasSuffix(text, "<code>https://sub.example.org/s?a=1&amp;b=&lt;2&gt;/"+c.SubToken+"</code>") {
+	if !strings.HasSuffix(text, "<code>https://sub.example.org/s?a=1&amp;b=&lt;2&gt;/esc</code>") {
 		t.Errorf("card:\n%s", text)
 	}
 }
@@ -124,7 +124,7 @@ func TestBoundClientsOwnCardHasTheLink(t *testing.T) {
 	e.say(boundUser, "/usage")
 	msgs := e.since(n)
 	text := lastText(msgs, "sendMessage")
-	mustContain(t, text, "👤 <b>mine</b>", "🔗 Subscription:\n<code>https://sub.example.org:2096/sub/"+c.SubToken+"</code>")
+	mustContain(t, text, "👤 <b>mine</b>", "🔗 Subscription:\n<code>https://sub.example.org:2096/sub/mine</code>")
 	mustNotContain(t, text, "NL-note")
 	kb := keyboardOf(msgs)
 	if !hasButtonData(kb, "u:sub:"+id) || hasButtonData(kb, "c:tog:"+id) {
@@ -140,13 +140,13 @@ func TestGroupLimitedAdminSeesTheLinkOfTheirOwnClientsOnly(t *testing.T) {
 	n := len(e.got())
 	e.press(salesAdmin, "c:view:"+e.cid("s1"))
 	text := lastText(e.since(n), "editMessageText")
-	mustContain(t, text, "👤 <b>s1</b>", "<code>https://sub.example.org:2096/sub/"+loadByName(t, "s1").SubToken+"</code>")
+	mustContain(t, text, "👤 <b>s1</b>", "<code>https://sub.example.org:2096/sub/s1</code>")
 
 	n = len(e.got())
 	e.press(salesAdmin, "c:view:"+e.cid("o1"))
 	e.say(salesAdmin, "/clients o1")
 	for _, m := range e.since(n) {
-		if strings.Contains(m.Text, "/sub/"+loadByName(t, "o1").SubToken) {
+		if strings.Contains(m.Text, "/sub/o1") {
 			t.Fatalf("the link of another group's client leaked: %+v", m)
 		}
 	}

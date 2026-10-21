@@ -43,17 +43,21 @@ type Client struct {
 	// served as that ID before, and a name anybody can guess opened anybody's
 	// configs; the panel makes the token itself (BeforeCreate) and only
 	// ClientService.ResetSubToken changes it.
-	SubToken string          `json:"subToken" form:"subToken" gorm:"index;default:'';not null"`
-	Config   json.RawMessage `json:"config,omitempty" form:"config"`
-	Inbounds json.RawMessage `json:"inbounds" form:"inbounds"`
-	Links    json.RawMessage `json:"links,omitempty" form:"links"`
-	Volume   int64           `json:"volume" form:"volume"`
-	Expiry   int64           `json:"expiry" form:"expiry"`
-	Down     int64           `json:"down" form:"down"`
-	Up       int64           `json:"up" form:"up"`
-	Desc     string          `json:"desc" form:"desc"`
-	Group    string          `json:"group" form:"group"`
-	Remark   string          `json:"remark" form:"remark"`
+	SubToken string `json:"subToken" form:"subToken" gorm:"index;default:'';not null"`
+	// UseSubToken puts the token in the client's link in place of its name,
+	// and then the link by name no longer opens the subscription. Off, the
+	// link is the name, as before tokens.
+	UseSubToken bool            `json:"useSubToken" form:"useSubToken" gorm:"default:false;not null"`
+	Config      json.RawMessage `json:"config,omitempty" form:"config"`
+	Inbounds    json.RawMessage `json:"inbounds" form:"inbounds"`
+	Links       json.RawMessage `json:"links,omitempty" form:"links"`
+	Volume      int64           `json:"volume" form:"volume"`
+	Expiry      int64           `json:"expiry" form:"expiry"`
+	Down        int64           `json:"down" form:"down"`
+	Up          int64           `json:"up" form:"up"`
+	Desc        string          `json:"desc" form:"desc"`
+	Group       string          `json:"group" form:"group"`
+	Remark      string          `json:"remark" form:"remark"`
 
 	// Timestamps (unix seconds): creation time and last time the client had traffic
 	CreatedAt int64 `json:"createdAt" form:"createdAt" gorm:"default:0;not null"`

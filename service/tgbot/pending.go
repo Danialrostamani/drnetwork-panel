@@ -222,9 +222,9 @@ func (b *bot) cfgPending(ctx context.Context, chatID int64, p *pending, text str
 // stepNo numbers a step of the new-client wizard. A limited administrator has
 // no group step (every client goes to their group), so theirs has one step less.
 func (b *bot) stepNo(n int) string {
-	total := 5
+	total := 6
 	if b.scope != "" {
-		total = 4
+		total = 5
 		if n > 2 {
 			n--
 		}
@@ -268,6 +268,10 @@ func (b *bot) wizardPrompt(p *pending) (string, [][]button) {
 				b.tr("• «استفاده از این نام» را بزنید\n• یا نام دلخواه را بفرستید\n• یا با + شروع کنید تا به انتهای نام پیشنهادی اضافه شود؛ مثلاً <code>+_ali</code>", "• Tap “Use this name”\n• or send your own name\n• or start with + to append to the suggestion, e.g. <code>+_ali</code>"), [][]button{
 				{btn(b.tr("✅ استفاده از این نام", "✅ Use this name"), "name", "#ok"), btn(b.tr("🎲 نام دیگر", "🎲 Another"), "name", "#new")},
 				b.cancelRow()}
+	case "sub":
+		return b.header("➕", b.stepNo(6)) + "\n" + b.tr("لینک اشتراک با اسم کاربر باشد یا با توکن تصادفی؟\nبا توکن، لینک قابل حدس نیست و لینک با اسم کار نمی‌کند.", "Subscription link by the client's name, or by a random token?\nWith a token the link cannot be guessed, and the link by name does not work."), [][]button{
+			{btn(b.tr("🔤 با اسم", "🔤 By name"), "sub", "0"), btn(b.tr("🔑 با توکن", "🔑 With a token"), "sub", "1")},
+			b.cancelRow()}
 	default:
 		return b.header("➕", b.stepNo(5)) + "\n" + b.tr("محدودیت تعداد IP همزمان؟", "Concurrent IP limit?"), [][]button{
 			{btn("∞", "ip", "0"), btn("1", "ip", "1"), btn("2", "ip", "2"), btn("3", "ip", "3"), btn("5", "ip", "5")},
@@ -387,14 +391,21 @@ func (b *bot) wizardStep(ctx context.Context, chatID int64, p *pending, value st
 		p.data["days"] = value
 		advance("ip")
 	case "ip":
-		limit, ok := parseIntArg(value)
-		if !ok {
+		if _, ok := parseIntArg(value); !ok {
 			fail(fmt.Errorf("%s", b.t("badNumber")))
 			return
 		}
+		p.data["ip"] = value
+		advance("sub")
+	case "sub":
+		if value != "0" && value != "1" {
+			fail(fmt.Errorf("%s", b.tr("یکی از دکمه‌ها را بزنید.", "Press one of the buttons.")))
+			return
+		}
+		limit, _ := parseIntArg(p.data["ip"])
 		gb, _ := parseFloatArg(p.data["vol"])
 		days, _ := parseIntArg(p.data["days"])
-		if err := b.createClient(p.data["name"], p.data["grp"], int64(gb*float64(gib)), days, limit); err != nil {
+		if err := b.createClient(p.data["name"], p.data["grp"], int64(gb*float64(gib)), days, limit, value == "1"); err != nil {
 			fail(err)
 			return
 		}

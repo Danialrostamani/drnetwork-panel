@@ -513,6 +513,35 @@ func (s *ClientService) ResetSubToken(id uint, actor string) (string, error) {
 	return token, nil
 }
 
+// SetUseSubToken turns the token link of a client on or off: on, its link
+// ends in its token and the link by name stops working; off, the other way.
+func (s *ClientService) SetUseSubToken(id uint, on bool, actor string) error {
+	var client model.Client
+	db := database.GetDB()
+	if err := db.Select("id", "name", "sub_token").Where("id = ?", id).First(&client).Error; err != nil {
+		return err
+	}
+	updates := map[string]any{"use_sub_token": on}
+	if client.SubToken == "" {
+		updates["sub_token"] = model.NewSubToken()
+	}
+	action := "subtoken_off"
+	if on {
+		action = "subtoken_on"
+	}
+	err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(model.Client{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+			return err
+		}
+		return tx.Create(&model.Changes{DateTime: time.Now().Unix(), Actor: actor, Key: "clients", Action: action, Obj: clientNameJSON(client.Name)}).Error
+	})
+	if err != nil {
+		return err
+	}
+	LastUpdate = time.Now().Unix()
+	return nil
+}
+
 // clientNameJSON encodes a client name for the changes log. Built by string
 // concatenation, a name with a quote or backslash produced unreadable JSON --
 // cmd/migration/1_1.go already repairs the previous generation of this bug.

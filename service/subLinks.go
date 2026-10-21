@@ -91,7 +91,7 @@ func (s *SettingService) SubLabelOK(host, subID string) bool {
 func (s *SettingService) ClientSubURL(name, host string) (string, error) {
 	id := name
 	var client model.Client
-	if err := database.GetDB().Select("sub_token").Where("name = ?", name).First(&client).Error; err == nil && client.SubToken != "" {
+	if err := database.GetDB().Select("sub_token", "use_sub_token").Where("name = ?", name).First(&client).Error; err == nil && client.UseSubToken && client.SubToken != "" {
 		id = client.SubToken
 	}
 	base, err := s.GetFinalSubURI(host)

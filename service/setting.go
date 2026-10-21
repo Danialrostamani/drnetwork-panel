@@ -92,7 +92,6 @@ var defaultValueMap = map[string]string{
 	"subEncode":          "true",
 	"subShowInfo":        "false",
 	"subPage":            "true",
-	"subNameLinks":       "true",
 	"subLoadOrder":       "false",
 	"subNodeRoute":       "{}",
 	"subURI":             "",
@@ -418,14 +417,6 @@ func (s *SettingService) GetSubShowInfo() (bool, error) {
 
 // GetSubPage tells whether a browser opening a subscription link gets a page
 // about the account instead of the raw links.
-// GetSubNameLinks tells whether the old links, with the client's name in
-// place of its token, still open subscriptions. On by default so no link in
-// use breaks; off once everybody has the new link.
-func (s *SettingService) GetSubNameLinks() bool {
-	v, err := s.getBool("subNameLinks")
-	return err != nil || v
-}
-
 func (s *SettingService) GetSubPage() bool {
 	v, err := s.getBool("subPage")
 	return err != nil || v

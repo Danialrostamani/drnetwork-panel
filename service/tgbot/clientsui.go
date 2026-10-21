@@ -131,11 +131,17 @@ func (b *bot) clientKeyboard(c model.Client) [][]button {
 	if !c.Enable {
 		toggle = b.btn("btnEnable", "c:tog:"+id)
 	}
+	// The token link: a switch, and a new token for one that leaked.
+	tokenRow := []button{{Text: b.tr("🔑 لینک با توکن: خاموش", "🔑 Token link: off"), Data: "c:tok:" + id}}
+	if c.UseSubToken {
+		tokenRow = []button{{Text: b.tr("🔑 لینک با توکن: روشن", "🔑 Token link: on"), Data: "c:tok:" + id}, {Text: b.tr("♻️ لینک جدید", "♻️ New link"), Data: "c:nsub:" + id}}
+	}
 	return [][]button{
 		{toggle, b.btn("btnReset", "c:rst:"+id)},
 		{b.btn("btnAddVol", "c:gb10:"+id, 10), b.btn("btnAddVol", "c:gb50:"+id, 50), b.btn("btnAddDays", "c:d30:"+id, 30)},
 		{{Text: b.tr("✏️ ویرایش", "✏️ Edit"), Data: "c:edit:" + id}, {Text: b.tr("🔑 پیکربندی", "🔑 Config"), Data: "c:cfg:" + id}, {Text: b.tr("🔗 لینک خارجی", "🔗 Ext. links"), Data: "c:xl:" + id}},
-		{{Text: b.tr("📡 اینباندها", "📡 Inbounds"), Data: "c:inb:" + id}, b.btn("btnSub", "c:sub:"+id), {Text: b.tr("♻️ لینک جدید", "♻️ New link"), Data: "c:nsub:" + id}},
+		{{Text: b.tr("📡 اینباندها", "📡 Inbounds"), Data: "c:inb:" + id}, b.btn("btnSub", "c:sub:"+id)},
+		tokenRow,
 		{{Text: b.tr("📋 لینک‌ها", "📋 Links"), Data: "c:lnk:" + id}, b.btn("btnIps", "c:ips:"+id), {Text: b.tr("⏏️ قطع", "⏏️ Kick"), Data: "c:kick:" + id}},
 		{{Text: b.tr("🔔 تلگرام", "🔔 Telegram"), Data: "c:ask:tg:" + id}, {Text: "{ } JSON", Data: "c:json:" + id}, b.btn("btnDelete", "c:del:"+id)},
 		{b.btn("btnRefresh", "c:view:"+id), {Text: b.tr("⬅️ کلاینت‌ها", "⬅️ Clients"), Data: "c:ls:a:0"}, {Text: b.tr("🏠", "🏠"), Data: "m:menu"}},
@@ -547,7 +553,7 @@ func (b *bot) deleteClients(ids []uint) error {
 
 // ---- bulk create ----
 
-func (b *bot) createBulk(prefix, group string, count int, volume int64, days, limitIP int) error {
+func (b *bot) createBulk(prefix, group string, count int, volume int64, days, limitIP int, useToken bool) error {
 	if !clientNameRe.MatchString(prefix) || count < 1 || count > 200 {
 		return fmt.Errorf("%s", b.t("badNumber"))
 	}
@@ -573,7 +579,7 @@ func (b *bot) createBulk(prefix, group string, count int, volume int64, days, li
 	var clients []model.Client
 	for i := 1; i <= count; i++ {
 		name := fmt.Sprintf("%s%d", prefix, i)
-		c := model.Client{Enable: true, Name: name, Config: newClientConfig(name), Inbounds: inbounds, Links: json.RawMessage(`[]`), Volume: volume, LimitIp: limitIP, Group: group}
+		c := model.Client{Enable: true, Name: name, Config: newClientConfig(name), Inbounds: inbounds, Links: json.RawMessage(`[]`), Volume: volume, LimitIp: limitIP, Group: group, UseSubToken: useToken}
 		if days > 0 {
 			c.Expiry = time.Now().Add(time.Duration(days) * 24 * time.Hour).Unix()
 		}
@@ -725,7 +731,14 @@ func (b *bot) clientCallback(ctx context.Context, cbID string, chatID, msgID int
 	case "sub":
 		b.answer(ctx, cbID, "")
 		b.sendSub(ctx, chatID, *client)
+	case "tok":
+		err := (&service.ClientService{}).SetUseSubToken(id, !client.UseSubToken, b.actor())
+		mutate(err, func() { showCard("") })
 	case "nsub":
+		if !client.UseSubToken {
+			b.answer(ctx, cbID, b.tr("اول لینک با توکن را روشن کنید.", "Turn the token link on first."))
+			return
+		}
 		b.answer(ctx, cbID, "")
 		show(b.tr("♻️ برای <b>"+esc(client.Name)+"</b> لینک اشتراک جدید ساخته شود؟\nلینک فعلی دیگر کار نمی‌کند و لینک جدید را باید دوباره به کاربر بدهید.",
 			"♻️ Make a new subscription link for <b>"+esc(client.Name)+"</b>?\nThe current link stops working; the new one has to be given to the client."), b.confirmKeyboard("c:nsuby:", id))

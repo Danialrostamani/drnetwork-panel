@@ -27,9 +27,18 @@ func TestSubTokenSurvivesEditsAndResets(t *testing.T) {
 	}
 
 	set := &SettingService{}
+	if link, err := set.ClientSubURL("tok", "panel.example.org"); err != nil || !strings.HasSuffix(link, "/tok") {
+		t.Fatalf("link without the token switch %q, %v", link, err)
+	}
+	if err := s.SetUseSubToken(c.Id, true, "admin"); err != nil {
+		t.Fatal(err)
+	}
+	if got := reload(t, db, c.Id); !got.UseSubToken || got.SubToken != token {
+		t.Fatalf("switching on: %v %q", got.UseSubToken, got.SubToken)
+	}
 	link, err := set.ClientSubURL("tok", "panel.example.org")
-	if err != nil || !strings.HasSuffix(link, "/"+token) || strings.HasSuffix(link, "/tok") {
-		t.Fatalf("link %q, %v", link, err)
+	if err != nil || !strings.HasSuffix(link, "/"+token) {
+		t.Fatalf("link with the token switch %q, %v", link, err)
 	}
 
 	fresh, err := s.ResetSubToken(c.Id, "admin")
@@ -46,6 +55,12 @@ func TestSubTokenSurvivesEditsAndResets(t *testing.T) {
 	}
 	if _, err := s.ResetSubToken(c.Id+100, "admin"); err == nil {
 		t.Error("a missing client got a token")
+	}
+	if err := s.SetUseSubToken(c.Id, false, "admin"); err != nil || reload(t, db, c.Id).UseSubToken {
+		t.Fatalf("switching off: %v", err)
+	}
+	if link, _ := set.ClientSubURL("tok", "panel.example.org"); !strings.HasSuffix(link, "/tok") {
+		t.Errorf("link after switching off %q", link)
 	}
 }
 
