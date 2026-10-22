@@ -22,6 +22,13 @@ const placeholders = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map(m => m[1])
 
 describe('locales', () => {
   const others: Record<string, Tree> = { fa, ru, vi, zhcn, zhtw }
+  for (const [name, tree] of Object.entries({ en, ...others } as Record<string, Tree>)) {
+    it(`${name} has no bare @, which vue-i18n reads as a link and fails on`, () => {
+      for (const [key, value] of Object.entries(flat(tree))) {
+        expect(value.replaceAll("{'@'}", ''), `${name}: ${key}`).not.toContain('@')
+      }
+    })
+  }
   for (const [name, tree] of Object.entries(others)) {
     const messages = flat(tree)
     it(`${name} translates every node message with the same placeholders`, () => {

@@ -38,6 +38,7 @@ export default {
     system: "Система",
   },
   pages: {
+    bot: "Telegram-бот",
     nodes: "Узлы",
     login: "Вход",
     home: "Главная",

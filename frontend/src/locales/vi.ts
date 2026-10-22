@@ -38,6 +38,7 @@ export default {
     system: "Phòng bán",
   },
   pages: {
+    bot: "Bot Telegram",
     nodes: "Node",
     login: "Đăng nhập",
     home: "Trang chủ",

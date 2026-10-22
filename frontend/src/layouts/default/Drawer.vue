@@ -73,7 +73,7 @@ const menu = [
   { title: 'pages.basics', icon: 'mdi-application-cog',  path: '/basics' },
   { title: 'pages.rules', icon: 'mdi-routes',  path: '/rules' },
   { title: 'pages.dns', icon: 'mdi-dns',  path: '/dns' },
-  { title: 'pages.botMembers', icon: 'mdi-robot-happy', path: '/botmembers' },
+  { title: 'pages.bot', icon: 'mdi-robot', path: '/bot' },
   { title: 'pages.admins', icon: 'mdi-account-tie',  path: '/admins' },
   { title: 'pages.settings', icon: 'mdi-cog',  path: '/settings' },
 ]

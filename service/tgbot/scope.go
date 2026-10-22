@@ -56,7 +56,7 @@ func scopedCallbackAllowed(parts []string) bool {
 		}
 		return true
 	case "m":
-		return parts[1] == "menu" || parts[1] == "clients" || parts[1] == "online"
+		return parts[1] == "menu" || parts[1] == "sell" || parts[1] == "clients" || parts[1] == "online"
 	case "w", "h", "p":
 		return true
 	case "k", "j":
@@ -341,6 +341,7 @@ func (b *bot) scopedMenu() [][]button {
 	kb := [][]button{
 		{{Text: b.tr("🏠 خانه", "🏠 Home"), Data: "h:home"}, {Text: b.tr("👥 کلاینت‌ها", "👥 Clients"), Data: "c:ls:a:0"}},
 		{{Text: b.tr("➕ کلاینت جدید", "➕ New client"), Data: "c:new"}, {Text: b.tr("🔵 آنلاین‌ها", "🔵 Online"), Data: "m:online"}},
+		{{Text: b.tr("🛍 فروش", "🛍 Sales"), Data: "m:sell"}},
 	}
 	return kb
 }

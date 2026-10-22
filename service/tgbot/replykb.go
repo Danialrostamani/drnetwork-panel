@@ -33,8 +33,11 @@ var menuItems = []menuItem{
 	{"📊 گزارش فروش", "📊 Sales report", "k:sales"},
 	{"🔙 پنل مدیریت", "🔙 Admin panel", "k:admin"},
 	{"👑 پنل مالک", "👑 Owner panel", "q:home"},
-	{"🏠 خانه", "🏠 Home", "h:home"},
+	{"🛍 فروش", "🛍 Sales", "m:sell"},
+	{"⚙️ منوی مدیریت", "⚙️ Admin menu", "m:menu"},
+	// Labels of earlier versions, so a keyboard sent before still works.
 	{"📋 منوی اصلی", "📋 Main menu", "m:menu"},
+	{"🏠 خانه", "🏠 Home", "h:home"},
 	{"👥 کلاینت‌ها", "👥 Clients", "c:ls:a:0"},
 	{"🖥 نودها", "🖥 Nodes", "o:nd:ls:0"},
 	{"📊 آمار", "📊 Stats", "t:d1"},
@@ -77,7 +80,7 @@ func (b *bot) menuLabel(data string) string {
 // opens.
 func (b *bot) adminMenu() [][]string {
 	var rows [][]string
-	for _, r := range [][]string{{"h:home", "m:menu"}, {"c:ls:a:0", "o:nd:ls:0"}, {"t:d1"}} {
+	for _, r := range [][]string{{"c:ls:a:0", "m:sell"}, {"t:d1", "m:menu"}} {
 		var row []string
 		for _, d := range r {
 			if b.allowed(strings.Split(d, ":")) {
@@ -91,11 +94,6 @@ func (b *bot) adminMenu() [][]string {
 	if len(rows) == 0 {
 		rows = [][]string{{"m:menu"}}
 	}
-	extra := []string{"k:shop"}
-	if !b.restricted() || b.isAdmin(b.self) {
-		extra = append(extra, "k:edit", "k:ordsP", "k:sales")
-	}
-	rows = append(rows, extra)
 	if b.canManageAdmins() {
 		rows = append(rows, []string{"q:home"})
 	}

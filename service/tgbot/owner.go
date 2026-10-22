@@ -567,7 +567,7 @@ func (b *bot) sellersScreen(ctx context.Context) (string, [][]button) {
 		btns = append(btns, button{Text: truncate(label, 24), Data: fmt.Sprintf("q:ad:%d", id)})
 	}
 	kb := rows2(btns)
-	kb = append(kb, []button{{Text: b.tr("👮 مدیران و دسترسی‌ها", "👮 Admins and access"), Data: "a:ls"}}, b.navRow("q:home"))
+	kb = append(kb, []button{{Text: b.tr("🔐 دسترسی ادمین‌ها", "🔐 Admin access"), Data: "a:ls"}}, b.navRow("q:home"))
 	return strings.Join(lines, "\n"), kb
 }
 

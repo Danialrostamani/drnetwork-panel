@@ -474,7 +474,7 @@ func TestEveryMenuScreenOpens(t *testing.T) {
 	ctx := context.Background()
 	database.GetDB().Create(&model.Client{Name: "zoe", Enable: true, Inbounds: json.RawMessage(`[]`), Links: json.RawMessage(`[]`)})
 	b.handle(ctx, privateMessage(42, "/menu"))
-	for _, row := range b.mainMenu() {
+	for _, row := range b.menuTree() {
 		for _, btn := range row {
 			// These two really stop and start the core.
 			if btn.Data == "m:maint" || btn.Data == "m:restart" {

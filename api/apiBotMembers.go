@@ -128,7 +128,43 @@ func (a *ApiService) BotAdminAction(c *gin.Context, what, actor string) {
 	case "move":
 		n, merr := tgbot.PanelMoveAdminClients(&a.ConfigService, actor, host, id)
 		jsonObj(c, gin.H{"moved": n}, merr)
+	case "add":
+		group, aerr := tgbot.PanelAddAdmin(c.Request.Context(), &a.ConfigService, actor, host, id, c.Request.FormValue("full") == "true", c.Request.FormValue("group"))
+		jsonObj(c, gin.H{"group": group}, aerr)
+	case "remove":
+		jsonMsg(c, "", tgbot.PanelRemoveAdmin(&a.ConfigService, actor, host, id))
+	case "role":
+		var sections []string
+		for _, s := range strings.Split(c.Request.FormValue("sections"), ",") {
+			if s = strings.TrimSpace(s); s != "" {
+				sections = append(sections, s)
+			}
+		}
+		jsonMsg(c, "", tgbot.PanelSetAdminRole(&a.ConfigService, actor, host, id, c.Request.FormValue("role"), c.Request.FormValue("group"), sections))
+	case "quota":
+		gb, _ := strconv.ParseInt(strings.TrimSpace(c.Request.FormValue("gb")), 10, 64)
+		jsonMsg(c, "", tgbot.PanelSetQuota(actor, id, c.Request.FormValue("op"), gb))
+	case "terms":
+		num := func(k string) int64 {
+			n, _ := strconv.ParseInt(strings.TrimSpace(c.Request.FormValue(k)), 10, 64)
+			return n
+		}
+		jsonMsg(c, "", tgbot.PanelSetSellerTerms(id, tgbot.PanelSellerTerms{
+			Suspended:    c.Request.FormValue("suspended") == "true",
+			RequireOwner: c.Request.FormValue("requireOwner") == "true",
+			MinPerGB:     num("minPerGB"),
+			RatePerGB:    num("ratePerGB"),
+		}))
+	case "settle":
+		rec, serr := tgbot.PanelSettle(id)
+		jsonObj(c, rec, serr)
 	default:
 		jsonMsg(c, "", common.NewError("unknown action: ", what))
 	}
+}
+
+// GetBotDashboard is the Telegram bot at a glance.
+func (a *ApiService) GetBotDashboard(c *gin.Context) {
+	d, err := tgbot.PanelBotDashboard()
+	jsonObj(c, d, err)
 }

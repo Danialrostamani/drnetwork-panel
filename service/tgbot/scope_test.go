@@ -530,10 +530,10 @@ func TestScopedAdminCannotReachTheServer(t *testing.T) {
 	if !strings.Contains(text, "Bot admins") || !strings.Contains(text, "77") || !strings.Contains(text, "Sales") {
 		t.Fatalf("the admins screen does not show the limit:\n%s", text)
 	}
-	if !hasData(e.b.as(fullAdmin).mainMenu(), "o:in:ls:0") || !hasData(e.b.as(fullAdmin).mainMenu(), "m:backup") {
+	if !hasData(e.b.as(fullAdmin).menuTree(), "o:in:ls:0") || !hasData(e.b.as(fullAdmin).menuTree(), "m:backup") {
 		t.Fatal("the full menu lost buttons")
 	}
-	if hasData(e.b.as(salesAdmin).mainMenu(), "o:in:ls:0") {
+	if hasData(e.b.as(salesAdmin).menuTree(), "o:in:ls:0") {
 		t.Fatal("the limited menu has an inbounds button")
 	}
 }

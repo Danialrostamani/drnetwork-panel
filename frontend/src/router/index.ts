@@ -71,9 +71,13 @@ const routes = [
         component: () => import('@/views/Dns.vue'),
       },
       {
+        path: '/bot',
+        name: 'pages.bot',
+        component: () => import('@/views/Bot.vue'),
+      },
+      {
         path: '/botmembers',
-        name: 'pages.botMembers',
-        component: () => import('@/views/BotMembers.vue'),
+        redirect: { path: '/bot', query: { tab: 'customers' } },
       },
       {
         path: '/admins',

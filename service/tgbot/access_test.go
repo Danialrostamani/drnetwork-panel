@@ -184,7 +184,7 @@ func TestEverySectionIsWiredUp(t *testing.T) {
 	// on the main menu.
 	b, _ := fakeTelegram(t)
 	reachable := map[string]bool{}
-	for _, row := range b.mainMenu() {
+	for _, row := range b.menuTree() {
 		for _, btn := range row {
 			sec := callbackSection(strings.Split(btn.Data, ":"))
 			if sec == secDeny {
@@ -263,10 +263,14 @@ func TestCustomAdminReachesOnlyTheirSections(t *testing.T) {
 	n := len(e.got())
 	e.say(clientsOnly, "/menu")
 	kb := keyboardOf(e.since(n))
-	for _, want := range []string{"c:ls:a:0", "t:d1", "x:ls"} {
+	for _, want := range []string{"c:ls:a:0", "t:d1", "m:care"} {
 		if !hasData(kb, want) {
 			t.Errorf("the menu lacks %s: %v", want, callbackData(kb))
 		}
+	}
+	care := e.b.as(clientsOnly).careMenu()
+	if !hasData(care, "x:ls") || hasData(care, "m:backup") || hasData(care, "m:restart") || hasData(care, "m:logs:info") {
+		t.Errorf("the upkeep group offers: %v", callbackData(care))
 	}
 	for _, not := range []string{"h:home", "o:in:ls:0", "g:rl:ls:0", "s:ls", "m:backup", "m:restart", "a:ls", "m:logs:info"} {
 		if hasData(kb, not) {
@@ -388,6 +392,12 @@ func TestOwnerHasEverythingAndIsNotLimitedByLines(t *testing.T) {
 	n = len(e.got())
 	e.say(ownerID, "/menu")
 	kb := keyboardOf(e.since(n))
+	for _, want := range []string{"m:tech", "m:care", "a:ls"} {
+		if !hasData(kb, want) {
+			t.Errorf("the owner's menu lacks %s", want)
+		}
+	}
+	kb = e.b.as(ownerID).menuTree()
 	for _, want := range []string{"o:in:ls:0", "m:backup", "a:ls", "s:ls", "m:restart"} {
 		if !hasData(kb, want) {
 			t.Errorf("the owner's menu lacks %s", want)

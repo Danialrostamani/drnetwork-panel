@@ -341,7 +341,7 @@ func callbackSection(parts []string) string {
 		return "clients"
 	case "m":
 		switch parts[1] {
-		case "menu":
+		case "menu", "sell", "tech", "care":
 			return secNone
 		case "status":
 			return "home"

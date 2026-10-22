@@ -19,7 +19,7 @@ func TestPanelManagementCanLeaveTheBot(t *testing.T) {
 	}
 	b.cfg.Panel = false
 	ob := b.as(boss)
-	menu := callbackData(ob.mainMenu())
+	menu := callbackData(ob.menuTree())
 	for _, gone := range []string{"o:in:ls:0", "o:out:ls:0", "o:ep:ls:0", "o:sv:ls:0", "o:tl:ls:0", "g:rl:ls:0", "g:dn:ls:0", "g:basics:ls:0", "s:ls", "m:logs:info", "x:ls"} {
 		if indexOf(menu, gone) >= 0 {
 			t.Fatalf("menu still has %s: %v", gone, menu)
@@ -68,7 +68,7 @@ func TestPanelManagementCanLeaveTheBot(t *testing.T) {
 	}
 	// Switched on, it all comes back.
 	b.cfg.Panel = true
-	if menu = callbackData(b.as(boss).mainMenu()); indexOf(menu, "o:in:ls:0") < 0 || indexOf(menu, "s:ls") < 0 {
+	if menu = callbackData(b.as(boss).menuTree()); indexOf(menu, "o:in:ls:0") < 0 || indexOf(menu, "s:ls") < 0 {
 		t.Fatalf("panel on: %v", menu)
 	}
 }

@@ -28,21 +28,94 @@ func (b *bot) mainMenu() [][]button {
 	}
 	t := b.tr
 	kb := [][]button{
-		{{Text: t("🏠 خانه", "🏠 Home"), Data: "h:home"}, {Text: t("👥 کلاینت‌ها", "👥 Clients"), Data: "c:ls:a:0"}},
-		{{Text: t("📡 اینباندها", "📡 Inbounds"), Data: "o:in:ls:0"}, {Text: t("📤 اوت‌باندها", "📤 Outbounds"), Data: "o:out:ls:0"}},
-		{{Text: t("🔌 اندپوینت‌ها", "🔌 Endpoints"), Data: "o:ep:ls:0"}, {Text: t("🛠 سرویس‌ها", "🛠 Services"), Data: "o:sv:ls:0"}},
-		{{Text: "🔐 TLS", Data: "o:tl:ls:0"}, {Text: t("🖥 نودها", "🖥 Nodes"), Data: "o:nd:ls:0"}},
-		{{Text: t("📏 قوانین", "📏 Rules"), Data: "g:rl:ls:0"}, {Text: "🌐 DNS", Data: "g:dn:ls:0"}},
-		{{Text: t("⚙️ پایه", "⚙️ Basics"), Data: "g:basics:ls:0"}, {Text: t("🔧 تنظیمات", "🔧 Settings"), Data: "s:ls"}},
-		{{Text: t("📊 آمار", "📊 Stats"), Data: "t:d1"}, {Text: t("🧾 تغییرات", "🧾 Changes"), Data: "x:ls"}},
-		{{Text: t("📜 لاگ‌ها", "📜 Logs"), Data: "m:logs:info"}, {Text: t("👮 مدیران", "👮 Admins"), Data: "a:ls"}},
-		{{Text: t("💾 پشتیبان", "💾 Backup"), Data: "m:backup"}, {Text: t("🔁 همگام‌سازی", "🔁 Sync"), Data: "m:sync"}},
-		{{Text: t("🚧 نگهداری", "🚧 Maintenance"), Data: "m:maint"}, {Text: t("♻️ ریستارت هسته", "♻️ Restart core"), Data: "m:restart"}},
+		{{Text: t("🏠 وضعیت سرور", "🏠 Server status"), Data: "h:home"}, {Text: t("👥 کلاینت‌ها", "👥 Clients"), Data: "c:ls:a:0"}},
 	}
+	row := []button{{Text: t("📊 آمار", "📊 Stats"), Data: "t:d1"}}
+	// An administrator who was given no section at all is told so instead of
+	// getting a menu.
+	if !b.restricted() || len(b.sections) > 0 {
+		row = append([]button{{Text: t("🛍 فروش", "🛍 Sales"), Data: "m:sell"}}, row...)
+	}
+	kb = append(kb, row)
+	row = nil
+	if len(b.techMenu()) > 0 {
+		row = append(row, button{Text: t("🔧 بخش فنی", "🔧 Technical"), Data: "m:tech"})
+	}
+	if len(b.careMenu()) > 0 {
+		row = append(row, button{Text: t("🧰 نگهداری", "🧰 Upkeep"), Data: "m:care"})
+	}
+	if len(row) > 0 {
+		kb = append(kb, row)
+	}
+	kb = append(kb, []button{{Text: t("🔐 دسترسی ادمین‌ها", "🔐 Admin access"), Data: "a:ls"}})
 	if b.canManageAdmins() {
 		kb = append(kb, []button{{Text: t("👑 پنل مالک", "👑 Owner panel"), Data: "q:home"}})
 	}
 	return b.keepAllowed(kb)
+}
+
+// techMenu is the server's own configuration: what the core runs and how.
+func (b *bot) techMenu() [][]button {
+	t := b.tr
+	return b.keepAllowed([][]button{
+		{{Text: t("📡 اینباندها", "📡 Inbounds"), Data: "o:in:ls:0"}, {Text: t("📤 اوت‌باندها", "📤 Outbounds"), Data: "o:out:ls:0"}},
+		{{Text: t("🔌 اندپوینت‌ها", "🔌 Endpoints"), Data: "o:ep:ls:0"}, {Text: t("🛠 سرویس‌ها", "🛠 Services"), Data: "o:sv:ls:0"}},
+		{{Text: "🔐 TLS", Data: "o:tl:ls:0"}, {Text: t("🖥 نودها", "🖥 Nodes"), Data: "o:nd:ls:0"}},
+		{{Text: t("📏 قوانین", "📏 Rules"), Data: "g:rl:ls:0"}, {Text: "🌐 DNS", Data: "g:dn:ls:0"}},
+		{{Text: t("⚙️ تنظیمات هسته", "⚙️ Core basics"), Data: "g:basics:ls:0"}, {Text: t("🔧 تنظیمات پنل", "🔧 Panel settings"), Data: "s:ls"}},
+	})
+}
+
+// careMenu is keeping the server running: backups, logs, restarts.
+func (b *bot) careMenu() [][]button {
+	t := b.tr
+	return b.keepAllowed([][]button{
+		{{Text: t("💾 پشتیبان", "💾 Backup"), Data: "m:backup"}, {Text: t("🔁 همگام‌سازی نودها", "🔁 Sync nodes"), Data: "m:sync"}},
+		{{Text: t("📜 لاگ‌ها", "📜 Logs"), Data: "m:logs:info"}, {Text: t("🧾 تغییرات", "🧾 Changes"), Data: "x:ls"}},
+		{{Text: t("🚧 حالت نگهداری", "🚧 Maintenance"), Data: "m:maint"}, {Text: t("♻️ ریستارت هسته", "♻️ Restart core"), Data: "m:restart"}},
+	})
+}
+
+// sellMenu is the shop from the seller's side.
+func (b *bot) sellMenu() [][]button {
+	t := b.tr
+	kb := [][]button{
+		{{Text: t("📋 سفارش‌ها", "📋 Orders"), Data: "k:ordsP"}, {Text: t("📈 گزارش فروش", "📈 Sales report"), Data: "k:sales"}},
+		{{Text: t("✏️ ویرایش فروشگاه", "✏️ Edit shop"), Data: "k:edit"}, {Text: t("👁 نمای مشتری", "👁 Customer view"), Data: "k:shop"}},
+	}
+	if b.canManageAdmins() {
+		kb = append(kb, []button{{Text: t("👮 فروشنده‌ها", "👮 Sellers"), Data: "q:ads"}})
+	}
+	return b.keepAllowed(kb)
+}
+
+// subMenuScreen is one of the main menu's groups of buttons.
+func (b *bot) subMenuScreen(which string) (string, [][]button) {
+	var title string
+	var kb [][]button
+	switch which {
+	case "tech":
+		title, kb = "🔧 "+b.tr("بخش فنی", "Technical"), b.techMenu()
+	case "care":
+		title, kb = "🧰 "+b.tr("نگهداری", "Upkeep"), b.careMenu()
+	default:
+		title, kb = "🛍 "+b.tr("فروش", "Sales"), b.sellMenu()
+	}
+	if b.colorful() {
+		kb = regrid(kb, 2)
+	}
+	return "<b>" + title + "</b>", append(kb, b.menuRow())
+}
+
+// menuTree is every button the main menu leads to, its groups opened.
+func (b *bot) menuTree() [][]button {
+	kb := append([][]button{}, b.mainMenu()...)
+	if b.scope != "" {
+		return append(kb, b.sellMenu()...)
+	}
+	kb = append(kb, b.techMenu()...)
+	kb = append(kb, b.careMenu()...)
+	return append(kb, b.sellMenu()...)
 }
 
 func (b *bot) menuRow() []button { return []button{b.btn("btnMenu", "m:menu")} }
@@ -776,6 +849,8 @@ func (b *bot) menuCallback(ctx context.Context, cbID string, chatID, msgID int64
 	case "menu":
 		text, kb := b.menuScreen()
 		show(text, kb)
+	case "sell", "tech", "care":
+		show(b.subMenuScreen(action))
 	case "status":
 		show(b.homeText(), b.homeKeyboard())
 	case "nodes":

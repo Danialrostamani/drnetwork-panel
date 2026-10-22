@@ -1,0 +1,30 @@
+import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/plugins/httputil', () => ({ default: { get: vi.fn(), post: vi.fn() } }))
+vi.mock('@/store/modules/data', () => ({ default: () => ({ outbounds: [] }) }))
+vi.mock('@/locales', () => ({ i18n: { global: { t: (k: string) => k } } }))
+
+import { changedSettings, parseShop, shopJSON } from './botSettings'
+
+describe('bot settings', () => {
+  it('sends only what changed', () => {
+    expect(changedSettings({ tgBotLang: 'en', tgBotToken: 'x', tgBotAdmins: '1' }, { tgBotLang: 'fa', tgBotToken: 'x', tgBotAdmins: '1' }))
+      .toEqual({ tgBotLang: 'en' })
+    expect(changedSettings({ a: '1' }, { a: '1' })).toEqual({})
+  })
+
+  it('keeps shop keys the page does not edit', () => {
+    const raw = JSON.stringify({ menu: [{ data: 'p:buy', fa: 'x' }], welcomeFa: 'hi', desks: { '42': { payCard: '1234', plans: [{ id: '1', name: 'a', days: 30, gb: 10, price: '5' }] } } })
+    const shop = parseShop(raw)
+    expect(shop.desks['42'].payCard).toBe('1234')
+    expect(shop.desks['42'].plans[0].gb).toBe(10)
+    const out = JSON.parse(shopJSON(raw, { ...shop, welcomeFa: 'salam', desks: {} }))
+    expect(out.menu).toEqual([{ data: 'p:buy', fa: 'x' }])
+    expect(out.welcomeFa).toBe('salam')
+    expect(out.desks).toEqual({})
+  })
+
+  it('reads a broken shop as empty', () => {
+    expect(parseShop('{nope').plans).toEqual([])
+  })
+})

@@ -82,6 +82,18 @@ func (a *APIv2Handler) postHandler(c *gin.Context) {
 		a.ApiService.BotAdminAction(c, "move", username)
 	case "botAdminsAuto":
 		a.ApiService.BotAdminAction(c, "auto", username)
+	case "botAdminAdd":
+		a.ApiService.BotAdminAction(c, "add", username)
+	case "botAdminRemove":
+		a.ApiService.BotAdminAction(c, "remove", username)
+	case "botAdminRole":
+		a.ApiService.BotAdminAction(c, "role", username)
+	case "botAdminQuota":
+		a.ApiService.BotAdminAction(c, "quota", username)
+	case "botAdminTerms":
+		a.ApiService.BotAdminAction(c, "terms", username)
+	case "botAdminSettle":
+		a.ApiService.BotAdminAction(c, "settle", username)
 	case "getCertPing":
 		a.ApiService.GetCertPing(c)
 	case "clusterBans":
@@ -142,6 +154,8 @@ func (a *APIv2Handler) getHandler(c *gin.Context) {
 		a.ApiService.GetBotMembers(c)
 	case "botAdmins":
 		a.ApiService.GetBotAdmins(c)
+	case "botDashboard":
+		a.ApiService.GetBotDashboard(c)
 	default:
 		jsonMsg(c, "failed", common.NewError("unknown action: ", action))
 	}

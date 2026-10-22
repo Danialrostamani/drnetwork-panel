@@ -33,6 +33,16 @@ type PanelAdmin struct {
 	// Outside counts the clients of their customers, sales and creations that
 	// are not in their group yet.
 	Outside int `json:"outside"`
+	// The owner's terms with them, their volume limit (nil when none) and
+	// what they sold since the last settlement.
+	Suspended       bool        `json:"suspended"`
+	RequireOwner    bool        `json:"requireOwner"`
+	MinPerGB        int64       `json:"minPerGB"`
+	RatePerGB       int64       `json:"ratePerGB"`
+	Quota           *PanelQuota `json:"quota"`
+	UnsettledOrders int64       `json:"unsettledOrders"`
+	UnsettledGB     int64       `json:"unsettledGB"`
+	Owed            int64       `json:"owed"`
 }
 
 // PanelAdminsView is the administrators and the client groups there are.
@@ -40,6 +50,8 @@ type PanelAdminsView struct {
 	Owner  int64        `json:"owner"`
 	Admins []PanelAdmin `json:"admins"`
 	Groups []string     `json:"groups"`
+	// Sections are the parts of the bot an administrator can be given.
+	Sections []PanelSection `json:"sections"`
 }
 
 // PanelAdmins lists the bot's administrators, the owner first.
@@ -50,7 +62,7 @@ func PanelAdmins(ctx context.Context) (PanelAdminsView, error) {
 	}
 	b := newBot(cfg)
 	a := b.access()
-	view := PanelAdminsView{Owner: a.owner, Admins: []PanelAdmin{}, Groups: []string{}}
+	view := PanelAdminsView{Owner: a.owner, Admins: []PanelAdmin{}, Groups: []string{}, Sections: PanelSections()}
 	names := map[int64]string{}
 	if cfg.Token != "" && len(a.order) > 0 {
 		nctx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -108,6 +120,7 @@ func PanelAdmins(ctx context.Context) (PanelAdminsView, error) {
 		for _, o := range sales {
 			pa.Revenue += o.Amount
 		}
+		b.panelAdminExtras(&pa)
 		view.Admins = append(view.Admins, pa)
 	}
 	for _, g := range groupSet {

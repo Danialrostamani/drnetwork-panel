@@ -60,6 +60,11 @@ func (b *bot) checkQuotaEditor(id int64) error {
 // does for everything else the bot changes. used is what had been used of it,
 // or negative when that is not worth noting.
 func (b *bot) recordQuota(id int64, action string, total, used int64) {
+	recordQuotaAs(b.actor(), id, action, total, used)
+}
+
+// recordQuotaAs is recordQuota for a change made by actor.
+func recordQuotaAs(actor string, id int64, action string, total, used int64) {
 	fields := map[string]interface{}{
 		"name":  fmt.Sprintf("%d %s", id, humanBytes(total)),
 		"tgId":  id,
@@ -69,7 +74,7 @@ func (b *bot) recordQuota(id int64, action string, total, used int64) {
 		fields["used"] = used
 	}
 	obj, _ := json.Marshal(fields)
-	err := database.GetDB().Create(&model.Changes{DateTime: time.Now().Unix(), Actor: b.actor(), Key: "quota", Action: action, Obj: obj}).Error
+	err := database.GetDB().Create(&model.Changes{DateTime: time.Now().Unix(), Actor: actor, Key: "quota", Action: action, Obj: obj}).Error
 	if err != nil {
 		logger.Warning("telegram bot: record the change of a volume limit: ", err)
 	}
