@@ -1,8 +1,10 @@
 package tgbot
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Danialrostamani/drnetwork-panel/database"
 	"github.com/Danialrostamani/drnetwork-panel/database/model"
@@ -31,13 +33,13 @@ func hasButtonData(kb [][]button, data string) bool {
 }
 
 // The client card ends with the subscription link, the same one the
-// Subscription / QR button sends, in a code span so that a tap copies it.
+// Subscription / QR button sends, as a link so that a tap opens it.
 func TestClientCardEndsWithTheSubscriptionLink(t *testing.T) {
 	e := newAccessEnv(t)
 	setSetting(t, "subURI", cardSubURI)
 	c := seedAccount(t, "EgoNgNB9", nil)
 	id := itoa(int64(c.Id))
-	want := "🔗 Subscription:\n<code>https://sub.example.org:2096/sub/EgoNgNB9</code>"
+	want := "🔗 Subscription:\n<a href=\"https://sub.example.org:2096/sub/EgoNgNB9\">https://sub.example.org:2096/sub/EgoNgNB9</a>"
 
 	check := func(how, text string, kb [][]button) {
 		t.Helper()
@@ -81,7 +83,7 @@ func TestClientCardLinkIsTheOneTheButtonSends(t *testing.T) {
 	n := len(e.got())
 	e.press(fullAdmin, "c:view:"+itoa(int64(c.Id)))
 	text := lastText(e.since(n), "editMessageText")
-	if !strings.HasSuffix(text, "🔗 Subscription:\n<code>"+link+"</code>") {
+	if !strings.HasSuffix(text, "🔗 Subscription:\n<a href=\""+esc(link)+"\">"+esc(link)+"</a>") {
 		t.Errorf("card:\n%s\nwant it to end with the link %s", text, link)
 	}
 }
@@ -95,7 +97,7 @@ func TestClientCardSubscriptionLineInPersian(t *testing.T) {
 	n := len(e.got())
 	e.press(fullAdmin, "c:view:"+itoa(int64(c.Id)))
 	text := lastText(e.since(n), "editMessageText")
-	if !strings.HasSuffix(text, "🔗 لینک اشتراک:\n<code>https://sub.example.org:2096/sub/fa-card</code>") {
+	if !strings.HasSuffix(text, "🔗 لینک اشتراک:\n<a href=\"https://sub.example.org:2096/sub/fa-card\">https://sub.example.org:2096/sub/fa-card</a>") {
 		t.Errorf("card:\n%s", text)
 	}
 }
@@ -109,7 +111,7 @@ func TestClientCardEscapesTheLink(t *testing.T) {
 	n := len(e.got())
 	e.press(fullAdmin, "c:view:"+itoa(int64(c.Id)))
 	text := lastText(e.since(n), "editMessageText")
-	if !strings.HasSuffix(text, "<code>https://sub.example.org/s?a=1&amp;b=&lt;2&gt;/esc</code>") {
+	if !strings.HasSuffix(text, "<a href=\"https://sub.example.org/s?a=1&amp;b=&lt;2&gt;/esc\">https://sub.example.org/s?a=1&amp;b=&lt;2&gt;/esc</a>") {
 		t.Errorf("card:\n%s", text)
 	}
 }
@@ -124,7 +126,7 @@ func TestBoundClientsOwnCardHasTheLink(t *testing.T) {
 	e.say(boundUser, "/usage")
 	msgs := e.since(n)
 	text := lastText(msgs, "sendMessage")
-	mustContain(t, text, "👤 <b>mine</b>", "🔗 Subscription:\n<code>https://sub.example.org:2096/sub/mine</code>")
+	mustContain(t, text, "👤 <b>mine</b>", "🔗 Subscription:\n<a href=\"https://sub.example.org:2096/sub/mine\">https://sub.example.org:2096/sub/mine</a>")
 	mustNotContain(t, text, "NL-note")
 	kb := keyboardOf(msgs)
 	if !hasButtonData(kb, "u:sub:"+id) || hasButtonData(kb, "c:tog:"+id) {
@@ -140,7 +142,7 @@ func TestGroupLimitedAdminSeesTheLinkOfTheirOwnClientsOnly(t *testing.T) {
 	n := len(e.got())
 	e.press(salesAdmin, "c:view:"+e.cid("s1"))
 	text := lastText(e.since(n), "editMessageText")
-	mustContain(t, text, "👤 <b>s1</b>", "<code>https://sub.example.org:2096/sub/s1</code>")
+	mustContain(t, text, "👤 <b>s1</b>", "<a href=\"https://sub.example.org:2096/sub/s1\">https://sub.example.org:2096/sub/s1</a>")
 
 	n = len(e.got())
 	e.press(salesAdmin, "c:view:"+e.cid("o1"))
@@ -149,5 +151,47 @@ func TestGroupLimitedAdminSeesTheLinkOfTheirOwnClientsOnly(t *testing.T) {
 		if strings.Contains(m.Text, "/sub/o1") {
 			t.Fatalf("the link of another group's client leaked: %+v", m)
 		}
+	}
+}
+
+// The card spells out the volume, the download and upload and what is left,
+// and lists each server with what the client used there.
+func TestClientCardVolumeAndLocations(t *testing.T) {
+	e := newAccessEnv(t)
+	db := database.GetDB()
+	node := model.Node{Name: "fr-node"}
+	if err := db.Create(&node).Error; err != nil {
+		t.Fatal(err)
+	}
+	local := model.Inbound{Type: "vless", Tag: "🇩🇪 Germany"}
+	fr1 := model.Inbound{Type: "vless", Tag: "FR🇫🇷", NodeId: &node.Id}
+	fr2 := model.Inbound{Type: "hysteria2", Tag: "FR-2🇫🇷", NodeId: &node.Id}
+	for _, in := range []*model.Inbound{&local, &fr1, &fr2} {
+		if err := db.Create(in).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	inb, _ := json.Marshal([]uint{fr1.Id, local.Id, fr2.Id})
+	c := seedAccount(t, "loc", map[string]interface{}{"inbounds": inb})
+	for _, u := range []model.ClientUsage{
+		{ClientId: c.Id, NodeId: node.Id, Up: gib / 2, Down: 30 * gib},
+		{ClientId: c.Id, NodeId: 0, Up: gib / 2, Down: 2 * gib},
+	} {
+		if err := db.Create(&u).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	text := e.b.clientDetail(c, false, time.Now())
+	mustContain(t, text,
+		"📦 <b>Total volume</b>: 65.00 GiB",
+		"📉 <b>Used</b>: 41.00 GiB\n      ⬇️ Download: 40.00 GiB   ⬆️ Upload: 1.00 GiB",
+		"🟢 <b>Remaining</b>: 24.00 GiB",
+		"📍 <b>Locations</b>",
+		"  • FR🇫🇷 · FR-2🇫🇷 — 30.50 GiB (⬇️ 30.00 GiB ⬆️ 512.00 MiB)",
+		"  • 🇩🇪 Germany — 2.50 GiB (⬇️ 2.00 GiB ⬆️ 512.00 MiB)",
+		"No location (before v51.1 or a removed server): 8.00 GiB",
+	)
+	if strings.Index(text, "FR🇫🇷") > strings.Index(text, "Germany") {
+		t.Errorf("servers not in the client's order:\n%s", text)
 	}
 }

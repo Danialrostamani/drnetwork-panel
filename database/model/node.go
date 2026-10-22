@@ -183,3 +183,17 @@ type NodeTraffic struct {
 // TableName keeps the name the queries written out in SQL use; the default
 // would be node_traffics.
 func (NodeTraffic) TableName() string { return "node_traffic" }
+
+// ClientUsage is what one client used on one server in its current cycle:
+// NodeId 0 is the master itself, any other the managed node. The core counts
+// a user's traffic, not a user's traffic per inbound, so a server is as fine
+// as it gets. Epoch is the client's total_up+total_down when the row was last
+// written: a reset folds up/down into those totals, so a row whose epoch no
+// longer matches is from an earlier cycle and is read as zero.
+type ClientUsage struct {
+	ClientId uint  `json:"clientId" gorm:"primaryKey;autoIncrement:false"`
+	NodeId   uint  `json:"nodeId" gorm:"primaryKey;autoIncrement:false"`
+	Epoch    int64 `json:"epoch"`
+	Up       int64 `json:"up"`
+	Down     int64 `json:"down"`
+}

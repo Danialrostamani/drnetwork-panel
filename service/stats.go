@@ -142,6 +142,9 @@ func (s *StatsService) saveStats(st *core.SessionTracker, enableTraffic bool, bu
 		if err != nil {
 			return err
 		}
+		if err = addClientUsage(tx, name, 0, t.up, t.down); err != nil {
+			return err
+		}
 	}
 
 	if !enableTraffic {
@@ -569,6 +572,7 @@ const delOldStatsChunk = 5000
 func (s *StatsService) DelOldStats(days int) error {
 	oldTime := time.Now().AddDate(0, 0, -(days)).Unix()
 	db := database.GetDB()
+	_ = DelStaleClientUsage()
 	for {
 		res := db.Where("id IN (?)",
 			db.Model(model.Stats{}).Select("id").Where("date_time < ?", oldTime).Limit(delOldStatsChunk),

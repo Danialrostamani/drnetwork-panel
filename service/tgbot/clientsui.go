@@ -63,12 +63,98 @@ func (b *bot) subSummary(c model.Client, online bool, now time.Time) string {
 	return strings.Join(lines, "\n")
 }
 
+// volumeLines is the card's volume block: the bar, then the whole volume,
+// what was used (download and upload) and what is left, each on its line.
+func (b *bot) volumeLines(c model.Client) []string {
+	up, down := max(c.Up, 0), max(c.Down, 0)
+	used := up + down
+	var lines []string
+	if c.Volume > 0 {
+		p := usagePercent(c)
+		lines = append(lines,
+			fmt.Sprintf("📊 <b>%s</b> %s %d%%", b.t("usage"), b.bar(p, 10), p),
+			fmt.Sprintf("📦 <b>%s</b>: %s", b.tr("حجم کل", "Total volume"), humanBytes(c.Volume)))
+	} else {
+		lines = append(lines, fmt.Sprintf("📦 <b>%s</b>: ∞ %s", b.tr("حجم کل", "Total volume"), b.tr("نامحدود", "unlimited")))
+	}
+	lines = append(lines, fmt.Sprintf("📉 <b>%s</b>: %s\n      ⬇️ %s: %s   ⬆️ %s: %s",
+		b.tr("مصرف‌شده", "Used"), humanBytes(used),
+		b.tr("دانلود", "Download"), humanBytes(down), b.tr("آپلود", "Upload"), humanBytes(up)))
+	if c.Volume > 0 {
+		lines = append(lines, fmt.Sprintf("🟢 <b>%s</b>: %s", b.t("volLeft"), humanBytes(max(c.Volume-used, 0))))
+	}
+	return lines
+}
+
+// maxLocationLines keeps a client on very many servers inside one message.
+const maxLocationLines = 25
+
+// locationLines lists the client's locations, one server a line: the
+// inbounds it has there and what it used there in this cycle. The core counts
+// a user's traffic per server, not per inbound, so the inbounds of one server
+// share a line. Traffic from before the per-server count existed has no
+// server; it is shown apart so the lines still add up.
+func (b *bot) locationLines(c model.Client) []string {
+	ids := clientInboundIDs(c)
+	if len(ids) == 0 {
+		return nil
+	}
+	var inbounds []model.Inbound
+	_ = database.GetDB().Select("id", "tag", "node_id").Where("id IN ?", ids).Find(&inbounds).Error
+	byID := make(map[uint]model.Inbound, len(inbounds))
+	for _, in := range inbounds {
+		byID[in.Id] = in
+	}
+	var order []uint
+	tags := map[uint][]string{}
+	for _, id := range ids {
+		in, ok := byID[id]
+		if !ok {
+			continue
+		}
+		node := uint(0)
+		if in.NodeId != nil {
+			node = *in.NodeId
+		}
+		if _, seen := tags[node]; !seen {
+			order = append(order, node)
+		}
+		tags[node] = append(tags[node], esc(in.Tag))
+	}
+	if len(order) == 0 {
+		return nil
+	}
+	usage := service.ClientServerUsage(c)
+	lines := []string{"📍 <b>" + b.tr("لوکیشن‌ها", "Locations") + "</b>"}
+	var counted int64
+	for i, node := range order {
+		u := usage[node]
+		counted += u.Up + u.Down
+		if i == maxLocationLines {
+			lines = append(lines, "  …")
+			continue
+		}
+		if i > maxLocationLines {
+			continue
+		}
+		line := "  • " + strings.Join(tags[node], " · ") + " — " + humanBytes(u.Up+u.Down)
+		if u.Up+u.Down > 0 {
+			line += fmt.Sprintf(" (⬇️ %s ⬆️ %s)", humanBytes(u.Down), humanBytes(u.Up))
+		}
+		lines = append(lines, line)
+	}
+	if rest := max(c.Up, 0) + max(c.Down, 0) - counted; rest > 1<<20 {
+		lines = append(lines, "  <i>"+b.tr("بدون تفکیک لوکیشن (قبل از v51.1 یا سرور حذف‌شده)", "No location (before v51.1 or a removed server)")+": "+humanBytes(rest)+"</i>")
+	}
+	return lines
+}
+
 func (b *bot) clientDetail(c model.Client, online bool, now time.Time) string {
 	lines := b.clientHead(c, online)
 	if c.Desc != "" {
 		lines = append(lines, "📝 <i>"+esc(c.Desc)+"</i>")
 	}
-	lines = append(lines, b.usageText(c))
+	lines = append(lines, b.volumeLines(c)...)
 	lines = append(lines, fmt.Sprintf("⏳ <b>%s</b>: %s", b.t("expiry"), b.expiryText(c, now)))
 	if eb := b.expiryBar(c, now); eb != "" {
 		lines = append(lines, eb)
@@ -99,28 +185,16 @@ func (b *bot) clientDetail(c model.Client, online bool, now time.Time) string {
 	if c.AutoReset || c.TotalUp+c.TotalDown > 0 {
 		lines = append(lines, fmt.Sprintf("Σ %s: ↑ %s ↓ %s", b.tr("مصرف کل", "Lifetime"), humanBytes(c.TotalUp+c.Up), humanBytes(c.TotalDown+c.Down)))
 	}
-	if ids := clientInboundIDs(c); len(ids) > 0 {
-		tags := inboundTagMap()
-		names := make([]string, 0, len(ids))
-		for i, id := range ids {
-			if i == 8 {
-				names = append(names, "…")
-				break
-			}
-			if t, ok := tags[id]; ok {
-				names = append(names, esc(t))
-			}
-		}
-		lines = append(lines, "📡 "+strings.Join(names, ", "))
-	}
+	lines = append(lines, b.locationLines(c)...)
 	if c.TgId != 0 {
 		lines = append(lines, fmt.Sprintf("🔔 %s: <code>%d</code>", b.t("boundTo"), c.TgId))
 	}
 	lines = append(lines, fmt.Sprintf("🕒 %s: %s", b.t("lastOnline"), b.stamp(c.OnlineAt)), fmt.Sprintf("📅 %s: %s", b.t("createdAt"), b.stamp(c.CreatedAt)))
-	// The subscription link closes the card, in a code span so that a tap
-	// copies it. The button under the card still sends it with its QR code.
+	// The subscription link closes the card as a link, so a tap opens it in
+	// the browser (the subscription page). The button under the card still
+	// sends it with its QR code, ready to copy.
 	if link, err := b.subLink(c.Name); err == nil {
-		lines = append(lines, "🔗 "+b.t("subLine")+":\n<code>"+esc(link)+"</code>")
+		lines = append(lines, "🔗 "+b.t("subLine")+":\n<a href=\""+esc(link)+"\">"+esc(link)+"</a>")
 	}
 	return strings.Join(lines, "\n")
 }

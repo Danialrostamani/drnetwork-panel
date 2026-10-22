@@ -89,6 +89,10 @@ func TestNodeTrafficUsesPersistentDeltaBaselinesAndHandlesReset(t *testing.T) {
 	if alice.Up != 165 || alice.Down != 286 {
 		t.Fatalf("reset collection = %d/%d", alice.Up, alice.Down)
 	}
+	// The same deltas are what alice used on this node.
+	if u := ClientServerUsage(alice)[node.Id]; u.Up != 160 || u.Down != 280 {
+		t.Fatalf("node usage = %+v", u)
+	}
 	if err := database.GetDB().First(&node, node.Id).Error; err != nil {
 		t.Fatal(err)
 	}

@@ -1065,6 +1065,9 @@ func (s *NodeSyncService) collectNodeTraffic(node *model.Node) error {
 			}).Error; err != nil {
 				return err
 			}
+			if err := addClientUsage(tx, name, node.Id, value.up, value.down); err != nil {
+				return err
+			}
 		}
 		for name := range seenOnline {
 			if _, hasDelta := deltas[name]; hasDelta {

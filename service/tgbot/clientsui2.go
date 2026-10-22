@@ -23,16 +23,6 @@ import (
 
 func sid(id uint) string { return strconv.FormatUint(uint64(id), 10) }
 
-func inboundTagMap() map[uint]string {
-	var inbounds []model.Inbound
-	_ = database.GetDB().Select("id", "tag").Find(&inbounds).Error
-	out := make(map[uint]string, len(inbounds))
-	for _, in := range inbounds {
-		out[in.Id] = in.Tag
-	}
-	return out
-}
-
 func clientInboundIDs(c model.Client) []uint {
 	var ids []uint
 	_ = json.Unmarshal(c.Inbounds, &ids)
