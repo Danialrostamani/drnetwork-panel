@@ -198,7 +198,7 @@ func TestClientNameFromSubLink(t *testing.T) {
 			t.Errorf("clientNameFromSubLink(%q) = %q, want %q", in, got, want)
 		}
 	}
-	if ownSubLink("alice") || ownSubLink("https://evil.example/alice") || !ownSubLink("https://vpn.example:2096/sub/alice") {
+	if ownSubLink("alice", "") || ownSubLink("https://evil.example/alice", "") || !ownSubLink("https://vpn.example:2096/sub/alice", "") {
 		t.Fatal("ownSubLink accepted a name or a non-sub URL")
 	}
 }
@@ -295,5 +295,57 @@ func TestSingBoxLink(t *testing.T) {
 		if strings.Contains(b.customerGuide(), gone) {
 			t.Fatalf("the guide still names %q", gone)
 		}
+	}
+}
+
+// A customer whose link carries a subscription token, sits under a reverse
+// proxy's own path (subURI) or comes inside an app's share text can still
+// connect it.
+func TestCustomerBindsTokenAndProxiedLinks(t *testing.T) {
+	if err := database.InitDB(filepath.Join(t.TempDir(), "bot.db")); err != nil {
+		t.Fatal(err)
+	}
+	token := "abcdefghijklmnopqrstuvwx"
+	for _, c := range []model.Client{
+		{Name: "tok", Enable: true, SubToken: token, UseSubToken: true, Inbounds: json.RawMessage(`[]`), Links: json.RawMessage(`[]`)},
+		{Name: "plain", Enable: true, Inbounds: json.RawMessage(`[]`), Links: json.RawMessage(`[]`)},
+	} {
+		if err := database.GetDB().Create(&c).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := database.GetDB().Model(model.Setting{}).Where("key = ?", "subURI").Update("value", "https://cdn.example/my-subs/").Error; err != nil {
+		t.Fatal(err)
+	}
+	var n int64
+	database.GetDB().Model(model.Setting{}).Where("key = ?", "subURI").Count(&n)
+	if n == 0 {
+		database.GetDB().Create(&model.Setting{Key: "subURI", Value: "https://cdn.example/my-subs/"})
+	}
+	b, got := fakeTelegram(t)
+	b.cfg.Lang = "en"
+	ctx := context.Background()
+	cases := []struct {
+		user int64
+		msg  string
+	}{
+		{101, "https://vpn.example:2096/sub/" + token + "?format=json"},
+		{102, "My sub 👇\nhttps://cdn.example/my-subs/plain#DrNetwork"},
+	}
+	for _, tc := range cases {
+		b.handle(ctx, privateMessage(tc.user, "Connect link 🔗"))
+		k := len(got())
+		b.handle(ctx, privateMessage(tc.user, tc.msg))
+		var order model.BotOrder
+		if err := database.GetDB().Where("topic = ? AND tg_id = ?", "bind", tc.user).First(&order).Error; err != nil {
+			t.Fatalf("%q: no bind order: %v (%q)", tc.msg, err, texts(got()[k:], "sendMessage"))
+		}
+	}
+	// The name of a client that uses a token is not its link.
+	b.handle(ctx, privateMessage(103, "Connect link 🔗"))
+	k := len(got())
+	b.handle(ctx, privateMessage(103, "https://vpn.example:2096/sub/tok"))
+	if out := strings.Join(texts(got()[k:], "sendMessage"), "\n"); !strings.Contains(out, "not found") {
+		t.Fatalf("name of a token client = %q", out)
 	}
 }

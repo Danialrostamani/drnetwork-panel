@@ -20,17 +20,17 @@ func (b *bot) customerAskLink(ctx context.Context, chatID int64, from *fromUser)
 }
 
 func (b *bot) customerBindLink(ctx context.Context, chatID int64, from *fromUser, text string) {
-	raw := strings.TrimSpace(strings.Split(strings.TrimSpace(text), "\n")[0])
-	name := clientNameFromSubLink(raw)
-	if name == "" || !ownSubLink(raw) {
+	raw := findSubURL(text)
+	id := clientNameFromSubLink(raw)
+	if id == "" || !ownSubLink(raw, b.host()) {
 		b.sendMenu(ctx, chatID, b.tr(
 			"❌ این لینک اشتراک این پنل نیست.\nلینک کامل را بفرستید؛ معمولاً با http شروع می‌شود و اسم اشتراک ته مسیر /sub/ است.",
 			"❌ That is not this panel's subscription link.\nSend the full link; it usually starts with http and ends with the name after /sub/."),
 			b.customerMenu(from.ID))
 		return
 	}
-	var c model.Client
-	if err := database.GetDB().Where("name = ?", name).First(&c).Error; err != nil {
+	c, ok := clientBySubID(id)
+	if !ok {
 		b.sendMenu(ctx, chatID, b.tr(
 			"❌ این لینک پیدا نشد. همان لینک اشتراک را کامل بفرستید.",
 			"❌ That link was not found. Send the full subscription link."),
@@ -81,7 +81,40 @@ func clientNameFromSubLink(text string) string {
 	return strings.TrimSpace(name)
 }
 
-func ownSubLink(raw string) bool {
+// findSubURL is the first http(s) address in a message: an app's share text
+// or a copied note can put words, a remark or line breaks around the link.
+func findSubURL(text string) string {
+	for _, f := range strings.Fields(text) {
+		f = strings.Trim(f, "<>()[]\"'`,،")
+		l := strings.ToLower(f)
+		if strings.HasPrefix(l, "http://") || strings.HasPrefix(l, "https://") {
+			return f
+		}
+	}
+	return strings.TrimSpace(strings.Split(strings.TrimSpace(text), "\n")[0])
+}
+
+// clientBySubID finds the client a link's last part names, the same way the
+// subscription server does: by its token for a client that uses one, by its
+// name for one that does not.
+func clientBySubID(id string) (model.Client, bool) {
+	var c model.Client
+	db := database.GetDB()
+	if len(id) == model.SubTokenLength {
+		if err := db.Where("sub_token = ? AND use_sub_token = ?", id, true).First(&c).Error; err == nil {
+			return c, true
+		}
+	}
+	if err := db.Where("name = ? AND use_sub_token = ?", id, false).First(&c).Error; err == nil {
+		return c, true
+	}
+	return model.Client{}, false
+}
+
+// ownSubLink tells whether a link is under this panel's subscription path:
+// the sub server's own path, or the path of the public subscription address
+// (subURI) when a reverse proxy serves the links somewhere else.
+func ownSubLink(raw, host string) bool {
 	u, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil || u.Host == "" {
 		return false
@@ -91,13 +124,24 @@ func ownSubLink(raw string) bool {
 	default:
 		return false
 	}
-	subPath := "/sub/"
+	prefixes := []string{"/sub/"}
 	if database.GetDB() != nil {
-		if p, err := (&service.SettingService{}).GetSubPath(); err == nil && strings.TrimSpace(p) != "" {
-			subPath = p
+		st := &service.SettingService{}
+		if p, err := st.GetSubPath(); err == nil && strings.TrimSpace(p) != "" {
+			prefixes[0] = p
+		}
+		if base, err := st.GetFinalSubURI(host); err == nil {
+			if bu, err := url.Parse(strings.TrimSpace(base)); err == nil && bu.Host != "" {
+				prefixes = append(prefixes, bu.Path)
+			}
 		}
 	}
-	prefix := "/" + strings.Trim(subPath, "/")
 	path := "/" + strings.Trim(u.Path, "/")
-	return path != prefix && strings.HasPrefix(path, prefix+"/")
+	for _, p := range prefixes {
+		prefix := strings.TrimRight("/"+strings.Trim(p, "/"), "/")
+		if path != prefix && path != "/" && strings.HasPrefix(path, prefix+"/") {
+			return true
+		}
+	}
+	return false
 }
