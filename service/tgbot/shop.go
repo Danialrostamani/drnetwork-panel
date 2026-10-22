@@ -73,7 +73,7 @@ type shopMenuBtn struct {
 }
 
 var shopMenuKeys = []string{
-	"p:buy", "p:renew", "p:my", "p:link", "p:wallet", "p:trial", "p:tariff", "p:support", "p:guide",
+	"p:buy", "p:renew", "p:my", "p:link", "p:wallet", "p:trial", "p:support", "p:guide",
 }
 
 func (b *bot) loadShopRaw() shopConfig {
@@ -374,22 +374,6 @@ func (b *bot) customerWallet(ctx context.Context, chatID int64, from *fromUser) 
 	b.sendKeyboard(ctx, chatID, b.tr(
 		"🏦 <b>کیف پول</b>\nموجودی: <b>"+bal+"</b>\nمبلغ شارژ را انتخاب کنید. بعد از تأیید رسید، به موجودی اضافه می‌شود و می‌توانید پلن را از کیف پول پرداخت کنید.",
 		"🏦 <b>Wallet</b>\nBalance: <b>"+bal+"</b>\nPick the amount to add. It is added once the receipt is approved, and plans can then be paid from the wallet."), rows)
-}
-
-func (b *bot) customerTariff(ctx context.Context, chatID int64, from *fromUser) {
-	s := b.loadShop()
-	if len(s.Plans) == 0 {
-		b.sendMenu(ctx, chatID, b.tr(
-			"💵 هنوز تعرفه‌ای ثبت نشده. از پشتیبانی بپرسید.",
-			"💵 No plans are listed yet. Ask support."), b.customerMenu(from.ID))
-		return
-	}
-	var lines []string
-	lines = append(lines, b.tr("💵 <b>تعرفه اشتراک‌ها</b>", "💵 <b>Plans</b>"))
-	for _, p := range s.Plans {
-		lines = append(lines, "• "+esc(p.label()))
-	}
-	b.sendKeyboard(ctx, chatID, strings.Join(lines, "\n"), b.shopPlanButtons("u:buy:"))
 }
 
 func clientByIDForUser(from int64, id string) *model.Client {

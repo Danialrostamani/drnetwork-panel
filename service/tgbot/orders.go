@@ -502,7 +502,7 @@ func (b *bot) notifyCustomerOrder(ctx context.Context, o *model.BotOrder, ok boo
 		var c model.Client
 		if database.GetDB().First(&c, o.ClientId).Error == nil {
 			if link, err := b.subLink(c.Name); err == nil {
-				msg += "\n<code>" + esc(link) + "</code>"
+				msg += "\n<code>" + esc(link) + "</code>" + b.singBoxLine(link)
 			}
 		}
 		b.sendMenu(ctx, o.TgId, msg, b.customerMenu(o.TgId))

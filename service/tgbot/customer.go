@@ -24,7 +24,9 @@ func (b *bot) customerStart(ctx context.Context, chatID int64, from *fromUser) {
 func (b *bot) customerPress(ctx context.Context, chatID int64, from *fromUser, data string) {
 	b.pend.clear(chatID)
 	switch data {
-	case "p:buy":
+	case "p:buy", "p:tariff":
+		// p:tariff was the plan list, the same one Buy shows; an old menu
+		// still under a chat may send it.
 		b.customerBuy(ctx, chatID, from, "")
 	case "p:renew":
 		b.customerRenewPick(ctx, chatID, from)
@@ -36,8 +38,6 @@ func (b *bot) customerPress(ctx context.Context, chatID int64, from *fromUser, d
 		b.customerWallet(ctx, chatID, from)
 	case "p:trial":
 		b.autoTrial(ctx, chatID, from)
-	case "p:tariff":
-		b.customerTariff(ctx, chatID, from)
 	case "p:guide":
 		b.sendMenu(ctx, chatID, b.shopGuideText(), b.customerMenu(from.ID))
 	case "p:support":
@@ -170,30 +170,30 @@ func (b *bot) customerNotice(from *fromUser, topic, text string) string {
 
 func (b *bot) customerGuide() string {
 	return b.tr(
-		`📚 <b>آموزش اتصال</b>
+		`📚 <b>آموزش اتصال با sing-box</b>
 
-۱. از <b>سرویس های من</b> لینک اشتراک را کپی کنید.
-۲. برنامه را نصب کنید و اشتراک را اضافه کنید:
+۱. در <b>سرویس های من</b> دکمه «🔗 لینک اشتراک / QR» را بزنید و <b>لینک sing-box</b> را کپی کنید.
+۲. برنامه sing-box دستگاه خود را نصب کنید:
 
-• اندروید: <a href="https://github.com/2dust/v2rayNG/releases">v2rayNG</a> یا Happ
-• آیفون: Streisand یا V2Box
-• ویندوز: <a href="https://github.com/2dust/v2rayN/releases">v2rayN</a> یا Happ
-• مک / لینوکس: Nekoray یا Happ
+• اندروید: <a href="https://play.google.com/store/apps/details?id=io.nekohasekai.sfa">sing-box (SFA)</a> از گوگل‌پلی یا <a href="https://github.com/SagerNet/sing-box/releases/latest">گیت‌هاب</a>
+• آیفون / آیپد / مک / اپل‌تی‌وی: <a href="https://apps.apple.com/app/sing-box-vt/id6673731168">sing-box VT</a> از اپ‌استور
+• ویندوز / لینوکس: sing-box نسخه گرافیکی رسمی ندارد؛ <a href="https://github.com/SagerNet/sing-box/releases/latest">sing-box</a> را از گیت‌هاب بگیرید یا از پشتیبانی راهنمایی بخواهید.
 
-۳. در برنامه: افزودن از کلپ‌بورد / subscription، بعد اتصال.
+۳. در برنامه: <b>Profiles</b> ← <b>New Profile</b> ← نوع <b>Remote</b>، لینک را در <b>URL</b> بگذارید و ذخیره کنید.
+۴. به <b>Dashboard</b> بروید و <b>Start</b> را بزنید.
 
 اگر وصل نشدید، به پشتیبانی پیام دهید.`,
-		`📚 <b>How to connect</b>
+		`📚 <b>How to connect with sing-box</b>
 
-1. Copy the subscription link from <b>My services</b>.
-2. Install an app and add the subscription:
+1. In <b>My services</b>, tap «🔗 Subscription / QR» and copy the <b>sing-box link</b>.
+2. Install the sing-box app for your device:
 
-• Android: <a href="https://github.com/2dust/v2rayNG/releases">v2rayNG</a> or Happ
-• iPhone: Streisand or V2Box
-• Windows: <a href="https://github.com/2dust/v2rayN/releases">v2rayN</a> or Happ
-• macOS / Linux: Nekoray or Happ
+• Android: <a href="https://play.google.com/store/apps/details?id=io.nekohasekai.sfa">sing-box (SFA)</a> on Google Play or <a href="https://github.com/SagerNet/sing-box/releases/latest">GitHub</a>
+• iPhone / iPad / Mac / Apple TV: <a href="https://apps.apple.com/app/sing-box-vt/id6673731168">sing-box VT</a> on the App Store
+• Windows / Linux: sing-box has no official graphical app; get <a href="https://github.com/SagerNet/sing-box/releases/latest">sing-box</a> from GitHub or ask support for help.
 
-3. In the app: add from clipboard / subscription, then connect.
+3. In the app: <b>Profiles</b> → <b>New Profile</b> → type <b>Remote</b>, put the link in <b>URL</b> and save.
+4. Go to <b>Dashboard</b> and tap <b>Start</b>.
 
 If it does not connect, message support.`)
 }

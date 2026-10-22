@@ -80,6 +80,16 @@ func (a *APIHandler) postHandler(c *gin.Context) {
 		a.ApiService.StartPanelUpdate(c, loginUser)
 	case "resetSubToken":
 		a.ApiService.ResetSubToken(c, loginUser)
+	case "botMemberRef":
+		a.ApiService.BotMemberAction(c, "ref")
+	case "botMemberBlock":
+		a.ApiService.BotMemberAction(c, "block")
+	case "botMemberSeller":
+		a.ApiService.BotMemberAction(c, "seller")
+	case "botMemberWallet":
+		a.ApiService.BotMemberAction(c, "wallet")
+	case "botMembersMessage":
+		a.ApiService.BotMembersMessage(c)
 	default:
 		jsonMsg(c, "failed", common.NewError("unknown action: ", action))
 	}
@@ -161,6 +171,8 @@ func (a *APIHandler) getHandler(c *gin.Context) {
 		a.ApiService.GetNodesBackup(c)
 	case "subUrl":
 		a.ApiService.GetSubUrl(c)
+	case "botMembers":
+		a.ApiService.GetBotMembers(c)
 	default:
 		jsonMsg(c, "failed", common.NewError("unknown action: ", action))
 	}

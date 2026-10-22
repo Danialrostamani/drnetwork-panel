@@ -18,7 +18,7 @@ const empty = { render: () => null }
 async function mountDrawer(isMobile = false) {
   const router = createRouter({
     history: createMemoryHistory(),
-    routes: ['/', '/inbounds', '/clients', '/nodes', '/outbounds', '/endpoints', '/services', '/tls', '/basics', '/rules', '/dns', '/admins', '/settings']
+    routes: ['/', '/inbounds', '/clients', '/nodes', '/outbounds', '/endpoints', '/services', '/tls', '/basics', '/rules', '/dns', '/botmembers', '/admins', '/settings']
       .map(path => ({ path, component: empty })),
   })
   await router.push('/')

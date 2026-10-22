@@ -71,6 +71,11 @@ const routes = [
         component: () => import('@/views/Dns.vue'),
       },
       {
+        path: '/botmembers',
+        name: 'pages.botMembers',
+        component: () => import('@/views/BotMembers.vue'),
+      },
+      {
         path: '/admins',
         name: 'pages.admins',
         component: () => import('@/views/Admins.vue'),

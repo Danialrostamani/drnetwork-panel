@@ -281,7 +281,7 @@ func (b *bot) sendSub(ctx context.Context, chatID int64, c model.Client) {
 			online = true
 		}
 	}
-	b.send(ctx, chatID, b.subSummary(c, online, time.Now())+"\n\n"+b.t("subTitle", esc(c.Name))+"\n<code>"+esc(link)+"</code>")
+	b.send(ctx, chatID, b.subSummary(c, online, time.Now())+"\n\n"+b.t("subTitle", esc(c.Name))+"\n<code>"+esc(link)+"</code>"+b.singBoxLine(link))
 	png, err := qrPNG(link)
 	if err != nil {
 		b.send(ctx, chatID, b.t("subLinkOnly"))
@@ -290,6 +290,20 @@ func (b *bot) sendSub(ctx context.Context, chatID int64, c model.Client) {
 	if err := b.upload(ctx, "sendPhoto", "photo", chatID, "sub.png", "", png); err != nil {
 		logger.Warning("telegram bot: send QR: ", err)
 	}
+}
+
+// singBoxLink is the subscription link as sing-box reads it: the same link
+// answering with a sing-box profile.
+func singBoxLink(link string) string {
+	if strings.Contains(link, "?") {
+		return link + "&format=json"
+	}
+	return link + "?format=json"
+}
+
+// singBoxLine is the sing-box link put under a subscription link.
+func (b *bot) singBoxLine(link string) string {
+	return "\n\n" + b.tr("📦 لینک sing-box:", "📦 sing-box link:") + "\n<code>" + esc(singBoxLink(link)) + "</code>"
 }
 
 // ---- admin commands ----

@@ -50,8 +50,7 @@ func TestCustomerStartShowsTheBottomMenu(t *testing.T) {
 		"خرید اشتراک 🔐", "تمدید سرویس ♻️",
 		"سرویس های من 🛍️", "اتصال لینک 🔗",
 		"کیف پول + شارژ 🏦", "اکانت تست 🔑",
-		"تعرفه اشتراک ها 💵", "پشتیبانی ☎️",
-		"آموزش 📚",
+		"پشتیبانی ☎️", "آموزش 📚",
 	}
 	if strings.Join(labels, "|") != strings.Join(want, "|") {
 		t.Fatalf("keyboard = %#v", labels)
@@ -263,5 +262,38 @@ func TestCustomerCannotTakeOverBoundClient(t *testing.T) {
 	out := lastText(got()[n:], "sendMessage")
 	if !strings.Contains(out, "another account") {
 		t.Fatalf("takeover reply = %q", out)
+	}
+}
+
+// The plan list was offered twice, under Buy and under Plans; only Buy is
+// left, and a Plans press from an old menu still lands on it.
+func TestPlansButtonIsGone(t *testing.T) {
+	for _, k := range shopMenuKeys {
+		if k == "p:tariff" {
+			t.Fatal("the Plans button is still in the customer menu")
+		}
+	}
+	if menuData("تعرفه اشتراک ها 💵") != "p:tariff" {
+		t.Fatal("an old Plans button is no longer understood")
+	}
+}
+
+func TestSingBoxLink(t *testing.T) {
+	if got := singBoxLink("https://s.example.com/sub/alice"); got != "https://s.example.com/sub/alice?format=json" {
+		t.Fatal(got)
+	}
+	if got := singBoxLink("https://s.example.com/sub/alice?x=1"); got != "https://s.example.com/sub/alice?x=1&format=json" {
+		t.Fatal(got)
+	}
+	b := &bot{}
+	for _, want := range []string{"sing-box", "SagerNet/sing-box", "sing-box VT"} {
+		if !strings.Contains(b.customerGuide(), want) {
+			t.Fatalf("the guide does not mention %q", want)
+		}
+	}
+	for _, gone := range []string{"v2rayNG", "Streisand", "V2Box", "v2rayN", "Nekoray", "Happ"} {
+		if strings.Contains(b.customerGuide(), gone) {
+			t.Fatalf("the guide still names %q", gone)
+		}
 	}
 }

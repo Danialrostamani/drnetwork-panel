@@ -66,6 +66,16 @@ func (a *APIv2Handler) postHandler(c *gin.Context) {
 		a.ApiService.CloseSessions(c)
 	case "resetSubToken":
 		a.ApiService.ResetSubToken(c, username)
+	case "botMemberRef":
+		a.ApiService.BotMemberAction(c, "ref")
+	case "botMemberBlock":
+		a.ApiService.BotMemberAction(c, "block")
+	case "botMemberSeller":
+		a.ApiService.BotMemberAction(c, "seller")
+	case "botMemberWallet":
+		a.ApiService.BotMemberAction(c, "wallet")
+	case "botMembersMessage":
+		a.ApiService.BotMembersMessage(c)
 	case "getCertPing":
 		a.ApiService.GetCertPing(c)
 	case "clusterBans":
@@ -122,6 +132,8 @@ func (a *APIv2Handler) getHandler(c *gin.Context) {
 		a.ApiService.GetCheckOutbound(c)
 	case "panelUpdate":
 		a.ApiService.GetPanelUpdate(c)
+	case "botMembers":
+		a.ApiService.GetBotMembers(c)
 	default:
 		jsonMsg(c, "failed", common.NewError("unknown action: ", action))
 	}
