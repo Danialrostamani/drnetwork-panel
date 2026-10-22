@@ -252,7 +252,7 @@ func TestNewCustomerMustSendReferrerWord(t *testing.T) {
 }
 
 // A new customer is asked for the introducer word as soon as they open the
-// bot; the menu (but Connect link and Support) waits for it.
+// bot; the menu (but Support) waits for it.
 func TestStartAsksNewCustomerForReferrerFirst(t *testing.T) {
 	if err := database.InitDB(filepath.Join(t.TempDir(), "bot.db")); err != nil {
 		t.Fatal(err)
@@ -281,8 +281,13 @@ func TestStartAsksNewCustomerForReferrerFirst(t *testing.T) {
 	}
 	n = len(got())
 	b.handle(ctx, privateMessage(99, "/link"))
-	if ask := lastText(got()[n:], "sendMessage"); !strings.Contains(ask, "Connect link") {
+	if ask := lastText(got()[n:], "sendMessage"); !strings.Contains(ask, "Introducer") {
 		t.Fatalf("link before ref = %q", ask)
+	}
+	n = len(got())
+	b.handle(ctx, privateMessage(99, "/support"))
+	if ask := lastText(got()[n:], "sendMessage"); !strings.Contains(ask, "Support") || strings.Contains(ask, "Introducer") {
+		t.Fatalf("support before ref = %q", ask)
 	}
 	b.handle(ctx, privateMessage(99, "/start"))
 	n = len(got())

@@ -76,8 +76,8 @@ func (b *bot) customerNeedsRef(tgID int64) bool {
 func (b *bot) customerAskRef(ctx context.Context, chatID int64, from *fromUser, after string) {
 	b.pend.set(chatID, &pending{kind: "cu.ref", chatID: chatID, data: map[string]string{"after": after}})
 	b.sendMenu(ctx, chatID, b.tr(
-		"👋 خوش آمدید\n\n🪪 <b>معرف</b>\nقبل از هر کاری، کلمه معرف را بفرستید.\nهمان کلمه‌ای که معرف‌تان گفته است.\n\nاگر از قبل لینک اشتراک دارید، «اتصال لینک» را بزنید. برای گرفتن کلمه معرف به «پشتیبانی» پیام دهید.",
-		"👋 Welcome\n\n🪪 <b>Introducer</b>\nBefore anything else, send the introducer word.\nThe same word your introducer gave you.\n\nIf you already have a subscription link, tap Connect link. To get the word, message Support."),
+		"👋 خوش آمدید\n\n🪪 <b>معرف</b>\nقبل از هر کاری، کلمه معرف را بفرستید.\nهمان کلمه‌ای که معرف‌تان گفته است.\n\nاگر کلمه معرف را ندارید، به «پشتیبانی» پیام دهید.",
+		"👋 Welcome\n\n🪪 <b>Introducer</b>\nBefore anything else, send the introducer word.\nThe same word your introducer gave you.\n\nIf you don't have the word, message Support."),
 		b.customerMenu(from.ID))
 }
 

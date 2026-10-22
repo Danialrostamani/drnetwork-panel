@@ -26,10 +26,9 @@ func (b *bot) customerStart(ctx context.Context, chatID int64, from *fromUser) {
 	b.sendMenu(ctx, chatID, b.shopHomeText(), b.customerMenu(id))
 }
 
-// refFree are the menu buttons that work before the introducer word: someone
-// who already has a subscription connects it, and anyone can reach support
-// (to ask for the word, for one).
-var refFree = map[string]bool{"p:link": true, "p:support": true}
+// refFree are the menu buttons that work before the introducer word: anyone
+// can reach support (to ask for the word, for one).
+var refFree = map[string]bool{"p:support": true}
 
 func (b *bot) customerPress(ctx context.Context, chatID int64, from *fromUser, data string) {
 	b.pend.clear(chatID)
