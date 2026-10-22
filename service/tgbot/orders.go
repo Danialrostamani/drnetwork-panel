@@ -758,6 +758,8 @@ func (b *bot) orderStatusLines(tgID int64) string {
 			st = b.tr("رد شد", "rejected")
 		case orderCancelled:
 			st = b.tr("لغو شد", "cancelled")
+		case orderReset:
+			st = b.tr("ریست شد", "reset")
 		}
 		line := "• " + st
 		if o.Detail != "" {

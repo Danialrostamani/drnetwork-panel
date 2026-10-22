@@ -67,13 +67,19 @@ func (a *APIv2Handler) postHandler(c *gin.Context) {
 	case "resetSubToken":
 		a.ApiService.ResetSubToken(c, username)
 	case "botMemberRef":
-		a.ApiService.BotMemberAction(c, "ref")
+		a.ApiService.BotMemberAction(c, "ref", username)
 	case "botMemberBlock":
-		a.ApiService.BotMemberAction(c, "block")
+		a.ApiService.BotMemberAction(c, "block", username)
 	case "botMemberSeller":
-		a.ApiService.BotMemberAction(c, "seller")
+		a.ApiService.BotMemberAction(c, "seller", username)
 	case "botMemberWallet":
-		a.ApiService.BotMemberAction(c, "wallet")
+		a.ApiService.BotMemberAction(c, "wallet", username)
+	case "botMemberEdit":
+		a.ApiService.BotMemberAction(c, "edit", username)
+	case "botMemberTrialReset":
+		a.ApiService.BotMemberAction(c, "trialReset", username)
+	case "botMemberDelete":
+		a.ApiService.BotMemberAction(c, "delete", username)
 	case "botMembersMessage":
 		a.ApiService.BotMembersMessage(c)
 	case "botAdminGroup":

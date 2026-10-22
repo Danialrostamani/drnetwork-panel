@@ -194,6 +194,194 @@
     </v-card>
   </v-dialog>
 
+  <!-- edit -->
+  <v-dialog
+    v-model="editDialog.visible"
+    max-width="560"
+  >
+    <v-card rounded="xl">
+      <v-card-title>{{ $t('botMembers.editCustomer') }}</v-card-title>
+      <v-card-subtitle>{{ dialogLabel }}</v-card-subtitle>
+      <v-card-text>
+        <v-textarea
+          v-model="editDialog.note"
+          :label="$t('botMembers.note')"
+          :hint="$t('botMembers.noteHint')"
+          persistent-hint
+          rows="2"
+          auto-grow
+          counter="500"
+          class="mb-3"
+        />
+        <v-autocomplete
+          v-model="editDialog.clients"
+          :items="clientItems"
+          :label="$t('botMembers.boundClients')"
+          :hint="$t('botMembers.boundHint')"
+          persistent-hint
+          multiple
+          chips
+          closable-chips
+          class="mb-3"
+        />
+        <v-select
+          v-if="refs.length"
+          v-model="editDialog.ref"
+          :items="[{ title: $t('botMembers.noRef'), value: '' }, ...refItems]"
+          :label="$t('botMembers.ref')"
+          class="mb-1"
+        />
+        <v-select
+          v-model="editDialog.seller"
+          :items="sellerItems"
+          :label="$t('botMembers.seller')"
+          :hint="$t('botMembers.sellerHint')"
+          persistent-hint
+          class="mb-3"
+        />
+        <v-switch
+          v-model="editDialog.blocked"
+          color="error"
+          :label="$t('botMembers.blocked')"
+          hide-details
+        />
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer />
+        <v-btn
+          variant="text"
+          @click="editDialog.visible = false"
+        >
+          {{ $t('actions.close') }}
+        </v-btn>
+        <v-btn
+          color="primary"
+          variant="flat"
+          :loading="saving"
+          :disabled="editDialog.note.length > 500"
+          @click="saveEdit"
+        >
+          {{ $t('actions.save') }}
+        </v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+
+  <!-- trial reset -->
+  <v-dialog
+    v-model="trialDialog.visible"
+    max-width="460"
+  >
+    <v-card rounded="xl">
+      <v-card-title>{{ $t('botMembers.trialReset') }}</v-card-title>
+      <v-card-subtitle>{{ dialogLabel }}</v-card-subtitle>
+      <v-card-text>
+        <p class="mb-3">
+          {{ $t('botMembers.trialResetText') }}
+        </p>
+        <v-checkbox
+          v-if="trialDialog.names.length"
+          v-model="trialDialog.deleteClient"
+          :label="$t('botMembers.trialDeleteClient') + ': ' + trialDialog.names.join(', ')"
+          color="error"
+          hide-details
+        />
+        <p
+          v-else
+          class="text-caption mb-2"
+        >
+          {{ $t('botMembers.trialNoClient') }}
+        </p>
+        <v-checkbox
+          v-model="trialDialog.notify"
+          :label="$t('botMembers.trialNotify')"
+          hide-details
+        />
+        <v-alert
+          v-if="trialStillBound > 0"
+          type="warning"
+          variant="tonal"
+          density="compact"
+          class="mt-2"
+        >
+          {{ $t('botMembers.trialStillBound', { n: trialStillBound }) }}
+        </v-alert>
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer />
+        <v-btn
+          variant="text"
+          @click="trialDialog.visible = false"
+        >
+          {{ $t('actions.close') }}
+        </v-btn>
+        <v-btn
+          color="warning"
+          variant="flat"
+          prepend-icon="mdi-restore"
+          :loading="saving"
+          @click="resetTrial"
+        >
+          {{ $t('botMembers.trialReset') }}
+        </v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+
+  <!-- delete -->
+  <v-dialog
+    v-model="deleteDialog.visible"
+    max-width="460"
+  >
+    <v-card rounded="xl">
+      <v-card-title>{{ $t('botMembers.deleteCustomer') }}</v-card-title>
+      <v-card-subtitle>{{ dialogLabel }}</v-card-subtitle>
+      <v-card-text>
+        <p class="mb-3">
+          {{ $t('botMembers.deleteText') }}
+        </p>
+        <v-alert
+          v-if="(target?.balance ?? 0) > 0"
+          type="warning"
+          variant="tonal"
+          density="compact"
+          class="mb-2"
+        >
+          {{ $t('botMembers.deleteBalance', { n: fmtNum(target?.balance ?? 0) }) }}
+        </v-alert>
+        <template v-if="(target?.clients.length ?? 0) > 0">
+          <v-checkbox
+            v-model="deleteDialog.deleteClients"
+            :label="$t('botMembers.deleteClients', { n: target?.clients.length ?? 0 })"
+            color="error"
+            hide-details
+          />
+          <p class="text-caption">
+            {{ deleteDialog.deleteClients ? (target?.clients ?? []).join(', ') : $t('botMembers.deleteClientsOff') }}
+          </p>
+        </template>
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer />
+        <v-btn
+          variant="text"
+          @click="deleteDialog.visible = false"
+        >
+          {{ $t('actions.close') }}
+        </v-btn>
+        <v-btn
+          color="error"
+          variant="flat"
+          prepend-icon="mdi-delete"
+          :loading="saving"
+          @click="deleteCustomer"
+        >
+          {{ $t('actions.del') }}
+        </v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+
   <v-row>
     <v-col
       v-for="s in summary"
@@ -454,6 +642,34 @@
           <template #item.actions="{ item }">
             <span class="text-no-wrap">
               <v-btn
+                icon="mdi-account-edit"
+                size="small"
+                variant="text"
+                @click="openEdit(item)"
+              >
+                <v-icon />
+                <v-tooltip
+                  activator="parent"
+                  location="top"
+                  :text="$t('botMembers.editCustomer')"
+                />
+              </v-btn>
+              <v-btn
+                v-if="item.trialAt"
+                icon="mdi-restore"
+                color="warning"
+                size="small"
+                variant="text"
+                @click="openTrial(item)"
+              >
+                <v-icon />
+                <v-tooltip
+                  activator="parent"
+                  location="top"
+                  :text="$t('botMembers.trialReset')"
+                />
+              </v-btn>
+              <v-btn
                 icon="mdi-message-text"
                 size="small"
                 variant="text"
@@ -494,6 +710,20 @@
                   :text="item.blocked ? $t('botMembers.unblock') : $t('botMembers.block')"
                 />
               </v-btn>
+              <v-btn
+                icon="mdi-delete"
+                color="error"
+                size="small"
+                variant="text"
+                @click="openDelete(item)"
+              >
+                <v-icon />
+                <v-tooltip
+                  activator="parent"
+                  location="top"
+                  :text="$t('botMembers.deleteCustomer')"
+                />
+              </v-btn>
             </span>
           </template>
         </v-data-table>
@@ -515,6 +745,12 @@ interface RefOption {
   group: string
 }
 
+interface PanelClient {
+  id: number
+  name: string
+  tgId: number
+}
+
 interface Seller {
   id: number
   name: string
@@ -530,6 +766,7 @@ const t = (key: string, args: Record<string, unknown> = {}) => i18n.global.t(key
 const members = ref<BotMember[]>([])
 const refs = ref<RefOption[]>([])
 const sellers = ref<Seller[]>([])
+const allClients = ref<PanelClient[]>([])
 const search = ref('')
 const filter = ref<Filter>('all')
 const filters: Filter[] = ['all', 'trial', 'buyers', 'trialOnly', 'never', 'blocked']
@@ -626,12 +863,13 @@ const fmtDate = (sec: number): string => {
 
 const load = async () => {
   loading.value = true
-  const msg = await HttpUtils.get<{ members: BotMember[], refs: RefOption[], sellers: Seller[] }>('api/botMembers')
+  const msg = await HttpUtils.get<{ members: BotMember[], refs: RefOption[], sellers: Seller[], clients: PanelClient[] }>('api/botMembers')
   loading.value = false
   if (msg.success && msg.obj) {
     members.value = msg.obj.members ?? []
     refs.value = msg.obj.refs ?? []
     sellers.value = msg.obj.sellers ?? []
+    allClients.value = msg.obj.clients ?? []
     const known = new Set(members.value.map(m => m.tgId))
     selected.value = selected.value.filter(id => known.has(id))
   }
@@ -679,6 +917,91 @@ const act = async (action: string, data: Record<string, string | number | boolea
   walletDialog.value.visible = false
   await load()
   return true
+}
+
+const post = async <T = unknown>(action: string, data: Record<string, string | number | boolean>) => {
+  return HttpUtils.post<T>(`api/${action}`, { tgId: target.value?.tgId ?? 0, ...data })
+}
+
+// The edit dialog: note, bound configs, introducer, seller and blocking.
+const editDialog = ref({ visible: false, note: '', clients: [] as number[], ref: '', seller: 0, blocked: false })
+const clientItems = computed(() => {
+  const me = target.value?.tgId ?? 0
+  return allClients.value.map(c => ({
+    title: c.tgId && c.tgId != me ? `${c.name} (${t('botMembers.boundTo', { id: c.tgId })})` : c.name,
+    value: c.id,
+  }))
+})
+const openEdit = (m: BotMember) => {
+  target.value = m
+  editDialog.value = { visible: true, note: m.note ?? '', clients: [...(m.clientIds ?? [])], ref: m.ref, seller: m.adminId, blocked: m.blocked }
+}
+const sameIds = (a: number[], b: number[]) => a.length == b.length && [...a].sort().join(',') == [...b].sort().join(',')
+const saveEdit = async () => {
+  const m = target.value
+  if (!m) return
+  const d = editDialog.value
+  saving.value = true
+  let ok = true
+  const clientsChanged = !sameIds(d.clients, m.clientIds ?? [])
+  if (d.note.trim() != (m.note ?? '').trim() || clientsChanged) {
+    ok = (await post('botMemberEdit', { note: d.note, setClients: clientsChanged, clients: d.clients.join(',') })).success
+  }
+  if (ok && d.ref != m.ref) ok = (await post('botMemberRef', { word: d.ref })).success
+  if (ok && d.seller != m.adminId) ok = (await post('botMemberSeller', { seller: d.seller })).success
+  if (ok && d.blocked != m.blocked) ok = (await post('botMemberBlock', { blocked: d.blocked })).success
+  saving.value = false
+  if (ok) {
+    editDialog.value.visible = false
+    push.success({ title: t('botMembers.edited') })
+  }
+  await load()
+}
+
+// The trial reset dialog.
+const trialDialog = ref({ visible: false, names: [] as string[], ids: [] as number[], deleteClient: true, notify: true })
+const openTrial = (m: BotMember) => {
+  target.value = m
+  const ids = (m.trialClients ?? []).filter(id => allClients.value.some(c => c.id == id))
+  const names = ids.map(id => allClients.value.find(c => c.id == id)?.name ?? String(id))
+  trialDialog.value = { visible: true, names, ids, deleteClient: true, notify: true }
+}
+// How many configs the customer keeps after the reset.
+const trialStillBound = computed(() => {
+  const m = target.value
+  if (!m) return 0
+  const d = trialDialog.value
+  const gone = d.deleteClient ? new Set(d.ids) : new Set<number>()
+  return (m.clientIds ?? []).filter(id => !gone.has(id)).length
+})
+const resetTrial = async () => {
+  const d = trialDialog.value
+  saving.value = true
+  const msg = await post<{ orders: number, deleted: string[], bound: number }>('botMemberTrialReset', { deleteClient: d.deleteClient && d.ids.length > 0, notify: d.notify })
+  saving.value = false
+  if (msg.success) {
+    trialDialog.value.visible = false
+    push.success({ title: t('botMembers.trialDone') })
+    if ((msg.obj?.bound ?? 0) > 0) push.warning({ title: t('botMembers.trialStillBound', { n: msg.obj?.bound ?? 0 }) })
+  }
+  await load()
+}
+
+// The delete dialog.
+const deleteDialog = ref({ visible: false, deleteClients: false })
+const openDelete = (m: BotMember) => {
+  target.value = m
+  deleteDialog.value = { visible: true, deleteClients: false }
+}
+const deleteCustomer = async () => {
+  saving.value = true
+  const msg = await post('botMemberDelete', { deleteClients: deleteDialog.value.deleteClients })
+  saving.value = false
+  if (msg.success) {
+    deleteDialog.value.visible = false
+    push.success({ title: t('botMembers.deleted') })
+  }
+  await load()
 }
 
 const saveWallet = async () => {

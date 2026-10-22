@@ -70,6 +70,8 @@ func (b *bot) orderStatusLabel(st string) string {
 		return b.tr("رد شد", "rejected")
 	case orderCancelled:
 		return b.tr("لغو شد", "cancelled")
+	case orderReset:
+		return b.tr("ریست شد", "reset")
 	}
 	return st
 }

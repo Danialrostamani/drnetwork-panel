@@ -24,7 +24,7 @@ func (a *ApiService) GetBotMembers(c *gin.Context) {
 	if sellers == nil {
 		sellers = []tgbot.PanelSeller{}
 	}
-	jsonObj(c, gin.H{"members": members, "refs": ms.Refs(), "sellers": sellers}, nil)
+	jsonObj(c, gin.H{"members": members, "refs": ms.Refs(), "sellers": sellers, "clients": ms.Clients()}, nil)
 }
 
 func formTgID(c *gin.Context) (int64, error) {
@@ -37,8 +37,10 @@ func formTgID(c *gin.Context) (int64, error) {
 
 // BotMemberAction changes one bot member: "ref" sets or removes the
 // introducer, "block" blocks or unblocks, "seller" gives them to a seller and
-// "wallet" adds to or takes from their wallet.
-func (a *ApiService) BotMemberAction(c *gin.Context, what string) {
+// "wallet" adds to or takes from their wallet, "edit" sets the note and the
+// bound clients, "trialReset" lets them take another test account and
+// "delete" forgets them.
+func (a *ApiService) BotMemberAction(c *gin.Context, what, actor string) {
 	id, err := formTgID(c)
 	if err != nil {
 		jsonMsg(c, "", err)
@@ -64,6 +66,32 @@ func (a *ApiService) BotMemberAction(c *gin.Context, what string) {
 		}
 		bal, werr := tgbot.PanelWallet(c.Request.Context(), id, delta, c.Request.FormValue("note"), c.Request.FormValue("notify") == "true")
 		jsonObj(c, gin.H{"balance": bal}, werr)
+		return
+	case "edit":
+		var ids []uint
+		set := c.Request.FormValue("setClients") == "true"
+		if set {
+			for _, s := range strings.Split(c.Request.FormValue("clients"), ",") {
+				if s = strings.TrimSpace(s); s == "" {
+					continue
+				}
+				n, perr := strconv.ParseUint(s, 10, 32)
+				if perr != nil || n == 0 {
+					jsonMsg(c, "", common.NewError("bad client id: ", s))
+					return
+				}
+				ids = append(ids, uint(n))
+			}
+		}
+		err = tgbot.PanelEditCustomer(id, c.Request.FormValue("note"), set, ids)
+	case "trialReset":
+		out, rerr := tgbot.PanelResetTrial(c.Request.Context(), &a.ConfigService, actor, getHostname(c), id,
+			c.Request.FormValue("deleteClient") == "true", c.Request.FormValue("notify") == "true")
+		jsonObj(c, out, rerr)
+		return
+	case "delete":
+		out, derr := tgbot.PanelDeleteCustomer(&a.ConfigService, actor, getHostname(c), id, c.Request.FormValue("deleteClients") == "true")
+		jsonObj(c, out, derr)
 		return
 	default:
 		err = common.NewError("unknown action: ", what)

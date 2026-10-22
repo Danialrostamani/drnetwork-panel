@@ -32,6 +32,9 @@ type BotMember struct {
 	Pending   int      `json:"pending"`
 	Balance   int64    `json:"balance"`
 	Clients   []string `json:"clients"`
+	ClientIds []uint   `json:"clientIds"`
+	// TrialClients are the clients made by their test accounts.
+	TrialClients []uint `json:"trialClients"`
 }
 
 // BotRefOption is an introducer word set in the bot's shop.
@@ -72,7 +75,7 @@ func (s *BotMemberService) List() ([]BotMember, error) {
 	get := func(id int64) *BotMember {
 		m := members[id]
 		if m == nil {
-			m = &BotMember{TgId: id, Clients: []string{}}
+			m = &BotMember{TgId: id, Clients: []string{}, ClientIds: []uint{}, TrialClients: []uint{}}
 			members[id] = m
 		}
 		return m
@@ -92,7 +95,7 @@ func (s *BotMemberService) List() ([]BotMember, error) {
 	}
 
 	var orders []model.BotOrder
-	if err := db.Select("tg_id", "topic", "status", "amount", "created_at", "updated_at").Find(&orders).Error; err != nil {
+	if err := db.Select("tg_id", "topic", "status", "amount", "client_id", "created_at", "updated_at").Find(&orders).Error; err != nil {
 		return nil, err
 	}
 	for _, o := range orders {
@@ -118,6 +121,9 @@ func (s *BotMemberService) List() ([]BotMember, error) {
 		case "test":
 			if m.TrialAt == 0 || at < m.TrialAt {
 				m.TrialAt = at
+			}
+			if o.ClientId != 0 {
+				m.TrialClients = append(m.TrialClients, o.ClientId)
 			}
 		case "buy", "renew":
 			if o.Topic == "buy" {
@@ -162,6 +168,7 @@ func (s *BotMemberService) List() ([]BotMember, error) {
 	for _, c := range clients {
 		if m := members[c.TgId]; m != nil {
 			m.Clients = append(m.Clients, c.Name)
+			m.ClientIds = append(m.ClientIds, c.Id)
 		}
 	}
 
@@ -176,6 +183,26 @@ func (s *BotMemberService) List() ([]BotMember, error) {
 		return out[i].TgId < out[j].TgId
 	})
 	return out, nil
+}
+
+// BotMemberClient is a client a member can be given in the panel.
+type BotMemberClient struct {
+	Id   uint   `json:"id"`
+	Name string `json:"name"`
+	TgId int64  `json:"tgId"`
+}
+
+// Clients are every client of the panel, by name, with whom they are bound to.
+func (s *BotMemberService) Clients() []BotMemberClient {
+	out := []BotMemberClient{}
+	var rows []model.Client
+	if database.GetDB().Select("id", "name", "tg_id").Order("name").Find(&rows).Error != nil {
+		return out
+	}
+	for _, c := range rows {
+		out = append(out, BotMemberClient{Id: c.Id, Name: c.Name, TgId: c.TgId})
+	}
+	return out
 }
 
 // SetRef gives a member the introducer with this word, as if they had sent

@@ -19,6 +19,8 @@ export interface BotMember {
   pending: number
   balance: number
   clients: string[]
+  clientIds?: number[]
+  trialClients?: number[]
 }
 
 export const purchases = (m: BotMember): number => m.buys + m.renews
