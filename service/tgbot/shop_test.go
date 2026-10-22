@@ -250,3 +250,53 @@ func TestNewCustomerMustSendReferrerWord(t *testing.T) {
 		t.Fatalf("admin notice = %q", toAdmin)
 	}
 }
+
+// A new customer is asked for the introducer word as soon as they open the
+// bot; the menu (but Connect link and Support) waits for it.
+func TestStartAsksNewCustomerForReferrerFirst(t *testing.T) {
+	if err := database.InitDB(filepath.Join(t.TempDir(), "bot.db")); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := jsonShop(shopConfig{
+		Plans: []shopPlan{{ID: "1", Name: "Gold", Days: 30, GB: 50, Price: "100"}},
+		Refs:  []shopReferrer{{ID: "1", Word: "Ali", Group: "tehran"}},
+	})
+	if err := (&service.SettingService{}).SetTgBotShop(raw); err != nil {
+		t.Fatal(err)
+	}
+	b, got := fakeTelegram(t)
+	b.cfg.Lang = "en"
+	b.cfg.Owner = 42
+	b.setAccess(b.cfg.access())
+	ctx := context.Background()
+
+	b.handle(ctx, privateMessage(99, "/start"))
+	if ask := lastText(got(), "sendMessage"); !strings.Contains(ask, "Introducer") {
+		t.Fatalf("start = %q", ask)
+	}
+	n := len(got())
+	b.handle(ctx, privateMessage(99, "/wallet"))
+	if ask := lastText(got()[n:], "sendMessage"); !strings.Contains(ask, "Introducer") {
+		t.Fatalf("wallet before ref = %q", ask)
+	}
+	n = len(got())
+	b.handle(ctx, privateMessage(99, "/link"))
+	if ask := lastText(got()[n:], "sendMessage"); !strings.Contains(ask, "Connect link") {
+		t.Fatalf("link before ref = %q", ask)
+	}
+	b.handle(ctx, privateMessage(99, "/start"))
+	n = len(got())
+	b.handle(ctx, privateMessage(99, "ali"))
+	out := strings.Join(texts(got()[n:], "sendMessage"), "\n")
+	if !strings.Contains(out, "Introducer saved") || strings.Contains(lastText(got()[n:], "sendMessage"), "Introducer") {
+		t.Fatalf("after ref = %q", out)
+	}
+	if loadBotRef(99) == nil {
+		t.Fatal("ref not stored")
+	}
+	n = len(got())
+	b.handle(ctx, privateMessage(99, "/start"))
+	if text := lastText(got()[n:], "sendMessage"); strings.Contains(text, "Introducer") {
+		t.Fatalf("asked again = %q", text)
+	}
+}

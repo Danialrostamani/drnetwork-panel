@@ -18,11 +18,25 @@ func (b *bot) customerStart(ctx context.Context, chatID int64, from *fromUser) {
 		b.pend.clear(chatID)
 		id = from.ID
 	}
+	// A new customer gives the introducer word first, then the menu works.
+	if from != nil && b.customerNeedsRef(from.ID) {
+		b.customerAskRef(ctx, chatID, from, "home")
+		return
+	}
 	b.sendMenu(ctx, chatID, b.shopHomeText(), b.customerMenu(id))
 }
 
+// refFree are the menu buttons that work before the introducer word: someone
+// who already has a subscription connects it, and anyone can reach support
+// (to ask for the word, for one).
+var refFree = map[string]bool{"p:link": true, "p:support": true}
+
 func (b *bot) customerPress(ctx context.Context, chatID int64, from *fromUser, data string) {
 	b.pend.clear(chatID)
+	if !refFree[data] && b.customerNeedsRef(from.ID) {
+		b.customerAskRef(ctx, chatID, from, data)
+		return
+	}
 	switch data {
 	case "p:buy", "p:tariff":
 		// p:tariff was the plan list, the same one Buy shows; an old menu

@@ -76,8 +76,8 @@ func (b *bot) customerNeedsRef(tgID int64) bool {
 func (b *bot) customerAskRef(ctx context.Context, chatID int64, from *fromUser, after string) {
 	b.pend.set(chatID, &pending{kind: "cu.ref", chatID: chatID, data: map[string]string{"after": after}})
 	b.sendMenu(ctx, chatID, b.tr(
-		"🪪 <b>معرف</b>\nبرای خرید، کلمه معرف را بفرستید.\nهمان کلمه‌ای که معرف‌تان گفته است.",
-		"🪪 <b>Introducer</b>\nTo buy, send the introducer word.\nThe same word your introducer gave you."),
+		"👋 خوش آمدید\n\n🪪 <b>معرف</b>\nقبل از هر کاری، کلمه معرف را بفرستید.\nهمان کلمه‌ای که معرف‌تان گفته است.\n\nاگر از قبل لینک اشتراک دارید، «اتصال لینک» را بزنید. برای گرفتن کلمه معرف به «پشتیبانی» پیام دهید.",
+		"👋 Welcome\n\n🪪 <b>Introducer</b>\nBefore anything else, send the introducer word.\nThe same word your introducer gave you.\n\nIf you already have a subscription link, tap Connect link. To get the word, message Support."),
 		b.customerMenu(from.ID))
 }
 
@@ -95,9 +95,13 @@ func (b *bot) customerAcceptRef(ctx context.Context, chatID int64, from *fromUse
 	}
 	b.pend.clear(chatID)
 	b.send(ctx, chatID, b.tr("✅ معرف ثبت شد.", "✅ Introducer saved."))
-	switch after {
-	case "trial", "test":
+	switch {
+	case after == "trial" || after == "test":
 		b.autoTrial(ctx, chatID, from)
+	case after == "home":
+		b.customerStart(ctx, chatID, from)
+	case strings.HasPrefix(after, "p:"):
+		b.customerPress(ctx, chatID, from, after)
 	default:
 		b.customerBuy(ctx, chatID, from, "")
 	}
