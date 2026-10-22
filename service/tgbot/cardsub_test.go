@@ -189,8 +189,8 @@ func TestClientCardVolumeAndLocations(t *testing.T) {
 		"📍 <b>Locations</b>",
 		"  • FR🇫🇷 · FR-2🇫🇷 — 30.50 GiB (⬇️ 30.00 GiB ⬆️ 512.00 MiB)",
 		"  • 🇩🇪 Germany — 2.50 GiB (⬇️ 2.00 GiB ⬆️ 512.00 MiB)",
-		"No location (before v51.1 or a removed server): 8.00 GiB",
 	)
+	mustNotContain(t, text, "No location")
 	if strings.Index(text, "FR🇫🇷") > strings.Index(text, "Germany") {
 		t.Errorf("servers not in the client's order:\n%s", text)
 	}

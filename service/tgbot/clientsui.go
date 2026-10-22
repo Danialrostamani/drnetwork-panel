@@ -92,8 +92,8 @@ const maxLocationLines = 25
 // locationLines lists the client's locations, one server a line: the
 // inbounds it has there and what it used there in this cycle. The core counts
 // a user's traffic per server, not per inbound, so the inbounds of one server
-// share a line. Traffic from before the per-server count existed has no
-// server; it is shown apart so the lines still add up.
+// share a line. The numbers come from the master's and the nodes' own
+// traffic history (see StatsService.ClientLocationUsage).
 func (b *bot) locationLines(c model.Client) []string {
 	ids := clientInboundIDs(c)
 	if len(ids) == 0 {
@@ -124,12 +124,10 @@ func (b *bot) locationLines(c model.Client) []string {
 	if len(order) == 0 {
 		return nil
 	}
-	usage := service.ClientServerUsage(c)
+	usage := (&service.StatsService{}).ClientLocationUsage(c)
 	lines := []string{"📍 <b>" + b.tr("لوکیشن‌ها", "Locations") + "</b>"}
-	var counted int64
 	for i, node := range order {
 		u := usage[node]
-		counted += u.Up + u.Down
 		if i == maxLocationLines {
 			lines = append(lines, "  …")
 			continue
@@ -142,9 +140,6 @@ func (b *bot) locationLines(c model.Client) []string {
 			line += fmt.Sprintf(" (⬇️ %s ⬆️ %s)", humanBytes(u.Down), humanBytes(u.Up))
 		}
 		lines = append(lines, line)
-	}
-	if rest := max(c.Up, 0) + max(c.Down, 0) - counted; rest > 1<<20 {
-		lines = append(lines, "  <i>"+b.tr("بدون تفکیک لوکیشن (قبل از v51.1 یا سرور حذف‌شده)", "No location (before v51.1 or a removed server)")+": "+humanBytes(rest)+"</i>")
 	}
 	return lines
 }
