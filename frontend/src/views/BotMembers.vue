@@ -194,315 +194,331 @@
     </v-card>
   </v-dialog>
 
-  <v-row>
-    <v-col
-      v-for="s in summary"
-      :key="s.key"
-      cols="6"
-      sm="4"
-      md="2"
-    >
-      <v-card
-        rounded="xl"
-        elevation="3"
-        class="text-center pa-3"
+  <v-tabs
+    v-model="tab"
+    color="primary"
+    class="mb-3"
+  >
+    <v-tab value="members">
+      {{ $t('botMembers.tabMembers') }}
+    </v-tab>
+    <v-tab value="admins">
+      {{ $t('botMembers.tabAdmins') }}
+    </v-tab>
+  </v-tabs>
+  <template v-if="tab == 'members'">
+    <v-row>
+      <v-col
+        v-for="s in summary"
+        :key="s.key"
+        cols="6"
+        sm="4"
+        md="2"
       >
-        <div class="text-h6">
-          {{ s.value }}
-        </div>
-        <div class="text-caption">
-          {{ $t('botMembers.sum.' + s.key) }}
-        </div>
-      </v-card>
-    </v-col>
-  </v-row>
-  <v-row>
-    <v-col
-      cols="12"
-      class="d-flex flex-wrap ga-2"
-    >
-      <v-btn
-        color="primary"
-        prepend-icon="mdi-send"
-        :disabled="msgTargetsDefault.length == 0"
-        @click="openMessage()"
-      >
-        {{ selected.length ? $t('botMembers.messageSelected', { n: msgTargetsDefault.length }) : $t('botMembers.messageShown', { n: msgTargetsDefault.length }) }}
-      </v-btn>
-      <v-btn
-        prepend-icon="mdi-file-delimited"
-        variant="tonal"
-        :disabled="shown.length == 0"
-        @click="exportCSV"
-      >
-        {{ $t('botMembers.export') }}
-      </v-btn>
-      <v-btn
-        prepend-icon="mdi-chart-bar"
-        variant="tonal"
-        :active="showRefStats"
-        @click="showRefStats = !showRefStats"
-      >
-        {{ $t('botMembers.refStats') }}
-      </v-btn>
-      <v-btn
-        prepend-icon="mdi-refresh"
-        variant="text"
-        @click="load"
-      >
-        {{ $t('botMembers.reload') }}
-      </v-btn>
-    </v-col>
-  </v-row>
-  <v-expand-transition>
-    <v-row v-if="showRefStats">
-      <v-col cols="12">
         <v-card
           rounded="xl"
           elevation="3"
-          :title="$t('botMembers.refStats')"
+          class="text-center pa-3"
+        >
+          <div class="text-h6">
+            {{ s.value }}
+          </div>
+          <div class="text-caption">
+            {{ $t('botMembers.sum.' + s.key) }}
+          </div>
+        </v-card>
+      </v-col>
+    </v-row>
+    <v-row>
+      <v-col
+        cols="12"
+        class="d-flex flex-wrap ga-2"
+      >
+        <v-btn
+          color="primary"
+          prepend-icon="mdi-send"
+          :disabled="msgTargetsDefault.length == 0"
+          @click="openMessage()"
+        >
+          {{ selected.length ? $t('botMembers.messageSelected', { n: msgTargetsDefault.length }) : $t('botMembers.messageShown', { n: msgTargetsDefault.length }) }}
+        </v-btn>
+        <v-btn
+          prepend-icon="mdi-file-delimited"
+          variant="tonal"
+          :disabled="shown.length == 0"
+          @click="exportCSV"
+        >
+          {{ $t('botMembers.export') }}
+        </v-btn>
+        <v-btn
+          prepend-icon="mdi-chart-bar"
+          variant="tonal"
+          :active="showRefStats"
+          @click="showRefStats = !showRefStats"
+        >
+          {{ $t('botMembers.refStats') }}
+        </v-btn>
+        <v-btn
+          prepend-icon="mdi-refresh"
+          variant="text"
+          @click="load"
+        >
+          {{ $t('botMembers.reload') }}
+        </v-btn>
+      </v-col>
+    </v-row>
+    <v-expand-transition>
+      <v-row v-if="showRefStats">
+        <v-col cols="12">
+          <v-card
+            rounded="xl"
+            elevation="3"
+            :title="$t('botMembers.refStats')"
+          >
+            <v-data-table
+              :items="refRows"
+              :headers="refHeaders"
+              :mobile="smAndDown"
+              density="compact"
+              items-per-page="-1"
+              hide-default-footer
+            >
+              <template #item.ref="{ item }">
+                <a
+                  href="#"
+                  @click.prevent="search = item.ref; filter = 'all'"
+                >{{ item.ref || $t('botMembers.noRef') }}</a>
+              </template>
+              <template #item.conversion="{ item }">
+                {{ item.members ? Math.round(item.buyers * 100 / item.members) + '%' : '-' }}
+              </template>
+              <template #item.spent="{ item }">
+                {{ fmtNum(item.spent) }}
+              </template>
+            </v-data-table>
+          </v-card>
+        </v-col>
+      </v-row>
+    </v-expand-transition>
+    <v-row>
+      <v-col
+        cols="12"
+        md="5"
+      >
+        <v-text-field
+          v-model="search"
+          prepend-inner-icon="mdi-magnify"
+          :label="$t('botMembers.search')"
+          density="compact"
+          hide-details
+          clearable
+        />
+      </v-col>
+      <v-col
+        cols="12"
+        md="7"
+      >
+        <v-chip-group
+          v-model="filter"
+          mandatory
+          selected-class="text-primary"
+        >
+          <v-chip
+            v-for="f in filters"
+            :key="f"
+            :value="f"
+            filter
+            variant="outlined"
+          >
+            {{ $t('botMembers.filter.' + f) }} ({{ counts[f] }})
+          </v-chip>
+        </v-chip-group>
+      </v-col>
+    </v-row>
+    <v-row>
+      <v-col cols="12">
+        <v-card
+          rounded="xl"
+          elevation="5"
         >
           <v-data-table
-            :items="refRows"
-            :headers="refHeaders"
+            v-model="selected"
+            :items="shown"
+            :headers="headers"
+            :loading="loading"
             :mobile="smAndDown"
+            item-value="tgId"
+            show-select
+            items-per-page="25"
             density="compact"
-            items-per-page="-1"
-            hide-default-footer
           >
-            <template #item.ref="{ item }">
-              <a
-                href="#"
-                @click.prevent="search = item.ref; filter = 'all'"
-              >{{ item.ref || $t('botMembers.noRef') }}</a>
+            <template #item.user="{ item }">
+              <div class="py-1">
+                <div>
+                  <b>{{ item.name || '-' }}</b>
+                  <v-chip
+                    v-if="item.blocked"
+                    color="error"
+                    size="x-small"
+                    class="ms-1"
+                  >
+                    {{ $t('botMembers.blocked') }}
+                  </v-chip>
+                </div>
+                <div class="text-caption">
+                  <bdi v-if="item.username"><a
+                    :href="'https://t.me/' + item.username"
+                    target="_blank"
+                    rel="noopener"
+                  >@{{ item.username }}</a></bdi>
+                  <span v-if="item.username"> · </span>
+                  <bdi>{{ item.tgId }}</bdi>
+                </div>
+              </div>
             </template>
-            <template #item.conversion="{ item }">
-              {{ item.members ? Math.round(item.buyers * 100 / item.members) + '%' : '-' }}
+            <template #item.ref="{ item }">
+              <span class="text-no-wrap">
+                <span v-if="item.ref">{{ item.ref }}<span
+                  v-if="item.refGroup"
+                  class="text-caption"
+                > ({{ item.refGroup }})</span></span>
+                <span v-else>-</span>
+                <v-btn
+                  icon="mdi-pencil"
+                  size="x-small"
+                  variant="text"
+                  @click="openRef(item)"
+                >
+                  <v-icon />
+                  <v-tooltip
+                    activator="parent"
+                    location="top"
+                    :text="$t('botMembers.editRef')"
+                  />
+                </v-btn>
+              </span>
+            </template>
+            <template #item.seller="{ item }">
+              <span class="text-no-wrap">
+                {{ item.adminId ? sellerName(item.adminId) : '-' }}
+                <v-btn
+                  icon="mdi-pencil"
+                  size="x-small"
+                  variant="text"
+                  @click="openSeller(item)"
+                >
+                  <v-icon />
+                  <v-tooltip
+                    activator="parent"
+                    location="top"
+                    :text="$t('botMembers.editSeller')"
+                  />
+                </v-btn>
+              </span>
+            </template>
+            <template #item.firstSeen="{ item }">
+              {{ fmtDate(item.firstSeen) }}
+            </template>
+            <template #item.trialAt="{ item }">
+              <v-chip
+                v-if="item.trialAt"
+                color="info"
+                size="small"
+              >
+                {{ fmtDate(item.trialAt) }}
+              </v-chip>
+              <span v-else>-</span>
+            </template>
+            <template #item.purchases="{ item }">
+              <b>{{ purchases(item) }}</b>
+              <span
+                v-if="purchases(item) > 0"
+                class="text-caption"
+              > ({{ $t('botMembers.buyRenew', { buys: item.buys, renews: item.renews }) }})</span>
+              <v-chip
+                v-if="item.pending"
+                color="warning"
+                size="x-small"
+                class="ms-1"
+              >
+                {{ $t('botMembers.pending', { n: item.pending }) }}
+              </v-chip>
             </template>
             <template #item.spent="{ item }">
-              {{ fmtNum(item.spent) }}
+              {{ item.spent ? fmtNum(item.spent) : '-' }}
+            </template>
+            <template #item.balance="{ item }">
+              {{ item.balance ? fmtNum(item.balance) : '-' }}
+            </template>
+            <template #item.lastBuy="{ item }">
+              {{ fmtDate(item.lastBuy) }}
+            </template>
+            <template #item.clients="{ item }">
+              <v-chip
+                v-for="c in item.clients"
+                :key="c"
+                size="x-small"
+                class="me-1"
+              >
+                {{ c }}
+              </v-chip>
+              <span v-if="item.clients.length == 0">-</span>
+            </template>
+            <template #item.actions="{ item }">
+              <span class="text-no-wrap">
+                <v-btn
+                  icon="mdi-message-text"
+                  size="small"
+                  variant="text"
+                  :disabled="item.blocked"
+                  @click="openMessage([item.tgId])"
+                >
+                  <v-icon />
+                  <v-tooltip
+                    activator="parent"
+                    location="top"
+                    :text="$t('botMembers.message')"
+                  />
+                </v-btn>
+                <v-btn
+                  icon="mdi-wallet"
+                  size="small"
+                  variant="text"
+                  @click="openWallet(item)"
+                >
+                  <v-icon />
+                  <v-tooltip
+                    activator="parent"
+                    location="top"
+                    :text="$t('botMembers.wallet')"
+                  />
+                </v-btn>
+                <v-btn
+                  :icon="item.blocked ? 'mdi-account-check' : 'mdi-account-cancel'"
+                  :color="item.blocked ? 'success' : 'error'"
+                  size="small"
+                  variant="text"
+                  @click="toggleBlock(item)"
+                >
+                  <v-icon />
+                  <v-tooltip
+                    activator="parent"
+                    location="top"
+                    :text="item.blocked ? $t('botMembers.unblock') : $t('botMembers.block')"
+                  />
+                </v-btn>
+              </span>
             </template>
           </v-data-table>
         </v-card>
       </v-col>
     </v-row>
-  </v-expand-transition>
-  <v-row>
-    <v-col
-      cols="12"
-      md="5"
-    >
-      <v-text-field
-        v-model="search"
-        prepend-inner-icon="mdi-magnify"
-        :label="$t('botMembers.search')"
-        density="compact"
-        hide-details
-        clearable
-      />
-    </v-col>
-    <v-col
-      cols="12"
-      md="7"
-    >
-      <v-chip-group
-        v-model="filter"
-        mandatory
-        selected-class="text-primary"
-      >
-        <v-chip
-          v-for="f in filters"
-          :key="f"
-          :value="f"
-          filter
-          variant="outlined"
-        >
-          {{ $t('botMembers.filter.' + f) }} ({{ counts[f] }})
-        </v-chip>
-      </v-chip-group>
-    </v-col>
-  </v-row>
-  <v-row>
-    <v-col cols="12">
-      <v-card
-        rounded="xl"
-        elevation="5"
-      >
-        <v-data-table
-          v-model="selected"
-          :items="shown"
-          :headers="headers"
-          :loading="loading"
-          :mobile="smAndDown"
-          item-value="tgId"
-          show-select
-          items-per-page="25"
-          density="compact"
-        >
-          <template #item.user="{ item }">
-            <div class="py-1">
-              <div>
-                <b>{{ item.name || '-' }}</b>
-                <v-chip
-                  v-if="item.blocked"
-                  color="error"
-                  size="x-small"
-                  class="ms-1"
-                >
-                  {{ $t('botMembers.blocked') }}
-                </v-chip>
-              </div>
-              <div class="text-caption">
-                <bdi v-if="item.username"><a
-                  :href="'https://t.me/' + item.username"
-                  target="_blank"
-                  rel="noopener"
-                >@{{ item.username }}</a></bdi>
-                <span v-if="item.username"> · </span>
-                <bdi>{{ item.tgId }}</bdi>
-              </div>
-            </div>
-          </template>
-          <template #item.ref="{ item }">
-            <span class="text-no-wrap">
-              <span v-if="item.ref">{{ item.ref }}<span
-                v-if="item.refGroup"
-                class="text-caption"
-              > ({{ item.refGroup }})</span></span>
-              <span v-else>-</span>
-              <v-btn
-                icon="mdi-pencil"
-                size="x-small"
-                variant="text"
-                @click="openRef(item)"
-              >
-                <v-icon />
-                <v-tooltip
-                  activator="parent"
-                  location="top"
-                  :text="$t('botMembers.editRef')"
-                />
-              </v-btn>
-            </span>
-          </template>
-          <template #item.seller="{ item }">
-            <span class="text-no-wrap">
-              {{ item.adminId ? sellerName(item.adminId) : '-' }}
-              <v-btn
-                icon="mdi-pencil"
-                size="x-small"
-                variant="text"
-                @click="openSeller(item)"
-              >
-                <v-icon />
-                <v-tooltip
-                  activator="parent"
-                  location="top"
-                  :text="$t('botMembers.editSeller')"
-                />
-              </v-btn>
-            </span>
-          </template>
-          <template #item.firstSeen="{ item }">
-            {{ fmtDate(item.firstSeen) }}
-          </template>
-          <template #item.trialAt="{ item }">
-            <v-chip
-              v-if="item.trialAt"
-              color="info"
-              size="small"
-            >
-              {{ fmtDate(item.trialAt) }}
-            </v-chip>
-            <span v-else>-</span>
-          </template>
-          <template #item.purchases="{ item }">
-            <b>{{ purchases(item) }}</b>
-            <span
-              v-if="purchases(item) > 0"
-              class="text-caption"
-            > ({{ $t('botMembers.buyRenew', { buys: item.buys, renews: item.renews }) }})</span>
-            <v-chip
-              v-if="item.pending"
-              color="warning"
-              size="x-small"
-              class="ms-1"
-            >
-              {{ $t('botMembers.pending', { n: item.pending }) }}
-            </v-chip>
-          </template>
-          <template #item.spent="{ item }">
-            {{ item.spent ? fmtNum(item.spent) : '-' }}
-          </template>
-          <template #item.balance="{ item }">
-            {{ item.balance ? fmtNum(item.balance) : '-' }}
-          </template>
-          <template #item.lastBuy="{ item }">
-            {{ fmtDate(item.lastBuy) }}
-          </template>
-          <template #item.clients="{ item }">
-            <v-chip
-              v-for="c in item.clients"
-              :key="c"
-              size="x-small"
-              class="me-1"
-            >
-              {{ c }}
-            </v-chip>
-            <span v-if="item.clients.length == 0">-</span>
-          </template>
-          <template #item.actions="{ item }">
-            <span class="text-no-wrap">
-              <v-btn
-                icon="mdi-message-text"
-                size="small"
-                variant="text"
-                :disabled="item.blocked"
-                @click="openMessage([item.tgId])"
-              >
-                <v-icon />
-                <v-tooltip
-                  activator="parent"
-                  location="top"
-                  :text="$t('botMembers.message')"
-                />
-              </v-btn>
-              <v-btn
-                icon="mdi-wallet"
-                size="small"
-                variant="text"
-                @click="openWallet(item)"
-              >
-                <v-icon />
-                <v-tooltip
-                  activator="parent"
-                  location="top"
-                  :text="$t('botMembers.wallet')"
-                />
-              </v-btn>
-              <v-btn
-                :icon="item.blocked ? 'mdi-account-check' : 'mdi-account-cancel'"
-                :color="item.blocked ? 'success' : 'error'"
-                size="small"
-                variant="text"
-                @click="toggleBlock(item)"
-              >
-                <v-icon />
-                <v-tooltip
-                  activator="parent"
-                  location="top"
-                  :text="item.blocked ? $t('botMembers.unblock') : $t('botMembers.block')"
-                />
-              </v-btn>
-            </span>
-          </template>
-        </v-data-table>
-      </v-card>
-    </v-col>
-  </v-row>
+  </template>
+  <BotAdmins v-else />
 </template>
 
 <script lang="ts" setup>
+import BotAdmins from '@/components/BotAdmins.vue'
 import HttpUtils from '@/plugins/httputil'
 import { BotMember, membersCSV, purchases, refStats, saveText } from '@/plugins/botMembers'
 import { i18n } from '@/locales'
@@ -535,6 +551,7 @@ const filter = ref<Filter>('all')
 const filters: Filter[] = ['all', 'trial', 'buyers', 'trialOnly', 'never', 'blocked']
 const selected = ref<number[]>([])
 const showRefStats = ref(false)
+const tab = ref<'members' | 'admins'>('members')
 
 const bought = (m: BotMember) => purchases(m) > 0
 const matches: Record<Filter, (m: BotMember) => boolean> = {

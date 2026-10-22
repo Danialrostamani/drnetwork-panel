@@ -90,6 +90,12 @@ func (a *APIHandler) postHandler(c *gin.Context) {
 		a.ApiService.BotMemberAction(c, "wallet")
 	case "botMembersMessage":
 		a.ApiService.BotMembersMessage(c)
+	case "botAdminGroup":
+		a.ApiService.BotAdminAction(c, "group", loginUser)
+	case "botAdminMove":
+		a.ApiService.BotAdminAction(c, "move", loginUser)
+	case "botAdminsAuto":
+		a.ApiService.BotAdminAction(c, "auto", loginUser)
 	default:
 		jsonMsg(c, "failed", common.NewError("unknown action: ", action))
 	}
@@ -173,6 +179,8 @@ func (a *APIHandler) getHandler(c *gin.Context) {
 		a.ApiService.GetSubUrl(c)
 	case "botMembers":
 		a.ApiService.GetBotMembers(c)
+	case "botAdmins":
+		a.ApiService.GetBotAdmins(c)
 	default:
 		jsonMsg(c, "failed", common.NewError("unknown action: ", action))
 	}

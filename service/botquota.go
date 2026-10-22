@@ -203,11 +203,21 @@ func botQuotaOnClientSave(tx *gorm.DB, actor, act string, data json.RawMessage) 
 // name, and only when it was created at the time the history says, so a name
 // that was reused later by somebody else is not taken.
 func BotQuotaAdoptCreated(db *gorm.DB, tg int64, actor string) error {
+	ids, err := ClientsCreatedBy(db, actor)
+	if err != nil {
+		return err
+	}
+	return botQuotaAdopt(db, tg, ids)
+}
+
+// ClientsCreatedBy are the clients that still exist of those actor created,
+// as the change history records them.
+func ClientsCreatedBy(db *gorm.DB, actor string) ([]uint, error) {
 	var rows []model.Changes
 	err := db.Where(&model.Changes{Actor: actor, Key: "clients"}).
 		Where("action IN ?", []string{"new", "addbulk"}).Find(&rows).Error
 	if err != nil {
-		return err
+		return nil, err
 	}
 	type made struct {
 		name string
@@ -232,7 +242,7 @@ func BotQuotaAdoptCreated(db *gorm.DB, tg int64, actor string) error {
 	for _, chunk := range chunks(names, idChunk) {
 		var found []model.Client
 		if err := db.Select("id", "name", "created_at").Where("name IN ?", chunk).Find(&found).Error; err != nil {
-			return err
+			return nil, err
 		}
 		for _, c := range found {
 			byName[c.Name] = append(byName[c.Name], c)
@@ -247,7 +257,7 @@ func BotQuotaAdoptCreated(db *gorm.DB, tg int64, actor string) error {
 			}
 		}
 	}
-	return botQuotaAdopt(db, tg, ids)
+	return ids, nil
 }
 
 // BotQuotaRestart starts tg's count from nothing: every client that counts

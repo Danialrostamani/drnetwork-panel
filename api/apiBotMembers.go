@@ -93,3 +93,42 @@ func (a *ApiService) BotMembersMessage(c *gin.Context) {
 	n, err := tgbot.PanelMessage(ids, c.Request.FormValue("text"))
 	jsonObj(c, gin.H{"queued": n}, err)
 }
+
+// GetBotAdmins is the bot's administrators with their groups.
+func (a *ApiService) GetBotAdmins(c *gin.Context) {
+	view, err := tgbot.PanelAdmins(c.Request.Context())
+	jsonObj(c, view, err)
+}
+
+// BotAdminAction changes the bot's administrators' groups: "group" limits
+// one to a group (or frees them with an empty one), "move" puts the clients
+// of one into their group, and "auto" gives every administrator without a
+// group one of their own, moving their clients when move is true.
+func (a *ApiService) BotAdminAction(c *gin.Context, what, actor string) {
+	host := getHostname(c)
+	if what == "auto" {
+		out, err := tgbot.PanelAutoGroups(c.Request.Context(), &a.ConfigService, actor, host, c.Request.FormValue("move") == "true")
+		jsonObj(c, out, err)
+		return
+	}
+	id, err := strconv.ParseInt(strings.TrimSpace(c.Request.FormValue("id")), 10, 64)
+	if err != nil || id <= 0 {
+		jsonMsg(c, "", common.NewError("bad telegram id"))
+		return
+	}
+	switch what {
+	case "group":
+		err = tgbot.PanelSetAdminGroup(&a.ConfigService, actor, host, id, c.Request.FormValue("group"))
+		if err == nil && c.Request.FormValue("move") == "true" && strings.TrimSpace(c.Request.FormValue("group")) != "" {
+			n, merr := tgbot.PanelMoveAdminClients(&a.ConfigService, actor, host, id)
+			jsonObj(c, gin.H{"moved": n}, merr)
+			return
+		}
+		jsonObj(c, gin.H{"moved": 0}, err)
+	case "move":
+		n, merr := tgbot.PanelMoveAdminClients(&a.ConfigService, actor, host, id)
+		jsonObj(c, gin.H{"moved": n}, merr)
+	default:
+		jsonMsg(c, "", common.NewError("unknown action: ", what))
+	}
+}

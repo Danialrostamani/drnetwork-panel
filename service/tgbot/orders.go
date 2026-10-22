@@ -43,6 +43,15 @@ func (b *bot) staffBot() *bot {
 	return b
 }
 
+// sellerGroup is the group a seller other than the owner is limited to, or "".
+func (b *bot) sellerGroup(id int64) string {
+	a := b.access()
+	if id == 0 || !a.isMember(id) || a.isOwner(id) {
+		return ""
+	}
+	return a.roleOf(id).group
+}
+
 func (b *bot) canApprove() bool {
 	if b.access().owner != 0 {
 		return b.owner
@@ -554,6 +563,11 @@ func (b *bot) approveOrder(o *model.BotOrder) error {
 			}
 		}
 		if g := s.refGroup(o.Ref); g != "" {
+			group = g
+		}
+		// A seller limited to a group sells into it, or they could not see
+		// what they sold.
+		if g := b.sellerGroup(o.AdminId); g != "" {
 			group = g
 		}
 		name := staff.uniqueClientName(o.TgId, o.Hint)

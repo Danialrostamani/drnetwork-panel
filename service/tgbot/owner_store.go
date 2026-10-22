@@ -27,11 +27,12 @@ const (
 	prefQuotaFull = "al.q100"   // a seller's volume limit is used up
 	prefAdminActs = "al.acts"   // a seller deletes clients or gives volume
 	prefApprovals = "al.appr"   // a seller approves an order
+	prefAdminAdds = "al.adds"   // a seller creates clients
 	prefNewCust   = "al.newcu"  // a new customer starts the bot
 )
 
 var prefDefaults = map[string]string{
-	prefStale: "1", prefStaleHrs: "3", prefQuotaFull: "1", prefAdminActs: "1", prefApprovals: "1", prefNewCust: "0",
+	prefStale: "1", prefStaleHrs: "3", prefQuotaFull: "1", prefAdminActs: "1", prefApprovals: "1", prefAdminAdds: "1", prefNewCust: "0",
 	prefRenew: "1", prefRenewDays: "3",
 }
 

@@ -154,7 +154,16 @@ func (b *bot) tellOwnerApproval(ctx context.Context, o *model.BotOrder) {
 // "" for anything else.
 func (b *bot) adminActNote(act string, payload interface{}) string {
 	a := b.access()
-	if b.owner || b.self <= 0 || a.owner == 0 || !a.isMember(b.self) || !prefOn(prefAdminActs) {
+	if b.owner || b.self <= 0 || a.owner == 0 || !a.isMember(b.self) {
+		return ""
+	}
+	if act == "new" || act == "addbulk" {
+		if !prefOn(prefAdminAdds) {
+			return ""
+		}
+		return b.createdNote(act, payload)
+	}
+	if !prefOn(prefAdminActs) {
 		return ""
 	}
 	nameOf := func(id uint) string {
@@ -217,6 +226,37 @@ func (b *bot) adminActNote(act string, payload interface{}) string {
 		}
 	}
 	return ""
+}
+
+// createdNote describes clients a seller creates, for the owner.
+func (b *bot) createdNote(act string, payload interface{}) string {
+	var list []model.Client
+	switch v := payload.(type) {
+	case model.Client:
+		list = []model.Client{v}
+	case *model.Client:
+		if v != nil {
+			list = []model.Client{*v}
+		}
+	case []model.Client:
+		list = v
+	}
+	if len(list) == 0 {
+		return ""
+	}
+	c := list[0]
+	vol := "∞"
+	if c.Volume > 0 {
+		vol = humanBytes(c.Volume)
+	}
+	detail := vol
+	if c.Group != "" {
+		detail += " · " + b.tr("گروه ", "group ") + esc(c.Group)
+	}
+	if len(list) == 1 {
+		return "➕ " + b.tr("ساخت کلاینت: ", "Created client: ") + "<b>" + esc(c.Name) + "</b> · " + detail
+	}
+	return "➕ " + b.tr(fmt.Sprintf("ساخت %d کلاینت: ", len(list)), fmt.Sprintf("Created %d clients: ", len(list))) + "<b>" + esc(c.Name) + "</b>… · " + detail
 }
 
 func (b *bot) tellOwnerAct(note string) {
@@ -878,6 +918,7 @@ var ownerAlerts = []alertDef{
 	{prefQuotaFull, "🚫 تمام شدن سهمیه فروشنده", "🚫 A seller's quota used up"},
 	{prefAdminActs, "🗑 حذف کلاینت / افزایش حجم توسط ادمین‌ها", "🗑 Admins deleting clients / giving volume"},
 	{prefApprovals, "✅ تأیید سفارش توسط ادمین‌ها", "✅ Admins approving orders"},
+	{prefAdminAdds, "➕ ساخت کلاینت توسط ادمین‌ها", "➕ Admins creating clients"},
 	{prefNewCust, "🆕 مشتری جدید", "🆕 New customer"},
 	{prefRenew, "⏳ یادآوری تمدید به مشتری‌ها", "⏳ Renewal reminders to customers"},
 }

@@ -76,6 +76,12 @@ func (a *APIv2Handler) postHandler(c *gin.Context) {
 		a.ApiService.BotMemberAction(c, "wallet")
 	case "botMembersMessage":
 		a.ApiService.BotMembersMessage(c)
+	case "botAdminGroup":
+		a.ApiService.BotAdminAction(c, "group", username)
+	case "botAdminMove":
+		a.ApiService.BotAdminAction(c, "move", username)
+	case "botAdminsAuto":
+		a.ApiService.BotAdminAction(c, "auto", username)
 	case "getCertPing":
 		a.ApiService.GetCertPing(c)
 	case "clusterBans":
@@ -134,6 +140,8 @@ func (a *APIv2Handler) getHandler(c *gin.Context) {
 		a.ApiService.GetPanelUpdate(c)
 	case "botMembers":
 		a.ApiService.GetBotMembers(c)
+	case "botAdmins":
+		a.ApiService.GetBotAdmins(c)
 	default:
 		jsonMsg(c, "failed", common.NewError("unknown action: ", action))
 	}
