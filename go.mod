@@ -4,7 +4,7 @@ go 1.26.9
 
 require (
 	github.com/anytls/sing-anytls v0.0.13
-	github.com/gin-contrib/gzip v1.2.7
+	github.com/gin-contrib/gzip v1.2.8
 	github.com/gin-contrib/sessions v1.1.1
 	github.com/gin-gonic/gin v1.12.0
 	github.com/go-chi/chi/v5 v5.3.2
