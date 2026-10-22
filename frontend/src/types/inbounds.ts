@@ -140,9 +140,12 @@ export interface Hysteria2 extends InboundBasics, QuicFields {
   up_mbps?: number
   down_mbps?: number
   obfs?: {
-    type?: "salamander"
+    type?: "salamander" | "gecko"
     password: string
+    min_packet_size?: number
+    max_packet_size?: number
   }
+  bbr_profile?: "standard" | "conservative" | "aggressive"
   ignore_client_bandwidth?: boolean
   masquerade?: string | {
     type: string
@@ -201,6 +204,8 @@ export interface Cloudflared extends InboundBasics {
   datagram_version?: 'v2' | 'v3'
   grace_period?: string
   region?: string
+  control_dialer?: { detour?: string }
+  tunnel_dialer?: { detour?: string }
 }
 export type Redirect = InboundBasics
 export interface TProxy extends InboundBasics {

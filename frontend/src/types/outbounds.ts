@@ -193,9 +193,12 @@ export interface Hysteria2 extends OutboundBasics, Dial, QuicFields {
   up_mbps?: number
   down_mbps?: number
   obfs?: {
-    type?: "salamander"
+    type?: "salamander" | "gecko"
     password: string
+    min_packet_size?: number
+    max_packet_size?: number
   }
+  bbr_profile?: "standard" | "conservative" | "aggressive"
   password?: string
   network?: "udp" | "tcp"
   tls: oTls

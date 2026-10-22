@@ -1,0 +1,87 @@
+{
+  "log": {
+    "level": "error"
+  },
+  "inbounds": [
+    {
+      "type": "hysteria2",
+      "tag": "hy2-gecko",
+      "listen": "127.0.0.1",
+      "listen_port": 42131,
+      "users": [
+        {
+          "password": "hy2pass"
+        }
+      ],
+      "tls": {
+        "enabled": true,
+        "server_name": "t.example.com",
+        "alpn": [
+          "h3"
+        ],
+        "key_path": "__KEY__",
+        "certificate_path": "__CERT__"
+      },
+      "bbr_profile": "aggressive",
+      "obfs": {
+        "type": "gecko",
+        "password": "g1",
+        "min_packet_size": 600,
+        "max_packet_size": 1300
+      }
+    },
+    {
+      "type": "hysteria2",
+      "tag": "hy2-salamander",
+      "listen": "127.0.0.1",
+      "listen_port": 42132,
+      "users": [
+        {
+          "password": "hy2pass"
+        }
+      ],
+      "tls": {
+        "enabled": true,
+        "server_name": "t.example.com",
+        "alpn": [
+          "h3"
+        ],
+        "key_path": "__KEY__",
+        "certificate_path": "__CERT__"
+      },
+      "bbr_profile": "conservative",
+      "obfs": {
+        "type": "salamander",
+        "password": "s1"
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "direct",
+      "tag": "direct"
+    },
+    {
+      "type": "hysteria2",
+      "tag": "hy2-out",
+      "server": "127.0.0.1",
+      "server_port": 42131,
+      "password": "hy2pass",
+      "bbr_profile": "standard",
+      "obfs": {
+        "type": "gecko",
+        "password": "g1",
+        "min_packet_size": 600,
+        "max_packet_size": 1300
+      },
+      "tls": {
+        "enabled": true,
+        "server_name": "t.example.com",
+        "insecure": true,
+        "alpn": [
+          "h3"
+        ]
+      }
+    }
+  ]
+}

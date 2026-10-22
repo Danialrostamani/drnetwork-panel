@@ -47,7 +47,34 @@
     </v-row>
     <v-row>
       <v-col
-        v-if="data.obfs != undefined"
+        cols="12"
+        sm="6"
+        md="4"
+      >
+        <v-select
+          v-model="bbrProfile"
+          :items="bbrProfiles"
+          :label="$t('types.hy.bbrProfile')"
+          :hint="$t('types.hy.bbrHint')"
+          persistent-hint
+        />
+      </v-col>
+    </v-row>
+    <v-row v-if="data.obfs != undefined">
+      <v-col
+        cols="12"
+        sm="6"
+        md="4"
+      >
+        <v-select
+          v-model="obfsType"
+          :items="obfsTypes"
+          :label="$t('types.hy.obfsType')"
+          :hint="obfsType == 'gecko' ? $t('types.hy.geckoHint') : ''"
+          :persistent-hint="obfsType == 'gecko'"
+        />
+      </v-col>
+      <v-col
         cols="12"
         sm="6"
         md="4"
@@ -58,6 +85,38 @@
           hide-details
         />
       </v-col>
+      <template v-if="obfsType == 'gecko'">
+        <v-col
+          cols="6"
+          sm="3"
+          md="2"
+        >
+          <v-text-field
+            v-model.number="geckoMin"
+            :label="$t('types.hy.geckoMin')"
+            type="number"
+            min="0"
+            max="2048"
+            placeholder="512"
+            hide-details
+          />
+        </v-col>
+        <v-col
+          cols="6"
+          sm="3"
+          md="2"
+        >
+          <v-text-field
+            v-model.number="geckoMax"
+            :label="$t('types.hy.geckoMax')"
+            type="number"
+            min="0"
+            max="2048"
+            placeholder="1200"
+            hide-details
+          />
+        </v-col>
+      </template>
     </v-row>
     <template v-if="direction == 'in'">
       <v-card
@@ -291,9 +350,12 @@ interface Hysteria2Data {
   up_mbps?: number
   down_mbps?: number
   obfs?: {
-    type?: "salamander"
+    type?: "salamander" | "gecko"
     password: string
+    min_packet_size?: number
+    max_packet_size?: number
   }
+  bbr_profile?: string
   masquerade?: string | Hysteria2Masquerade
   password?: string
   server_ports?: string[]
@@ -364,6 +426,46 @@ const optionObfs = computed({
   get: (): boolean => data.value.obfs != undefined,
   set: (v: boolean) => { data.value.obfs = v ? { type: "salamander", password: "" } : undefined },
 })
+
+// The congestion control profile only matters when BBR is used, that is
+// when no bandwidth is set; empty is sing-box's default, standard.
+const bbrProfiles = [
+  { title: 'Standard', value: '' },
+  { title: 'Conservative', value: 'conservative' },
+  { title: 'Aggressive', value: 'aggressive' },
+]
+const bbrProfile = computed({
+  get: (): string => data.value.bbr_profile ?? '',
+  set: (v: string) => { data.value.bbr_profile = v || undefined },
+})
+
+const obfsTypes = [
+  { title: 'Salamander', value: 'salamander' },
+  { title: 'Gecko', value: 'gecko' },
+]
+const obfsType = computed({
+  get: (): string => data.value.obfs?.type ?? 'salamander',
+  set: (v: string) => {
+    const o = data.value.obfs
+    if (!o) return
+    o.type = v as 'salamander' | 'gecko'
+    if (v != 'gecko') {
+      delete o.min_packet_size
+      delete o.max_packet_size
+    }
+  },
+})
+const packetSize = (key: 'min_packet_size' | 'max_packet_size') => computed({
+  get: (): number => data.value.obfs?.[key] ?? 0,
+  set: (v: number) => {
+    const o = data.value.obfs
+    if (!o) return
+    if (v > 0) o[key] = Math.floor(v)
+    else delete o[key]
+  },
+})
+const geckoMin = packetSize('min_packet_size')
+const geckoMax = packetSize('max_packet_size')
 
 const optionMasq = computed({
   get: (): boolean => data.value.masquerade != undefined,

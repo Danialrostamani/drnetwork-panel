@@ -1010,6 +1010,10 @@ export default {
       gracePeriod: "مهلت خاتمه",
       region: "منطقه",
       postQuantum: "پساکوانتومی",
+      controlDetour: "اتصال کنترل از طریق",
+      tunnelDetour: "اتصال‌های تونل از طریق",
+      detourHint: "وقتی Cloudflare از این سرور مستقیم در دسترس نیست، از یک خروجی (مثلاً WARP) استفاده کنید.",
+      direct: "مستقیم",
     },
     bridge: {
       interface: "رابط شبکه",
@@ -1044,6 +1048,12 @@ export default {
       hyOptions: "گزینه‌های Hysteria",
       hy2Options: "گزینه‌های Hysteria2",
       ignoreBw: "نادیده‌گرفتن پهنای‌باند کاربر",
+      bbrProfile: "پروفایل BBR",
+      bbrHint: "فقط وقتی آپلود و دانلود خالی باشد استفاده می‌شود (کنترل ازدحام BBR).",
+      obfsType: "نوع مبهم‌سازی",
+      geckoHint: "Gecko فقط با کلاینت‌های مبتنی بر sing-box 1.14 به بالا کار می‌کند؛ اپ‌های دیگر و Clash ممکن است وصل نشوند.",
+      geckoMin: "کمینه بسته",
+      geckoMax: "بیشینه بسته",
     },
     shdwTls: {
       hs: "سرور دست‌تکانی",

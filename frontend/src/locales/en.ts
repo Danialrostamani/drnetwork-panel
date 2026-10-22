@@ -1010,6 +1010,10 @@ export default {
       gracePeriod: "Grace Period",
       region: "Region",
       postQuantum: "Post-Quantum",
+      controlDetour: "Control connection through",
+      tunnelDetour: "Tunnel connections through",
+      detourHint: "Use an outbound (e.g. WARP) when Cloudflare cannot be reached from this server.",
+      direct: "Direct",
     },
     bridge: {
       interface: "Interface",
@@ -1044,6 +1048,12 @@ export default {
       hyOptions: "Hysteria Options",
       hy2Options: "Hysteria2 Options",
       ignoreBw: "Ignore Client Bandwidth",
+      bbrProfile: "BBR profile",
+      bbrHint: "Used only when upload and download are not set (BBR congestion control).",
+      obfsType: "Obfuscation type",
+      geckoHint: "Gecko needs a sing-box 1.14+ client; other apps and Clash may not connect.",
+      geckoMin: "Min packet",
+      geckoMax: "Max packet",
     },
     shdwTls: {
       hs: "Handshake Server",

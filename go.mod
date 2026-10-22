@@ -12,17 +12,18 @@ require (
 	github.com/op/go-logging v0.0.0-20160315200505-970db520ece7
 	github.com/refraction-networking/utls v1.8.2
 	github.com/robfig/cron/v3 v3.0.1
-	github.com/sagernet/sing v0.9.6-0.20260922013354-87c33f17688f
+	github.com/sagernet/sing v0.9.7-0.20260929150544-0ad23b637bd4
 	github.com/sagernet/sing-box v1.14.2
-	github.com/sagernet/sing-mux v0.3.8
-	github.com/sagernet/sing-quic v0.7.1-0.20260924092235-6a3a24d65b99
-	github.com/sagernet/sing-shadowsocks v0.2.8
-	github.com/sagernet/sing-snell v0.0.0-20260829071736-20f2eaec77c3
-	github.com/sagernet/sing-tun v0.9.6-0.20260924001923-ddaa4ca25e3b
-	github.com/sagernet/sing-vmess v0.2.8
+	github.com/sagernet/sing-mux v0.3.10-0.20260929204512-caf09fe32475
+	github.com/sagernet/sing-quic v0.7.2-0.20261002084117-75c3ac4fa12b
+	github.com/sagernet/sing-shadowsocks v0.2.9-0.20260929204512-65740e0f0e3e
+	github.com/sagernet/sing-snell v0.0.0-20260904135315-bc5a12ac736f
+	github.com/sagernet/sing-tun v0.9.7-0.20261009020158-bca4bf029237
+	github.com/sagernet/sing-vmess v0.2.9-0.20260929152519-9b95ab8c9478
 	github.com/shirou/gopsutil/v4 v4.26.8
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	golang.org/x/crypto v0.57.0
+	golang.org/x/net v0.60.0
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20241231184526-a9ab2273dd10
 	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/driver/sqlite v1.6.0
@@ -168,16 +169,16 @@ require (
 	github.com/sagernet/gvisor v0.0.0-20260727.0-sing-box-mod.1 // indirect
 	github.com/sagernet/netlink v0.0.0-20260814022025-64455d367bbf // indirect
 	github.com/sagernet/nftables v0.3.0-mod.4 // indirect
-	github.com/sagernet/quic-go v0.61.0-sing-box-mod.7 // indirect
-	github.com/sagernet/sing-cloudflared v0.1.3-0.20260706062323-d9787e794aa3 // indirect
-	github.com/sagernet/sing-openconnect v0.0.0-20260810065514-53aa8058f8df // indirect
-	github.com/sagernet/sing-openvpn v0.0.0-20260729104525-103eb5fe5eb6 // indirect
-	github.com/sagernet/sing-shadowsocks2 v0.2.1 // indirect
-	github.com/sagernet/sing-shadowtls v0.2.1 // indirect
+	github.com/sagernet/quic-go v0.61.0-sing-box-mod.9 // indirect
+	github.com/sagernet/sing-cloudflared v0.1.4-0.20261002084126-c1255ae368f2 // indirect
+	github.com/sagernet/sing-openconnect v0.1.1-0.20260929151225-cbd68c45de58 // indirect
+	github.com/sagernet/sing-openvpn v0.1.1-0.20260929151220-7c3045dbddce // indirect
+	github.com/sagernet/sing-shadowsocks2 v0.2.2-0.20260929152114-a69d1086332b // indirect
+	github.com/sagernet/sing-shadowtls v0.2.2-0.20260928201441-a9c0127d5c99 // indirect
 	github.com/sagernet/sing-usbip v0.0.0-20260817040617-28bd42667eca // indirect
 	github.com/sagernet/smux v1.5.50-sing-box-mod.1 // indirect
 	github.com/sagernet/tailscale v1.102.1-sing-box-1.14-mod.5 // indirect
-	github.com/sagernet/wireguard-go v0.0.7 // indirect
+	github.com/sagernet/wireguard-go v0.0.8-0.20260929150556-6731c7387c81 // indirect
 	github.com/sagernet/ws v0.0.0-20231204124109-acfe8907c854 // indirect
 	github.com/smallstep/pkcs7 v0.1.1 // indirect
 	github.com/tailscale/certstore v0.1.1-0.20260409135935-3638fb84b77d // indirect
@@ -210,7 +211,6 @@ require (
 	golang.org/x/arch v0.29.0 // indirect
 	golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f // indirect
 	golang.org/x/mod v0.41.0 // indirect
-	golang.org/x/net v0.60.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect

@@ -111,6 +111,30 @@
           hide-details
         />
       </v-col>
+      <v-row>
+        <v-col
+          cols="12"
+          sm="6"
+        >
+          <v-select
+            v-model="controlDetour"
+            :items="detourItems"
+            :label="$t('types.cloudflared.controlDetour')"
+            :hint="$t('types.cloudflared.detourHint')"
+            persistent-hint
+          />
+        </v-col>
+        <v-col
+          cols="12"
+          sm="6"
+        >
+          <v-select
+            v-model="tunnelDetour"
+            :items="detourItems"
+            :label="$t('types.cloudflared.tunnelDetour')"
+          />
+        </v-col>
+      </v-row>
     </v-row>
   </v-card>
 </template>
@@ -118,6 +142,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { Inbound } from '@/types/inbounds'
+import Data from '@/store/modules/data'
+import { i18n } from '@/locales'
 
 // Cloudflared is inbound only; every option besides the token is optional and
 // is removed rather than written out when cleared.
@@ -130,6 +156,8 @@ interface CloudflaredData {
   region?: string
   grace_period?: string
   post_quantum?: boolean
+  control_dialer?: { detour?: string }
+  tunnel_dialer?: { detour?: string }
 }
 
 // The parent owns the object and this component edits it in place, so it is a
@@ -158,6 +186,26 @@ const datagramVersions = [
   { title: 'v2', value: 'v2' },
   { title: 'v3', value: 'v3' },
 ]
+
+// The connections to Cloudflare can go out through an outbound, as when
+// Cloudflare cannot be reached from the server directly. Only the detour is
+// set here; an empty choice removes the dialer.
+const detourItems = computed(() => [
+  { title: i18n.global.t('types.cloudflared.direct'), value: '' },
+  ...[...(Data().outbounds?.map(o => o.tag) ?? []), ...(Data().endpoints?.map(e => e.tag) ?? [])].map(t => ({ title: t, value: t })),
+])
+const detour = (key: 'control_dialer' | 'tunnel_dialer') => computed({
+  get: (): string => data.value[key]?.detour ?? '',
+  set: (v: string) => {
+    if (v) data.value[key] = { ...(data.value[key] ?? {}), detour: v }
+    else if (data.value[key]) {
+      delete data.value[key]?.detour
+      if (Object.keys(data.value[key] ?? {}).length == 0) delete data.value[key]
+    }
+  },
+})
+const controlDetour = detour('control_dialer')
+const tunnelDetour = detour('tunnel_dialer')
 
 const haConnections = computed({
   get: (): number => data.value.ha_connections ?? 0,
