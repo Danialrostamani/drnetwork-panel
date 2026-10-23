@@ -182,6 +182,7 @@ func (a *ApiService) BotAdminAction(c *gin.Context, what, actor string) {
 			RequireOwner: c.Request.FormValue("requireOwner") == "true",
 			MinPerGB:     num("minPerGB"),
 			RatePerGB:    num("ratePerGB"),
+			ReceiptTo:    num("receiptTo"),
 		}))
 	case "settle":
 		rec, serr := tgbot.PanelSettle(id)

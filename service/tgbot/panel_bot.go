@@ -47,7 +47,7 @@ func (b *bot) panelAdminExtras(pa *PanelAdmin) {
 		return
 	}
 	m := adminMeta(pa.Id)
-	pa.Suspended, pa.RequireOwner = m.Suspended, m.RequireOwner
+	pa.Suspended, pa.RequireOwner, pa.ReceiptTo = m.Suspended, m.RequireOwner, m.ReceiptTo
 	pa.MinPerGB, pa.RatePerGB = m.MinPerGB, m.RatePerGB
 	if q, ok, err := b.quotaOf(pa.Id); err == nil && ok {
 		pa.Quota = &PanelQuota{Total: q.Total, Used: q.Used, Left: q.Left(), Clients: q.Clients}
@@ -270,6 +270,9 @@ type PanelSellerTerms struct {
 	RequireOwner bool  `json:"requireOwner"`
 	MinPerGB     int64 `json:"minPerGB"`
 	RatePerGB    int64 `json:"ratePerGB"`
+	// ReceiptTo: 0 the seller and the owner, -1 the seller alone, else the
+	// administrator who approves the seller's orders.
+	ReceiptTo int64 `json:"receiptTo"`
 }
 
 // PanelSetSellerTerms saves the owner's terms with a seller.
@@ -277,8 +280,23 @@ func PanelSetSellerTerms(id int64, t PanelSellerTerms) error {
 	if err := panelSeller(id); err != nil {
 		return err
 	}
+	to := t.ReceiptTo
+	switch {
+	case to == id:
+		to = receiptToSelf
+	case to < receiptToSelf:
+		to = 0
+	case to > 0:
+		cfg, err := loadConfig()
+		if err != nil {
+			return err
+		}
+		if !cfg.access().isMember(to) {
+			return errors.New("the chosen approver is not an administrator of the bot")
+		}
+	}
 	_, err := patchAdminMeta(id, func(m *model.BotAdminMeta) {
-		m.Suspended, m.RequireOwner = t.Suspended, t.RequireOwner
+		m.Suspended, m.RequireOwner, m.ReceiptTo = t.Suspended, t.RequireOwner, to
 		m.MinPerGB, m.RatePerGB = max(t.MinPerGB, 0), max(t.RatePerGB, 0)
 	})
 	return err

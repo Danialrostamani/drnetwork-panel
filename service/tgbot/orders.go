@@ -73,14 +73,9 @@ func (b *bot) notifyOrderStaff(ctx context.Context, o *model.BotOrder, text stri
 		seen[id] = true
 		ids = append(ids, id)
 	}
-	add(o.AdminId)
-	if a := b.access(); a.owner != 0 {
-		add(a.owner)
-	}
-	if len(ids) == 0 {
-		for _, id := range b.staffIDs() {
-			add(id)
-		}
+	approvers, notice := b.orderRoute(o.AdminId)
+	for _, id := range append(approvers, notice...) {
+		add(id)
 	}
 	b.notifyIDs(ctx, ids, text, kb)
 }
@@ -299,31 +294,12 @@ func (b *bot) finishPendingOrder(ctx context.Context, chatID int64, from *fromUs
 		{Text: b.tr("✅ تأیید", "✅ Approve"), Data: fmt.Sprintf("j:ok:%d", o.Id)},
 		{Text: b.tr("❌ رد", "❌ Reject"), Data: fmt.Sprintf("j:no:%d", o.Id)},
 	}}
-	ownerOnly := b.ownerApproves(o.AdminId)
-	ids := []int64{}
-	seen := map[int64]bool{}
-	add := func(id int64) {
-		if id == 0 || seen[id] {
-			return
-		}
-		seen[id] = true
-		ids = append(ids, id)
-	}
-	add(o.AdminId)
-	if a := b.access(); a.owner != 0 {
-		add(a.owner)
-	}
-	if len(ids) == 0 {
-		ids = b.staffIDs()
-	}
-	for _, id := range ids {
-		if ownerOnly && id == o.AdminId {
-			// This seller's sales are approved by the owner alone.
-			b.notifyIDs(ctx, []int64{id}, text+"\n"+b.tr("🔒 تأیید این سفارش با مالک است.", "🔒 The owner approves this order."), nil)
-			continue
-		}
-		b.notifyIDs(ctx, []int64{id}, text, kb)
-	}
+	// Who approves is the owner's choice per seller (orderRoute).
+	approvers, notice := b.orderRoute(o.AdminId)
+	b.notifyIDs(ctx, approvers, text, kb)
+	// A seller whose sales the owner approves alone is told, without buttons.
+	b.notifyIDs(ctx, notice, text+"\n"+b.tr("🔒 تأیید این سفارش با مالک است.", "🔒 The owner approves this order."), nil)
+	ids := append(append([]int64{}, approvers...), notice...)
 	if o.ReceiptID != "" {
 		staff := b.staffBot()
 		for _, id := range ids {
@@ -453,7 +429,10 @@ func (b *bot) orderCallback(ctx context.Context, cbID string, chatID, msgID int6
 		b.answer(ctx, cbID, "")
 		return
 	}
-	if !b.canApprove() && (o.AdminId == 0 || b.self != o.AdminId) {
+	// The administrator the owner routed this seller's orders to may approve
+	// them too; the order is then delivered as the seller's own sale.
+	routed := !b.canApprove() && b.self != 0 && o.AdminId != 0 && b.self != o.AdminId && b.routedApprover(o.AdminId) == b.self
+	if !b.canApprove() && !routed && (o.AdminId == 0 || b.self != o.AdminId) {
 		b.answer(ctx, cbID, b.denied())
 		return
 	}
@@ -462,13 +441,17 @@ func (b *bot) orderCallback(ctx context.Context, cbID string, chatID, msgID int6
 		b.edit(ctx, chatID, msgID, b.tr("قبلاً رسیدگی شده.", "Already handled."), nil)
 		return
 	}
-	if parts[1] == "ok" && !b.canApprove() && b.ownerApproves(b.self) {
+	if parts[1] == "ok" && !b.canApprove() && b.ownerApproves(o.AdminId) {
 		b.answer(ctx, cbID, b.tr("تأیید سفارش‌های شما با مالک است.", "The owner approves your orders."))
 		return
 	}
 	switch parts[1] {
 	case "ok":
-		if err := b.approveOrder(o); err != nil {
+		approver := b
+		if routed {
+			approver = b.as(o.AdminId)
+		}
+		if err := approver.approveOrder(o); err != nil {
 			b.answer(ctx, cbID, "")
 			b.edit(ctx, chatID, msgID, b.tr("❌ تأیید نشد: ", "❌ Approve failed: ")+esc(err.Error()), nil)
 			return

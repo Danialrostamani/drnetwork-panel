@@ -278,6 +278,10 @@ type BotAdminMeta struct {
 	RequireOwner bool  `json:"requireOwner" gorm:"default:false;not null"`
 	MinPerGB     int64 `json:"minPerGB" gorm:"default:0;not null"`
 	RatePerGB    int64 `json:"ratePerGB" gorm:"default:0;not null"`
+	// ReceiptTo is who gets the seller's orders and receipts to approve:
+	// 0 the seller and the owner, -1 the seller alone, else that
+	// administrator's Telegram ID. RequireOwner takes precedence.
+	ReceiptTo int64 `json:"receiptTo" gorm:"default:0;not null"`
 }
 
 func (BotAdminMeta) TableName() string { return "bot_admin_meta" }

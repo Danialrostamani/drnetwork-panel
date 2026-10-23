@@ -37,6 +37,7 @@ type PanelAdmin struct {
 	// what they sold since the last settlement.
 	Suspended       bool        `json:"suspended"`
 	RequireOwner    bool        `json:"requireOwner"`
+	ReceiptTo       int64       `json:"receiptTo"`
 	MinPerGB        int64       `json:"minPerGB"`
 	RatePerGB       int64       `json:"ratePerGB"`
 	Quota           *PanelQuota `json:"quota"`

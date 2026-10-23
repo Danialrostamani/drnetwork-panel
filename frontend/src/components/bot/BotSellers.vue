@@ -445,13 +445,14 @@
                   density="compact"
                   hide-details
                 />
-                <v-switch
-                  v-model="form(a).requireOwner"
-                  color="primary"
-                  :label="$t('botAdmins.requireOwner')"
+                <v-select
+                  v-model="form(a).route"
+                  :items="routeItems(a)"
+                  :label="$t('botAdmins.receiptTo')"
+                  :hint="$t('botAdmins.receiptToHint')"
+                  persistent-hint
                   density="compact"
-                  hide-details
-                  class="mb-2"
+                  class="mt-2 mb-3"
                 />
                 <div class="d-flex flex-wrap ga-2">
                   <v-text-field
@@ -663,6 +664,7 @@ interface BotAdmin {
   outside: number
   suspended: boolean
   requireOwner: boolean
+  receiptTo: number
   minPerGB: number
   ratePerGB: number
   quota: { total: number, used: number, left: number, clients: number } | null
@@ -678,7 +680,9 @@ interface Form {
   sections: string[]
   gb: string
   suspended: boolean
-  requireOwner: boolean
+  // route: 0 the seller and the owner, -1 the seller alone, -2 the owner
+  // alone (requireOwner), else the administrator who approves.
+  route: number
   minPerGB: string
   ratePerGB: string
 }
@@ -714,7 +718,7 @@ const formFrom = (a: BotAdmin): Form => ({
   sections: [...(a.sections ?? [])],
   gb: '',
   suspended: a.suspended,
-  requireOwner: a.requireOwner,
+  route: a.requireOwner ? -2 : (a.receiptTo ?? 0),
   minPerGB: a.minPerGB ? String(a.minPerGB) : '',
   ratePerGB: a.ratePerGB ? String(a.ratePerGB) : '',
 })
@@ -722,6 +726,16 @@ const form = (a: BotAdmin): Form => {
   if (!forms.value[a.id]) forms.value[a.id] = formFrom(a)
   return forms.value[a.id]
 }
+
+const currentRoute = (a: BotAdmin): number => a.requireOwner ? -2 : (a.receiptTo ?? 0)
+const routeItems = (a: BotAdmin) => [
+  { title: t('botAdmins.routeBoth'), value: 0 },
+  { title: t('botAdmins.routeSelf'), value: -1 },
+  { title: t('botAdmins.routeOwner'), value: -2 },
+  ...admins.value
+    .filter(x => x.id != a.id && x.role != 'owner')
+    .map(x => ({ title: t('botAdmins.routeAdmin', { name: x.name || String(x.id) }), value: x.id })),
+]
 
 const roleColor = (r: string) => ({ owner: 'primary', full: 'success', sections: 'info', group: 'secondary', locked: 'error' } as Record<string, string>)[r] ?? ''
 
@@ -735,7 +749,7 @@ const roleChanged = (a: BotAdmin): boolean => {
 }
 const termsChanged = (a: BotAdmin): boolean => {
   const f = form(a)
-  return f.suspended != a.suspended || f.requireOwner != a.requireOwner ||
+  return f.suspended != a.suspended || f.route != currentRoute(a) ||
     (Number(f.minPerGB) || 0) != a.minPerGB || (Number(f.ratePerGB) || 0) != a.ratePerGB
 }
 
@@ -827,7 +841,8 @@ const saveTerms = async (a: BotAdmin) => {
   const f = form(a)
   saving.value = true
   const msg = await HttpUtils.post('api/botAdminTerms', {
-    id: a.id, suspended: f.suspended, requireOwner: f.requireOwner,
+    id: a.id, suspended: f.suspended, requireOwner: f.route == -2,
+    receiptTo: f.route == -1 || f.route > 0 ? f.route : 0,
     minPerGB: Math.trunc(Number(f.minPerGB) || 0), ratePerGB: Math.trunc(Number(f.ratePerGB) || 0),
   })
   saving.value = false

@@ -124,6 +124,67 @@ func (b *bot) sellerAndOwner(adminID int64) []int64 {
 	return ids
 }
 
+// receiptToSelf routes a seller's orders to the seller alone.
+const receiptToSelf int64 = -1
+
+// routedApprover is the administrator the owner chose to approve the
+// seller's orders instead of the seller and the owner, or 0. One who left
+// the bot or was suspended falls back to the default.
+func (b *bot) routedApprover(adminID int64) int64 {
+	if adminID == 0 || b.ownerApproves(adminID) {
+		return 0
+	}
+	to := adminMeta(adminID).ReceiptTo
+	if to <= 0 || to == adminID {
+		return 0
+	}
+	a := b.access()
+	if !a.isMember(to) || (!a.isOwner(to) && adminMeta(to).Suspended) {
+		return 0
+	}
+	return to
+}
+
+// orderRoute is who a seller's order goes to: approvers get it with the
+// approve / reject buttons, notice only as information (a seller whose sales
+// the owner approves).
+func (b *bot) orderRoute(adminID int64) (approvers, notice []int64) {
+	a := b.access()
+	if adminID == 0 {
+		if a.owner != 0 {
+			return []int64{a.owner}, nil
+		}
+		return b.staffIDs(), nil
+	}
+	if a.owner == 0 || a.isOwner(adminID) {
+		return []int64{adminID}, nil
+	}
+	if b.ownerApproves(adminID) {
+		return []int64{a.owner}, []int64{adminID}
+	}
+	if to := b.routedApprover(adminID); to != 0 {
+		return []int64{to}, nil
+	}
+	if adminMeta(adminID).ReceiptTo == receiptToSelf {
+		return []int64{adminID}, nil
+	}
+	return []int64{adminID, a.owner}, nil
+}
+
+// receiptRouteText names where a seller's orders go, for the owner's card.
+func (b *bot) receiptRouteText(ctx context.Context, adminID int64) string {
+	m := adminMeta(adminID)
+	switch {
+	case m.RequireOwner:
+		return b.tr("فقط مالک", "the owner only")
+	case b.routedApprover(adminID) != 0:
+		return b.sellerName(ctx, b.routedApprover(adminID))
+	case m.ReceiptTo == receiptToSelf:
+		return b.tr("فقط خودش", "the seller only")
+	}
+	return b.tr("خودش و مالک", "the seller and the owner")
+}
+
 // ownerApproves tells a seller whose sales only the owner may approve.
 func (b *bot) ownerApproves(adminID int64) bool {
 	a := b.access()
@@ -597,6 +658,7 @@ func (b *bot) sellerScreen(ctx context.Context, id int64) (string, [][]button) {
 	lines = append(lines,
 		b.tr("وضعیت: ", "State: ")+state,
 		"🔒 "+b.tr("تأیید سفارش فقط با مالک: ", "Orders approved by the owner only: ")+onOff(m.RequireOwner),
+		"📨 "+b.tr("رسید و تأیید سفارش‌ها برای: ", "Receipts and approvals go to: ")+esc(b.receiptRouteText(ctx, id)),
 		"💵 "+b.tr("حداقل قیمت هر گیگ: ", "Lowest price per GB: ")+moneyOrNone(b, m.MinPerGB),
 		"🧮 "+b.tr("نرخ تسویه هر گیگ: ", "Settlement rate per GB: ")+moneyOrNone(b, m.RatePerGB),
 		"")
