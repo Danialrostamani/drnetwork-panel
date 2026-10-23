@@ -12,6 +12,17 @@
         <v-spacer />
         <v-btn
           variant="tonal"
+          color="success"
+          density="comfortable"
+          prepend-icon="mdi-microsoft-excel"
+          class="me-2"
+          :disabled="!sites.length"
+          @click="exportExcel"
+        >
+          {{ $t('stats.exportExcel') }}
+        </v-btn>
+        <v-btn
+          variant="text"
           density="comfortable"
           prepend-icon="mdi-download"
           class="me-2"
@@ -168,6 +179,7 @@ import HttpUtils from '@/plugins/httputil'
 import { HumanReadable } from '@/plugins/utils'
 import DatePick from '@/components/DateTime.vue'
 import { siteRows, siteCsv, type SiteRow, type SiteReport } from './siteStats'
+import { siteSheet, siteXlsx } from './siteXlsx'
 
 export default {
   components: { DatePick },
@@ -245,16 +257,48 @@ export default {
     fmt(v: number) {
       return HumanReadable.sizeFormat(v)
     },
-    exportCsv() {
-      const csv = siteCsv(this.user, this.start, this.end, this.sites)
-      // The byte-order mark makes Excel read the file as UTF-8.
-      const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' })
+    fileName(ext: string) {
+      const day = (t: number) => new Date(t * 1000).toISOString().slice(0, 10)
+      return `${this.user}-sites-${day(this.start)}_${day(this.end)}.${ext}`
+    },
+    save(blob: Blob, name: string) {
       const a = document.createElement('a')
       a.href = URL.createObjectURL(blob)
-      const day = (t: number) => new Date(t * 1000).toISOString().slice(0, 10)
-      a.download = `${this.user}-sites-${day(this.start)}_${day(this.end)}.csv`
+      a.download = name
       a.click()
-      URL.revokeObjectURL(a.href)
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000)
+    },
+    // when is a window edge as people read it: local time with its offset,
+    // and the Persian calendar first in Persian.
+    when(t: number) {
+      const d = new Date(t * 1000)
+      const pad = (n: number) => String(n).padStart(2, '0')
+      const off = -d.getTimezoneOffset()
+      const zone = `UTC${off >= 0 ? '+' : '-'}${pad(Math.floor(Math.abs(off) / 60))}:${pad(Math.abs(off) % 60)}`
+      const greg = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+      if (i18n.global.locale.value !== 'fa') return `${greg} (${zone})`
+      try {
+        const fa = new Intl.DateTimeFormat('fa-IR-u-ca-persian', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).format(d)
+        return `${fa}  —  ${greg} (${zone})`
+      } catch {
+        return `${greg} (${zone})`
+      }
+    },
+    exportExcel() {
+      const t = (k: string) => i18n.global.t('stats.' + k)
+      const sheet = siteSheet({
+        title: t('xlsTitle'), user: t('xlsUser'), from: t('xlsFrom'), to: t('xlsTo'), sites: t('xlsSites'),
+        rank: t('rank'), site: t('site'), download: t('download') + ' (MB)', upload: t('upload') + ' (MB)',
+        total: t('total') + ' (MB)', share: t('share'), readable: t('readable'), sum: t('sum'),
+      }, this.user, this.when(this.start), this.when(this.end), this.sites, v => HumanReadable.sizeFormat(v), i18n.global.locale.value === 'fa')
+      const data = siteXlsx(this.user, sheet)
+      this.save(new Blob([data.buffer as ArrayBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), this.fileName('xlsx'))
+    },
+    exportCsv() {
+      const t = (k: string) => i18n.global.t('stats.' + k)
+      const csv = siteCsv({ rank: t('rank'), site: t('site'), download: t('download'), upload: t('upload'), total: t('total'), share: t('share'), sum: t('sum') }, this.sites)
+      // The byte-order mark makes Excel read the file as UTF-8.
+      this.save(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' }), this.fileName('csv'))
     },
   },
 }

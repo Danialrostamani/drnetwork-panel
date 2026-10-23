@@ -29,18 +29,28 @@ function mb(v: number): string {
   return (v / 1048576).toFixed(2)
 }
 
-// siteCsv is the report as a file to hand on: the window first, then one line
-// a site with the bytes and the same in MiB.
-export function siteCsv(user: string, start: number, end: number, rows: SiteRow[]): string {
-  const iso = (t: number) => new Date(t * 1000).toISOString().replace('T', ' ').slice(0, 16) + ' UTC'
-  const lines = [
-    `# user,${field(user)}`,
-    `# from,${iso(start)}`,
-    `# to,${iso(end)}`,
-    'site,download_bytes,upload_bytes,total_bytes,download_MiB,upload_MiB,total_MiB',
-  ]
-  for (const r of rows) {
-    lines.push([field(r.site), r.down, r.up, r.total, mb(r.down), mb(r.up), mb(r.total)].join(','))
-  }
+export interface CsvLabels {
+  rank: string
+  site: string
+  download: string
+  upload: string
+  total: string
+  share: string
+  sum: string
+}
+
+// siteCsv is the report as one plain table, one row a site plus a totals
+// row, in MB so it reads well in any spreadsheet. The user and window go in
+// the file name, not into the table.
+export function siteCsv(l: CsvLabels, rows: SiteRow[]): string {
+  const grand = rows.reduce((a, r) => a + r.total, 0)
+  const pct = (v: number) => (grand ? (v * 100) / grand : 0).toFixed(2)
+  const lines = [[l.rank, l.site, l.download + ' (MB)', l.upload + ' (MB)', l.total + ' (MB)', l.share + ' (%)'].map(field).join(',')]
+  rows.forEach((r, i) => {
+    lines.push([String(i + 1), field(r.site), mb(r.down), mb(r.up), mb(r.total), pct(r.total)].join(','))
+  })
+  const up = rows.reduce((a, r) => a + r.up, 0)
+  const down = rows.reduce((a, r) => a + r.down, 0)
+  lines.push(['', field(l.sum), mb(down), mb(up), mb(grand), grand ? '100.00' : '0.00'].join(','))
   return lines.join('\r\n') + '\r\n'
 }

@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Danialrostamani/drnetwork-panel/database"
 	"github.com/Danialrostamani/drnetwork-panel/database/model"
@@ -135,13 +136,21 @@ func (b *bot) locationLines(c model.Client) []string {
 		if i > maxLocationLines {
 			continue
 		}
-		line := "  • " + strings.Join(tags[node], " · ") + " — " + humanBytes(u.Up+u.Down)
-		if u.Up+u.Down > 0 {
-			line += fmt.Sprintf(" (⬇️ %s ⬆️ %s)", humanBytes(u.Down), humanBytes(u.Up))
-		}
-		lines = append(lines, line)
+		lines = append(lines, "  • "+locationName(tags[node])+" — "+humanBytes(u.Up+u.Down))
 	}
 	return lines
+}
+
+// locationName names a server by the shortest of its inbound tags: the
+// variants ("FR-2", "France 2 . V6") carry the base name plus a suffix.
+func locationName(tags []string) string {
+	name := tags[0]
+	for _, t := range tags[1:] {
+		if utf8.RuneCountInString(t) < utf8.RuneCountInString(name) {
+			name = t
+		}
+	}
+	return name
 }
 
 func (b *bot) clientDetail(c model.Client, online bool, now time.Time) string {
@@ -212,7 +221,7 @@ func (b *bot) clientKeyboard(c model.Client) [][]button {
 		timeRow = append(timeRow, button{Text: b.tr("♾ زمان نامحدود", "♾ Unlimited time"), Data: "c:dinf:" + id})
 	}
 	// The IP list only matters for a client with an IP limit.
-	toolsRow := []button{{Text: b.tr("✏️ ویرایش", "✏️ Edit"), Data: "c:edit:" + id}, {Text: b.tr("🔗 لینک خارجی", "🔗 Ext. links"), Data: "c:xl:" + id}}
+	toolsRow := []button{{Text: b.tr("✏️ ویرایش", "✏️ Edit"), Data: "c:edit:" + id}}
 	if c.LimitIp > 0 {
 		toolsRow = append(toolsRow, b.btn("btnIps", "c:ips:"+id))
 	}

@@ -15,12 +15,12 @@ func TestClientCardButtons(t *testing.T) {
 	n := len(e.got())
 	e.press(fullAdmin, "c:view:"+id)
 	kb := keyboardOf(e.since(n))
-	for _, d := range []string{"c:ask:cvol:", "c:ask:cdays:", "c:dinf:", "c:ips:", "c:edit:", "c:xl:", "c:sub:", "c:del:"} {
+	for _, d := range []string{"c:ask:cvol:", "c:ask:cdays:", "c:dinf:", "c:ips:", "c:edit:", "c:sub:", "c:del:"} {
 		if !hasButtonData(kb, d+id) {
 			t.Errorf("card lacks %s: %v", d, kb)
 		}
 	}
-	for _, d := range []string{"c:gb10:", "c:gb50:", "c:d30:", "c:cfg:", "c:inb:", "c:lnk:", "c:kick:", "c:json:"} {
+	for _, d := range []string{"c:gb10:", "c:gb50:", "c:d30:", "c:cfg:", "c:inb:", "c:lnk:", "c:kick:", "c:json:", "c:xl:"} {
 		if hasButtonData(kb, d+id) {
 			t.Errorf("card still has %s", d)
 		}
