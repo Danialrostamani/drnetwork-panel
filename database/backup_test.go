@@ -49,6 +49,7 @@ func seedEveryTable(t *testing.T) {
 		&model.NodeOutage{NodeId: 1, Start: 100, End: 200, State: "offline", Reason: "timeout", Checked: 190},
 		&model.NodeTraffic{NodeId: 1, DateTime: 3600, Up: 1 << 20, Down: 2 << 20},
 		&model.ClientUsage{ClientId: 1, NodeId: 1, Up: 1 << 20, Down: 2 << 20},
+		&model.SiteStat{User: "alice", DateTime: 3600, Site: "google.com", Up: 1, Down: 2},
 	}
 	for _, row := range rows {
 		if err := db.Create(row).Error; err != nil {

@@ -137,6 +137,17 @@
               {{ $t('main.stats.totalUsage') }}: {{ fmt(totalUp + totalDown) }}
             </v-chip>
           </v-col>
+          <v-col
+            v-if="bucketSpan"
+            cols="auto"
+          >
+            <v-chip
+              size="small"
+              label
+            >
+              {{ $t('stats.perPoint', { span: spanText }) }}
+            </v-chip>
+          </v-col>
         </v-row>
         <v-container
           id="container"
@@ -240,6 +251,8 @@ export default {
       // Sum of the loaded window, shown as chips above the chart (#1219)
       totalUp: 0,
       totalDown: 0,
+      // Seconds one point of the chart covers: each is the traffic of that span.
+      bucketSpan: 0,
       limit: 1,
       rangeStart: 0,
       rangeEnd: 0,
@@ -262,7 +275,9 @@ export default {
         },
         elements: {
           point: { pointStyle: 'circle', radius: 0, hitRadius: 10 },
-          line: { tension: 0.3, borderWidth: 2 },
+          // Straight segments: a smoothed curve overshoots between buckets
+          // and shows traffic that was not there.
+          line: { tension: 0, borderWidth: 2 },
         },
         plugins: {
           tooltip: {
@@ -292,6 +307,11 @@ export default {
     }
   },
   computed: {
+    spanText(): string {
+      const m = Math.round(this.bucketSpan / 60)
+      if (m < 60 || m % 60 != 0) return i18n.global.t('stats.minutes', { n: i18n.global.n(m) })
+      return i18n.global.t('stats.hours', { n: i18n.global.n(m / 60) })
+    },
     options() {
       const onSurface = this.theme.current.colors['on-surface']
       const dark = this.theme.current.dark
@@ -365,6 +385,7 @@ export default {
       const data = await HttpUtils.get<StatsResponse>('api/stats', params)
       if (data.success && data.obj.stats) {
         const {stats, bucketSpan, startTime} = data.obj
+        this.bucketSpan = bucketSpan
         const count = data.obj.numBuckets ?? 360
         const l = String(i18n.global.locale) == 'fa' ? "fa-IR" : "en-US"
         const labels = <string[]>[]
@@ -375,9 +396,11 @@ export default {
         for (let i = 0; i<count; i++) {
           const step = startTime + (i*bucketSpan)
           labels.push(this.genLable(step*1000,l,span))
+          // A bucket with no row moved nothing: it is a zero, not a gap. A gap
+          // also hid a lone bucket between two empty ones (no point is drawn).
           if (!stats[i]) {
-            uplinkData.push(null)
-            downlinkData.push(null)
+            uplinkData.push(0)
+            downlinkData.push(0)
           } else {
             uplinkData.push(stats[i][0])
             downlinkData.push(stats[i][1])

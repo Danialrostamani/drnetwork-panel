@@ -44,6 +44,8 @@ type Session struct {
 	Download  *atomic.Int64
 
 	closer io.Closer
+	// site is the user's per-site counter this session counts into.
+	site *siteCounter
 }
 
 // SessionInfo is the snapshot handed to the API; the live atomics stay inside.
@@ -73,6 +75,8 @@ type SessionTracker struct {
 	outbounds map[string]Counter
 	users     map[string]Counter
 	sessions  map[uint64]*Session
+	// sites counts each user's traffic per site (see GetSiteStats).
+	sites map[siteKey]*siteCounter
 	// quotas holds every user to the volume the panel set with SetQuotas.
 	quotas map[string]*userQuota
 	// onExhausted, set before the core starts, cuts the protocol sessions of a
@@ -167,6 +171,11 @@ func (t *SessionTracker) newSession(metadata adapter.InboundContext, matchedRule
 		counter := t.loadOrCreateCounter(t.users, session.User)
 		readCounter = append(readCounter, countInto(counter.read))
 		writeCounter = append(writeCounter, countInto(counter.write))
+		if site := siteOf(session.Domain, session.Destination.String()); site != "" {
+			session.site = t.siteCounterLocked(siteKey{user: session.User, site: site})
+			readCounter = append(readCounter, countInto(session.site.up))
+			writeCounter = append(writeCounter, countInto(session.site.down))
+		}
 		quota = t.loadOrCreateQuota(session.User)
 		charge := t.chargeFunc(session.User, quota)
 		readCounter = append(readCounter, charge)
@@ -180,6 +189,7 @@ func (t *SessionTracker) leave(session *Session) {
 	t.access.Lock()
 	defer t.access.Unlock()
 	delete(t.sessions, session.ID)
+	t.releaseSiteLocked(session)
 }
 
 func (t *SessionTracker) RoutedConnection(ctx context.Context, conn net.Conn, metadata adapter.InboundContext, matchedRule adapter.Rule, matchOutbound adapter.Outbound) net.Conn {

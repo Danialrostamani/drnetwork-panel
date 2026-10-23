@@ -197,3 +197,14 @@ type ClientUsage struct {
 	Up       int64 `json:"up"`
 	Down     int64 `json:"down"`
 }
+
+// SiteStat is what one client moved to and from one site (a registrable
+// domain, or an IP address for a connection without a name) in one hour.
+type SiteStat struct {
+	Id       uint64 `json:"-" gorm:"primaryKey;autoIncrement"`
+	User     string `json:"user" gorm:"uniqueIndex:idx_site_stats,priority:1;not null"`
+	DateTime int64  `json:"dateTime" gorm:"uniqueIndex:idx_site_stats,priority:2;index:idx_site_stats_date_time;not null"`
+	Site     string `json:"site" gorm:"uniqueIndex:idx_site_stats,priority:3;not null"`
+	Up       int64  `json:"up"`
+	Down     int64  `json:"down"`
+}

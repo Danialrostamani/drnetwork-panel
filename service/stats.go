@@ -49,6 +49,7 @@ func (s *StatsService) SaveStats(enableTraffic bool, bucketSeconds int64) error 
 		return nil
 	}
 	err := s.saveStats(st, enableTraffic, bucketSeconds)
+	collectSiteStats(st, enableTraffic)
 	// Also after a failed commit: the traffic held back for the next cycle is
 	// counted as used.
 	refreshQuotasLocked(st)
@@ -365,12 +366,18 @@ func (s *StatsService) GetStats(resource string, tag string, limit int, start in
 		startTime = endTime - (int64(limit) * 3600)
 	}
 
+	bucketSeconds, _ := (&SettingService{}).GetStatsBucketSeconds()
+	if bucketSeconds < 1 {
+		bucketSeconds = 1
+	}
+	startTime, endTime, bucketSpan, numBuckets := chartWindow(startTime, endTime, bucketSeconds)
+
 	db := database.GetDB()
 	resources := []string{resource}
 	if resource == "endpoint" {
 		resources = []string{"inbound", "outbound"}
 	}
-	err = db.Model(model.Stats{}).Where("resource in ? AND tag = ? AND date_time > ? AND date_time <= ?", resources, tag, startTime, endTime).Order("date_time ASC").Scan(&result).Error
+	err = db.Model(model.Stats{}).Where("resource in ? AND tag = ? AND date_time >= ? AND date_time < ?", resources, tag, startTime, endTime).Order("date_time ASC").Scan(&result).Error
 	if err != nil {
 		return nil, err
 	}
@@ -384,25 +391,43 @@ func (s *StatsService) GetStats(resource string, tag string, limit int, start in
 		result = append(result, nodeRows...)
 	}
 
-	bucketSeconds, _ := (&SettingService{}).GetStatsBucketSeconds()
+	return s.downsampleStats(result, startTime, bucketSpan, numBuckets), nil
+}
+
+// maxChartBuckets is how many points a chart has at most.
+const maxChartBuckets = 360
+
+// chartWindow lays a chart's buckets over the stored ones. The table holds
+// one row per bucketSeconds, dated at the bucket's start, so a chart bucket is
+// a whole number of stored buckets and starts where one starts. Otherwise one
+// chart bucket gets a stored row more than the next, and a steady flow is
+// drawn as a saw; and the rows past the last whole bucket piled up in it.
+func chartWindow(start, end, bucketSeconds int64) (alignedStart, alignedEnd, span int64, buckets int) {
 	if bucketSeconds < 1 {
 		bucketSeconds = 1
 	}
-	numBuckets := 360
-	if maxBuckets := (endTime - startTime) / bucketSeconds; maxBuckets < int64(numBuckets) {
-		numBuckets = int(maxBuckets)
+	alignedStart = start - start%bucketSeconds
+	if end <= alignedStart {
+		end = alignedStart + bucketSeconds
 	}
-	if numBuckets < 1 {
-		numBuckets = 1
+	window := end - alignedStart
+	stored := (window + bucketSeconds - 1) / bucketSeconds
+	per := (stored + maxChartBuckets - 1) / maxChartBuckets
+	if per < 1 {
+		per = 1
 	}
-
-	return s.downsampleStats(result, startTime, endTime, numBuckets), nil
+	span = per * bucketSeconds
+	buckets = int((window + span - 1) / span)
+	if buckets < 1 {
+		buckets = 1
+	}
+	alignedEnd = alignedStart + int64(buckets)*span
+	return alignedStart, alignedEnd, span, buckets
 }
 
-func (s *StatsService) downsampleStats(stats []model.Stats, startTime, endTime int64, numBuckets int) any {
+func (s *StatsService) downsampleStats(stats []model.Stats, startTime, bucketSpan int64, numBuckets int) any {
 	result := make(map[int64][]int64)
-	bucketSpan := (endTime - startTime) / int64(numBuckets)
-	if bucketSpan == 0 {
+	if bucketSpan < 1 {
 		bucketSpan = 1
 	}
 
@@ -573,6 +598,9 @@ func (s *StatsService) DelOldStats(days int) error {
 	oldTime := time.Now().AddDate(0, 0, -(days)).Unix()
 	db := database.GetDB()
 	_ = DelStaleClientUsage()
+	if err := delOldSiteStats(db, oldTime); err != nil {
+		return err
+	}
 	for {
 		res := db.Where("id IN (?)",
 			db.Model(model.Stats{}).Select("id").Where("date_time < ?", oldTime).Limit(delOldStatsChunk),

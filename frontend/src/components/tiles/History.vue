@@ -125,6 +125,8 @@ export default {
       // Empty until the first reading arrives; the checks below skip that one,
       // since a delta needs two.
       oldValues: { net: <NetUsage>{}, dio: <DiskIo>{} },
+      // When the previous reading arrived, for the speed between two.
+      lastAt: 0,
       options1: <LineChartOptions>{
         animation: false,
         responsive: true,
@@ -247,32 +249,46 @@ export default {
           break
         case 'h-net':
           if (this.oldValues.net.sent) {
-            const downSpeed = (v.net.recv-this.oldValues.net.recv)/2  // Each 2 sec
-            const upSpeed = (v.net.sent-this.oldValues.net.sent)/2  // Each 2 sec
+            const secs = this.elapsed()
+            const downSpeed = (v.net.recv-this.oldValues.net.recv)/secs
+            const upSpeed = (v.net.sent-this.oldValues.net.sent)/secs
             this.updateData2(upSpeed,downSpeed)
           }
           this.oldValues.net = v.net
+          this.lastAt = Date.now()
           break
         case 'hp-net':
           if (this.oldValues.net.psent) {
-            const downSpeed = (v.net.precv-this.oldValues.net.precv)/2  // Each 2 sec
-            const upSpeed = (v.net.psent-this.oldValues.net.psent)/2  // Each 2 sec
+            const secs = this.elapsed()
+            const downSpeed = (v.net.precv-this.oldValues.net.precv)/secs
+            const upSpeed = (v.net.psent-this.oldValues.net.psent)/secs
             this.updateData2(upSpeed,downSpeed)
           }
           this.oldValues.net = v.net
+          this.lastAt = Date.now()
           break
         case 'h-dio':
           if (this.oldValues.dio.read) {
-            const downSpeed = (v.dio.read-this.oldValues.dio.read)/2  // Each 2 sec
-            const upSpeed = (v.dio.write-this.oldValues.dio.write)/2  // Each 2 sec
+            const secs = this.elapsed()
+            const downSpeed = (v.dio.read-this.oldValues.dio.read)/secs
+            const upSpeed = (v.dio.write-this.oldValues.dio.write)/secs
             this.updateData2(upSpeed,downSpeed)
           }
           this.oldValues.dio = v.dio
+          this.lastAt = Date.now()
           break
       }
     }
   },
   methods: {
+    // Seconds since the previous sample. The dashboard asks every 2 s, but a
+    // slow answer or a background tab (browsers slow its timers to once a
+    // minute) stretches that, and dividing by 2 then showed many times the
+    // real speed.
+    elapsed(): number {
+      const secs = this.lastAt ? (Date.now() - this.lastAt) / 1000 : 2
+      return secs > 0.5 ? secs : 2
+    },
     updateData1(value1: number) {
       const newData = <number[]>[]
       if (this.data.datasets){

@@ -196,13 +196,15 @@ func TestUserChartAddsTheTrafficCountedOnTheNodes(t *testing.T) {
 		t.Fatalf("node calls: nl=%d de=%d, want 1 each", w.nl.calls(), w.de.calls())
 	}
 	q := w.nl.last()
-	if q["resource"] != "user" || q["tag"] != "alice" || q["limit"] != "1" || q["start"] == "" || q["end"] == "" {
+	if q["resource"] != "user" || q["tag"] != "alice" || q["limit"] == "" || q["start"] == "" || q["end"] == "" {
 		t.Fatalf("query sent to the node = %v", q)
 	}
+	// The node is asked for the chart's own window: the hour, laid over whole
+	// stored buckets.
 	start, _ := strconv.ParseInt(q["start"], 10, 64)
 	end, _ := strconv.ParseInt(q["end"], 10, 64)
-	if start != chart.StartTime || end-start != 3600 {
-		t.Fatalf("window sent %d..%d, chart starts at %d", start, end, chart.StartTime)
+	if start != chart.StartTime || end != chart.StartTime+int64(chart.NumBuckets)*chart.BucketSpan || end-start < 3600 || end-start > 3600+60 {
+		t.Fatalf("window sent %d..%d, chart %d + %d×%d", start, end, chart.StartTime, chart.NumBuckets, chart.BucketSpan)
 	}
 
 	// Samples keep their place in time: the first sixth of the hour stays near
@@ -253,11 +255,13 @@ func TestUserChartForwardsACustomRangeToTheNodes(t *testing.T) {
 
 	chart := chartOf(t, &StatsService{}, "alice", 0, from, to)
 	q := w.nl.last()
-	if q["start"] != strconv.FormatInt(from, 10) || q["end"] != strconv.FormatInt(to, 10) {
-		t.Fatalf("range sent to the node = %v, want %d..%d", q, from, to)
+	// The range starts on a stored bucket and covers whole chart buckets.
+	aligned := from - from%60
+	if q["start"] != strconv.FormatInt(aligned, 10) || q["end"] != strconv.FormatInt(aligned+int64(chart.NumBuckets)*chart.BucketSpan, 10) {
+		t.Fatalf("range sent to the node = %v, want from %d", q, aligned)
 	}
-	if chart.StartTime != from {
-		t.Fatalf("chart starts at %d, want %d", chart.StartTime, from)
+	if chart.StartTime != aligned || chart.BucketSpan%60 != 0 || aligned+int64(chart.NumBuckets)*chart.BucketSpan < to {
+		t.Fatalf("chart %d + %d×%d, want from %d to past %d", chart.StartTime, chart.NumBuckets, chart.BucketSpan, aligned, to)
 	}
 	if up, down := chart.totals(); up != 5 || down != 6 {
 		t.Fatalf("totals = %d/%d", up, down)

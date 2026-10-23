@@ -47,13 +47,14 @@ func schema() []table {
 		{"node_outages", &model.NodeOutage{}, copyRows[model.NodeOutage]},
 		{"node_traffic", &model.NodeTraffic{}, copyRows[model.NodeTraffic]},
 		{"client_usages", &model.ClientUsage{}, copyRows[model.ClientUsage]},
+		{"site_stats", &model.SiteStat{}, copyRows[model.SiteStat]},
 	}
 }
 
 // excludedWith names the tables a backup leaves out along with another: the
 // per-minute node history is traffic history just like stats.
 var excludedWith = map[string][]string{
-	"stats": {"node_metrics"},
+	"stats": {"node_metrics", "site_stats"},
 }
 
 // schemaModels returns the models in schema order, for AutoMigrate.

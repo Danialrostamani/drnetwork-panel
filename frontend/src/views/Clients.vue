@@ -35,6 +35,12 @@
     :tag="stats.tag"
     @close="closeStats"
   />
+  <SiteStats
+    v-model="siteStats.visible"
+    :visible="siteStats.visible"
+    :user="siteStats.user"
+    @close="siteStats.visible = false"
+  />
   <Sessions
     v-model="sessions.visible"
     :visible="sessions.visible"
@@ -476,6 +482,18 @@
               :text="$t('stats.graphTitle')"
             />
           </v-icon>
+          <v-icon
+            v-if="Data().enableTraffic"
+            class="ms-2"
+            icon="mdi-web"
+            @click="showSiteStats(item.name)"
+          >
+            <v-tooltip
+              activator="parent"
+              location="top"
+              :text="$t('stats.sitesTitle')"
+            />
+          </v-icon>
         </template>
       </v-data-table>
     </v-col>
@@ -488,6 +506,7 @@ import ClientAddBulk from '@/layouts/modals/ClientAddBulk.vue'
 import ClientEditBulk from '@/layouts/modals/ClientEditBulk.vue'
 import QrCode from '@/layouts/modals/QrCode.vue'
 import Stats from '@/layouts/modals/Stats.vue'
+import SiteStats from '@/layouts/modals/SiteStats.vue'
 import Sessions from '@/layouts/modals/Sessions.vue'
 import ClientIps from '@/layouts/modals/ClientIps.vue'
 import { Client } from '@/types/clients'
@@ -665,6 +684,12 @@ const showStats = (tag: string) => {
 }
 const closeStats = () => {
   stats.value.visible = false
+}
+
+const siteStats = ref({ visible: false, user: "" })
+const showSiteStats = (user: string) => {
+  siteStats.value.user = user
+  siteStats.value.visible = true
 }
 
 const sessions = ref({

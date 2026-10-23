@@ -249,6 +249,22 @@ func (a *ApiService) GetStats(c *gin.Context) {
 	jsonObj(c, data, err)
 }
 
+// GetSiteStats answers a client's traffic per site in a window: the panel's
+// report (master and nodes added up), or with local=1 -- the master asking a
+// node -- only what this server counted.
+func (a *ApiService) GetSiteStats(c *gin.Context) {
+	user := c.Query("user")
+	start, _ := strconv.ParseInt(c.Query("start"), 10, 64)
+	end, _ := strconv.ParseInt(c.Query("end"), 10, 64)
+	if c.Query("local") == "1" {
+		data, err := service.LocalSiteReport(user, start, end)
+		jsonObj(c, data, err)
+		return
+	}
+	data, err := a.StatsService.GetSiteUsage(user, start, end)
+	jsonObj(c, data, err)
+}
+
 // GetStatsSummary answers what the master asks every node for its Telegram
 // bot's Stats screen: what the stats table counted since a moment, per user and
 // inbound, and per bucket seconds for the inbounds.
