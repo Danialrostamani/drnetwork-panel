@@ -179,6 +179,31 @@ func (b *bot) addDays(id uint, days int) error {
 	})
 }
 
+// setUnlimitedTime removes the expiry; a pending delay start goes with it,
+// since there is no period left to start.
+func (b *bot) setUnlimitedTime(id uint) error {
+	return b.editClient(id, func(c *model.Client) error {
+		c.Expiry = 0
+		c.DelayStart = false
+		return nil
+	})
+}
+
+// volTimeErr turns the guards of addVolume / addDays / setExpiryDays into
+// advice the administrator can act on.
+func (b *bot) volTimeErr(err error) error {
+	if err == nil {
+		return nil
+	}
+	switch err.Error() {
+	case "unlimited":
+		return errors.New(b.tr("مقدار فعلی نامحدود است؛ عدد را بدون + بفرستید.", "It is unlimited now; send the number without +."))
+	case "delay start":
+		return errors.New(b.tr("«شروع با اولین مصرف» روشن است؛ زمان از اولین اتصال شمرده می‌شود. اول آن را از ویرایش خاموش کنید.", "Delay start is on, so the time counts from the first use. Turn it off in Edit first."))
+	}
+	return err
+}
+
 func (b *bot) setLimitIP(id uint, n int) error {
 	return b.editClient(id, func(c *model.Client) error { c.LimitIp = n; return nil })
 }

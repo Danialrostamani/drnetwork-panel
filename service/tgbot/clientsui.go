@@ -205,14 +205,24 @@ func (b *bot) clientKeyboard(c model.Client) [][]button {
 	if c.UseSubToken {
 		tokenRow = []button{{Text: b.tr("🔑 لینک با توکن: روشن", "🔑 Token link: on"), Data: "c:tok:" + id}, {Text: b.tr("♻️ لینک جدید", "♻️ New link"), Data: "c:nsub:" + id}}
 	}
+	// Volume and time are typed in (a total, or +N to add); the time row
+	// also offers "unlimited" in one tap while the client has an expiry.
+	timeRow := []button{{Text: b.tr("📦 حجم دلخواه", "📦 Custom volume"), Data: "c:ask:cvol:" + id}, {Text: b.tr("⏳ زمان دلخواه", "⏳ Custom time"), Data: "c:ask:cdays:" + id}}
+	if c.Expiry != 0 || c.DelayStart {
+		timeRow = append(timeRow, button{Text: b.tr("♾ زمان نامحدود", "♾ Unlimited time"), Data: "c:dinf:" + id})
+	}
+	// The IP list only matters for a client with an IP limit.
+	toolsRow := []button{{Text: b.tr("✏️ ویرایش", "✏️ Edit"), Data: "c:edit:" + id}, {Text: b.tr("🔗 لینک خارجی", "🔗 Ext. links"), Data: "c:xl:" + id}}
+	if c.LimitIp > 0 {
+		toolsRow = append(toolsRow, b.btn("btnIps", "c:ips:"+id))
+	}
 	return [][]button{
 		{toggle, b.btn("btnReset", "c:rst:"+id)},
-		{b.btn("btnAddVol", "c:gb10:"+id, 10), b.btn("btnAddVol", "c:gb50:"+id, 50), b.btn("btnAddDays", "c:d30:"+id, 30)},
-		{{Text: b.tr("✏️ ویرایش", "✏️ Edit"), Data: "c:edit:" + id}, {Text: b.tr("🔑 پیکربندی", "🔑 Config"), Data: "c:cfg:" + id}, {Text: b.tr("🔗 لینک خارجی", "🔗 Ext. links"), Data: "c:xl:" + id}},
-		{{Text: b.tr("📡 اینباندها", "📡 Inbounds"), Data: "c:inb:" + id}, b.btn("btnSub", "c:sub:"+id)},
+		timeRow,
+		toolsRow,
+		{b.btn("btnSub", "c:sub:"+id)},
 		tokenRow,
-		{{Text: b.tr("📋 لینک‌ها", "📋 Links"), Data: "c:lnk:" + id}, b.btn("btnIps", "c:ips:"+id), {Text: b.tr("⏏️ قطع", "⏏️ Kick"), Data: "c:kick:" + id}},
-		{{Text: b.tr("🔔 تلگرام", "🔔 Telegram"), Data: "c:ask:tg:" + id}, {Text: "{ } JSON", Data: "c:json:" + id}, b.btn("btnDelete", "c:del:"+id)},
+		{{Text: b.tr("🔔 تلگرام", "🔔 Telegram"), Data: "c:ask:tg:" + id}, b.btn("btnDelete", "c:del:"+id)},
 		{b.btn("btnRefresh", "c:view:"+id), {Text: b.tr("⬅️ کلاینت‌ها", "⬅️ Clients"), Data: "c:ls:a:0"}, {Text: b.tr("🏠", "🏠"), Data: "m:menu"}},
 	}
 }
@@ -390,19 +400,21 @@ func (b *bot) clientsScreen(filter string, page int) (string, [][]button) {
 // ---- prompts ----
 
 var clientAsks = map[string]struct{ fa, en string }{
-	"vol":  {"حجم کل را به گیگابایت بفرستید (۰ = نامحدود).", "Send the total volume in GB (0 = unlimited)."},
-	"days": {"تعداد روز از همین الان تا انقضا را بفرستید (۰ = نامحدود).", "Send the number of days from now until expiry (0 = unlimited)."},
-	"ip":   {"محدودیت تعداد IP همزمان را بفرستید (۰ = نامحدود).", "Send the concurrent IP limit (0 = unlimited)."},
-	"desc": {"توضیح را بفرستید (- برای پاک کردن).", "Send the note (- to clear)."},
-	"grp":  {"گروه را از دکمه‌ها انتخاب کنید یا نام گروه جدید را بفرستید تا ساخته شود.", "Pick a group below or send a new group name to create it."},
-	"name": {"نام جدید را بفرستید. توجه: لینک اشتراک کلاینت با نام عوض می‌شود.", "Send the new name. Note: the client's subscription link changes with its name."},
-	"rem":  {"یادداشت (Remark) را بفرستید (- برای پاک کردن).", "Send the remark (- to clear)."},
-	"exp":  {"تاریخ انقضا را به شکل YYYY-MM-DD یا YYYY-MM-DD HH:MM بفرستید (۰ = نامحدود).", "Send the expiry date as YYYY-MM-DD or YYYY-MM-DD HH:MM (0 = unlimited)."},
-	"rd":   {"تعداد روزهای ریست / شروع با اولین مصرف را بفرستید (حداقل ۱).", "Send the reset / delay-start days (at least 1)."},
-	"cfgj": {"JSON پیکربندی پروتکل‌ها را بفرستید (متن یا فایل .json)، مثل {\"vless\":{\"name\":\"x\",\"uuid\":\"…\"}}.", "Send the protocol credentials JSON (text or .json file), e.g. {\"vless\":{\"name\":\"x\",\"uuid\":\"…\"}}."},
-	"xl":   {"لینک خارجی را بفرستید: <protocol>://<data>", "Send the external link: <protocol>://<data>"},
-	"sl":   {"لینک اشتراک را بفرستید: http[s]://دامنه[:پورت]/مسیر", "Send the subscription link: http[s]://domain[:port]/path"},
-	"tg":   {"شناسه عددی تلگرام کاربر را بفرستید (۰ = قطع اتصال).", "Send the user's numeric Telegram ID (0 = unbind)."},
+	"vol":   {"حجم کل را به گیگابایت بفرستید (۰ = نامحدود).", "Send the total volume in GB (0 = unlimited)."},
+	"days":  {"تعداد روز از همین الان تا انقضا را بفرستید (۰ = نامحدود).", "Send the number of days from now until expiry (0 = unlimited)."},
+	"cvol":  {"حجم را به گیگابایت بفرستید:\n• عدد ساده = حجم کل، مثلاً 20\n• با + به حجم فعلی اضافه می‌شود، مثلاً +10\n• ۰ = نامحدود", "Send the volume in GB:\n• a plain number sets the total, e.g. 20\n• a leading + adds to the current volume, e.g. +10\n• 0 = unlimited"},
+	"cdays": {"زمان را به روز بفرستید:\n• عدد ساده = از همین الان، مثلاً 30\n• با + به انقضای فعلی اضافه می‌شود، مثلاً +30\n• ۰ = نامحدود", "Send the time in days:\n• a plain number counts from now, e.g. 30\n• a leading + extends the current expiry, e.g. +30\n• 0 = unlimited"},
+	"ip":    {"محدودیت تعداد IP همزمان را بفرستید (۰ = نامحدود).", "Send the concurrent IP limit (0 = unlimited)."},
+	"desc":  {"توضیح را بفرستید (- برای پاک کردن).", "Send the note (- to clear)."},
+	"grp":   {"گروه را از دکمه‌ها انتخاب کنید یا نام گروه جدید را بفرستید تا ساخته شود.", "Pick a group below or send a new group name to create it."},
+	"name":  {"نام جدید را بفرستید. توجه: لینک اشتراک کلاینت با نام عوض می‌شود.", "Send the new name. Note: the client's subscription link changes with its name."},
+	"rem":   {"یادداشت (Remark) را بفرستید (- برای پاک کردن).", "Send the remark (- to clear)."},
+	"exp":   {"تاریخ انقضا را به شکل YYYY-MM-DD یا YYYY-MM-DD HH:MM بفرستید (۰ = نامحدود).", "Send the expiry date as YYYY-MM-DD or YYYY-MM-DD HH:MM (0 = unlimited)."},
+	"rd":    {"تعداد روزهای ریست / شروع با اولین مصرف را بفرستید (حداقل ۱).", "Send the reset / delay-start days (at least 1)."},
+	"cfgj":  {"JSON پیکربندی پروتکل‌ها را بفرستید (متن یا فایل .json)، مثل {\"vless\":{\"name\":\"x\",\"uuid\":\"…\"}}.", "Send the protocol credentials JSON (text or .json file), e.g. {\"vless\":{\"name\":\"x\",\"uuid\":\"…\"}}."},
+	"xl":    {"لینک خارجی را بفرستید: <protocol>://<data>", "Send the external link: <protocol>://<data>"},
+	"sl":    {"لینک اشتراک را بفرستید: http[s]://دامنه[:پورت]/مسیر", "Send the subscription link: http[s]://domain[:port]/path"},
+	"tg":    {"شناسه عددی تلگرام کاربر را بفرستید (۰ = قطع اتصال).", "Send the user's numeric Telegram ID (0 = unbind)."},
 }
 
 func (b *bot) ask(ctx context.Context, chatID, msgID int64, kind, key string, id uint, back string, prompt string) {
@@ -449,6 +461,38 @@ func (b *bot) applyClientAnswer(field string, id uint, text string) error {
 			return fmt.Errorf("%s", b.t("badNumber"))
 		}
 		return b.setExpiryDays(id, d)
+	case "cvol":
+		if rest, add := strings.CutPrefix(text, "+"); add {
+			gb, ok := parseFloatArg(rest)
+			if !ok || gb <= 0 {
+				return fmt.Errorf("%s", b.t("badNumber"))
+			}
+			if err := b.addVolume(id, int64(gb*float64(gib))); err != nil {
+				return b.volTimeErr(err)
+			}
+			return nil
+		}
+		gb, ok := parseFloatArg(text)
+		if !ok {
+			return fmt.Errorf("%s", b.t("badNumber"))
+		}
+		return b.setVolume(id, int64(gb*float64(gib)))
+	case "cdays":
+		rest, add := strings.CutPrefix(text, "+")
+		d, ok := parseIntArg(rest)
+		if !ok || (add && d <= 0) {
+			return fmt.Errorf("%s", b.t("badNumber"))
+		}
+		var err error
+		switch {
+		case add:
+			err = b.addDays(id, d)
+		case d == 0:
+			err = b.setUnlimitedTime(id)
+		default:
+			err = b.setExpiryDays(id, d)
+		}
+		return b.volTimeErr(err)
 	case "ip":
 		n, ok := parseIntArg(text)
 		if !ok {
@@ -797,6 +841,8 @@ func (b *bot) clientCallback(ctx context.Context, cbID string, chatID, msgID int
 		mutate(b.addVolume(id, 50*gib), func() { showCard("") })
 	case "d30":
 		mutate(b.addDays(id, 30), func() { showCard("") })
+	case "dinf":
+		mutate(b.setUnlimitedTime(id), func() { showCard("") })
 	case "sub":
 		b.answer(ctx, cbID, "")
 		b.sendSub(ctx, chatID, *client)
