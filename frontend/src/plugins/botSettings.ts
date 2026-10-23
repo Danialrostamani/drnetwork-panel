@@ -84,7 +84,7 @@ const flag = (key: string, def = false) => computed({
 
 export type ShopPlan = { id: string, name: string, days: number, gb: number, price: string }
 export type ShopRef = { id: string, word: string, group: string, admin: string }
-export type ShopDesk = { payCard: string, payWallet: string, payHint: string, plans: ShopPlan[] }
+export type ShopDesk = { payCard: string, payWallet: string, payHint: string, plans: ShopPlan[], support: string, channel: string }
 export type Shop = {
   welcomeFa: string
   guideFa: string
@@ -98,7 +98,7 @@ export type Shop = {
   desks: Record<string, ShopDesk>
 }
 
-export const emptyDesk = (): ShopDesk => ({ payCard: '', payWallet: '', payHint: '', plans: [] })
+export const emptyDesk = (): ShopDesk => ({ payCard: '', payWallet: '', payHint: '', plans: [], support: '', channel: '' })
 const emptyShop = (): Shop => ({
   welcomeFa: '', guideFa: '', payCard: '', payWallet: '', payHint: '',
   trialGB: 0, trialHours: 0, plans: [], refs: [], desks: {},
@@ -115,17 +115,20 @@ const parsePlans = (plans: unknown): ShopPlan[] => {
   }))
 }
 
-const parseDesk = (o: { payCard?: string, payWallet?: string, payHint?: string, plans?: unknown } | undefined): ShopDesk => ({
+type RawDesk = { payCard?: string, payWallet?: string, payHint?: string, plans?: unknown, support?: string, channel?: string }
+const parseDesk = (o: RawDesk | undefined): ShopDesk => ({
   payCard: String(o?.payCard || ''),
   payWallet: String(o?.payWallet || ''),
   payHint: String(o?.payHint || ''),
   plans: parsePlans(o?.plans),
+  support: String(o?.support || ''),
+  channel: String(o?.channel || ''),
 })
 
 export const parseShop = (raw: string): Shop => {
   try {
     const o = JSON.parse(raw || '{}')
-    const desksIn = o.desks && typeof o.desks === 'object' ? o.desks as Record<string, { payCard?: string, payWallet?: string, payHint?: string, plans?: unknown }> : {}
+    const desksIn = o.desks && typeof o.desks === 'object' ? o.desks as Record<string, RawDesk> : {}
     const desks: Record<string, ShopDesk> = {}
     for (const [id, d] of Object.entries(desksIn)) {
       if (/^\d+$/.test(id)) desks[id] = parseDesk(d)
@@ -161,6 +164,18 @@ export const shopJSON = (raw: string, s: Shop): string => {
     const admin = Number(r.admin)
     return admin > 0 ? { id: r.id, word: r.word, group: r.group, admin } : { id: r.id, word: r.word, group: r.group }
   })
+  // A desk keeps what this page does not edit (the bot's trial settings).
+  const curDesks = cur.desks && typeof cur.desks === 'object' ? cur.desks as Record<string, Record<string, unknown>> : {}
+  const desks: Record<string, Record<string, unknown>> = {}
+  for (const [id, d] of Object.entries(s.desks)) {
+    const { support, channel, ...rest } = d
+    const merged: Record<string, unknown> = { ...(curDesks[id] || {}), ...rest }
+    delete merged.support
+    delete merged.channel
+    if (support.trim()) merged.support = support.trim()
+    if (channel.trim()) merged.channel = channel.trim()
+    desks[id] = merged
+  }
   return JSON.stringify({
     ...cur,
     welcomeFa: s.welcomeFa, guideFa: s.guideFa,
@@ -168,7 +183,7 @@ export const shopJSON = (raw: string, s: Shop): string => {
     trialGB: s.trialGB, trialHours: s.trialHours,
     plans: s.plans,
     refs,
-    desks: s.desks,
+    desks,
   })
 }
 

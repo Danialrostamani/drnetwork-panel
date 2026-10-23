@@ -294,6 +294,89 @@
               />
             </v-col>
           </v-row>
+          <v-row v-if="subPage">
+            <v-col cols="12">
+              <v-expansion-panels variant="accordion">
+                <v-expansion-panel>
+                  <v-expansion-panel-title>
+                    <v-icon
+                      icon="mdi-card-account-details-outline"
+                      class="me-2"
+                    />
+                    {{ $t('setting.subPageLook') }}
+                  </v-expansion-panel-title>
+                  <v-expansion-panel-text>
+                    <div class="text-caption text-medium-emphasis mb-3">
+                      {{ $t('setting.subPageLookHint') }}
+                    </div>
+                    <v-row>
+                      <v-col
+                        v-for="k in subPageTextFields"
+                        :key="k"
+                        cols="12"
+                        sm="6"
+                        md="4"
+                      >
+                        <v-text-field
+                          :model-value="subPageConf[k]"
+                          :label="$t('setting.subPage_' + k)"
+                          :placeholder="subPagePlaceholder[k]"
+                          :dir="k === 'name' ? undefined : 'ltr'"
+                          density="compact"
+                          hide-details
+                          @update:model-value="(v: string) => setSubPage(k, v)"
+                        >
+                          <template
+                            v-if="k === 'accent' && /^#[0-9a-fA-F]{3,6}$/.test(subPageConf.accent)"
+                            #append-inner
+                          >
+                            <span :style="{ background: subPageConf.accent, width: '18px', height: '18px', borderRadius: '50%', display: 'inline-block' }" />
+                          </template>
+                        </v-text-field>
+                      </v-col>
+                    </v-row>
+                    <v-row>
+                      <v-col
+                        v-for="k in (['notice', 'noticeEn'] as const)"
+                        :key="k"
+                        cols="12"
+                        md="6"
+                      >
+                        <v-textarea
+                          :model-value="subPageConf[k]"
+                          :label="$t('setting.subPage_' + k)"
+                          :dir="k === 'noticeEn' ? 'ltr' : undefined"
+                          rows="2"
+                          auto-grow
+                          density="compact"
+                          hide-details
+                          @update:model-value="(v: string) => setSubPage(k, v)"
+                        />
+                      </v-col>
+                    </v-row>
+                    <v-row dense>
+                      <v-col
+                        v-for="k in subPageFlagKeys"
+                        :key="k"
+                        cols="12"
+                        sm="6"
+                        md="4"
+                      >
+                        <v-switch
+                          :model-value="subPageConf[k]"
+                          :label="$t('setting.subPage_' + k)"
+                          color="primary"
+                          density="compact"
+                          hide-details
+                          @update:model-value="(v: boolean | null) => setSubPage(k, !!v)"
+                        />
+                      </v-col>
+                    </v-row>
+                  </v-expansion-panel-text>
+                </v-expansion-panel>
+              </v-expansion-panels>
+            </v-col>
+          </v-row>
           <v-row>
             <v-col cols="12">
               <v-switch
@@ -518,6 +601,7 @@ import { i18n } from '@/locales'
 import { Ref, computed, inject, onMounted, ref } from 'vue'
 import HttpUtils from '@/plugins/httputil'
 import { FindDiff } from '@/plugins/utils'
+import { parseSubPageConf, subPageConfJSON, subPageFlagKeys, type SubPageConf } from '@/plugins/subPageConf'
 import SubJsonExtVue from '@/components/SubJsonExt.vue'
 import SubClashExtVue from '@/components/SubClashExt.vue'
 import PanelUpdateVue from '@/components/PanelUpdate.vue'
@@ -554,6 +638,7 @@ const settings = ref({
 	subEncode: "true",
 	subShowInfo: "false",
 	subPage: "true",
+	subPageConf: "{}",
 	subLoadOrder: "false",
 	subNodeRoute: "{}",
 	webDecoyDir: "",
@@ -787,6 +872,17 @@ const subPage = computed({
   get: () => { return settings.value.subPage != "false" },
   set: (v:boolean) => { settings.value.subPage = v ? "true" : "false" }
 })
+
+// The page's look: subPageConf, edited a field at a time.
+const subPageConf = computed((): SubPageConf => parseSubPageConf(settings.value.subPageConf))
+const subPageTextFields = ['name', 'nameEn', 'logo', 'accent', 'support', 'channel'] as const
+const subPagePlaceholder: Record<string, string> = {
+  name: 'وضعیت اشتراک', nameEn: 'Subscription status', logo: 'https://example.com/logo.png',
+  accent: '#0C96B2', support: 'https://t.me/support', channel: 'https://t.me/channel',
+}
+const setSubPage = <K extends keyof SubPageConf>(k: K, v: SubPageConf[K]) => {
+  settings.value.subPageConf = subPageConfJSON({ ...subPageConf.value, [k]: v })
+}
 
 const subShowInfo = computed({
   get: () => { return settings.value.subShowInfo == "true" },

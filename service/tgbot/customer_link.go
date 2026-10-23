@@ -37,6 +37,12 @@ func (b *bot) customerBindLink(ctx context.Context, chatID int64, from *fromUser
 			b.customerMenu(from.ID))
 		return
 	}
+	b.bindClientRequest(ctx, chatID, from, c)
+}
+
+// bindClientRequest asks the admins to connect a client to the customer's
+// chat, unless it is connected already.
+func (b *bot) bindClientRequest(ctx context.Context, chatID int64, from *fromUser, c model.Client) {
 	if c.TgId == from.ID {
 		b.sendMenu(ctx, chatID, b.tr(
 			"✅ این لینک از قبل به همین حساب وصل است.",

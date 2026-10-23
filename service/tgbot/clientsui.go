@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/Danialrostamani/drnetwork-panel/database"
 	"github.com/Danialrostamani/drnetwork-panel/database/model"
@@ -96,39 +95,12 @@ const maxLocationLines = 25
 // share a line. The numbers come from the master's and the nodes' own
 // traffic history (see StatsService.ClientLocationUsage).
 func (b *bot) locationLines(c model.Client) []string {
-	ids := clientInboundIDs(c)
-	if len(ids) == 0 {
+	locs := (&service.StatsService{}).ClientLocations(c)
+	if len(locs) == 0 {
 		return nil
 	}
-	var inbounds []model.Inbound
-	_ = database.GetDB().Select("id", "tag", "node_id").Where("id IN ?", ids).Find(&inbounds).Error
-	byID := make(map[uint]model.Inbound, len(inbounds))
-	for _, in := range inbounds {
-		byID[in.Id] = in
-	}
-	var order []uint
-	tags := map[uint][]string{}
-	for _, id := range ids {
-		in, ok := byID[id]
-		if !ok {
-			continue
-		}
-		node := uint(0)
-		if in.NodeId != nil {
-			node = *in.NodeId
-		}
-		if _, seen := tags[node]; !seen {
-			order = append(order, node)
-		}
-		tags[node] = append(tags[node], esc(in.Tag))
-	}
-	if len(order) == 0 {
-		return nil
-	}
-	usage := (&service.StatsService{}).ClientLocationUsage(c)
 	lines := []string{"📍 <b>" + b.tr("لوکیشن‌ها", "Locations") + "</b>"}
-	for i, node := range order {
-		u := usage[node]
+	for i, l := range locs {
 		if i == maxLocationLines {
 			lines = append(lines, "  …")
 			continue
@@ -136,21 +108,9 @@ func (b *bot) locationLines(c model.Client) []string {
 		if i > maxLocationLines {
 			continue
 		}
-		lines = append(lines, "  • "+locationName(tags[node])+" — "+humanBytes(u.Up+u.Down))
+		lines = append(lines, "  • "+esc(l.Name)+" — "+humanBytes(l.Up+l.Down))
 	}
 	return lines
-}
-
-// locationName names a server by the shortest of its inbound tags: the
-// variants ("FR-2", "France 2 . V6") carry the base name plus a suffix.
-func locationName(tags []string) string {
-	name := tags[0]
-	for _, t := range tags[1:] {
-		if utf8.RuneCountInString(t) < utf8.RuneCountInString(name) {
-			name = t
-		}
-	}
-	return name
 }
 
 func (b *bot) clientDetail(c model.Client, online bool, now time.Time) string {

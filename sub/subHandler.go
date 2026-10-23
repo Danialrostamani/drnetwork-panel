@@ -32,6 +32,10 @@ func (s *SubHandler) subs(c *gin.Context) {
 	var headers []string
 	var result *string
 	var err error
+	if isAsset(c.Param("subid")) {
+		s.serveAsset(c, c.Param("subid"), false)
+		return
+	}
 	subId, ok := s.resolveSub(c, c.Param("subid"))
 	if !ok {
 		c.String(400, "Error!")
@@ -44,6 +48,10 @@ func (s *SubHandler) subs(c *gin.Context) {
 		return
 	}
 	format, isFormat := c.GetQuery("format")
+	if format == "status" {
+		s.status(c, subId)
+		return
+	}
 	if isFormat {
 		switch format {
 		case "json":
@@ -82,6 +90,10 @@ func (s *SubHandler) hostServes(c *gin.Context, subId string) bool {
 }
 
 func (s *SubHandler) subHeaders(c *gin.Context) {
+	if isAsset(c.Param("subid")) {
+		s.serveAsset(c, c.Param("subid"), true)
+		return
+	}
 	subId, ok := s.resolveSub(c, c.Param("subid"))
 	if !ok {
 		c.String(400, "Error!")

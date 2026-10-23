@@ -543,6 +543,26 @@
                       style="min-width: 10rem"
                       @update:model-value="(v: string) => patchShopDesk(a.id, { payHint: v })"
                     />
+                    <v-text-field
+                      :model-value="deskOf(a.id).support"
+                      density="compact"
+                      hide-details
+                      dir="ltr"
+                      :label="$t('botAdmins.deskSupport')"
+                      placeholder="https://t.me/..."
+                      style="min-width: 10rem"
+                      @update:model-value="(v: string) => patchShopDesk(a.id, { support: v })"
+                    />
+                    <v-text-field
+                      :model-value="deskOf(a.id).channel"
+                      density="compact"
+                      hide-details
+                      dir="ltr"
+                      :label="$t('botAdmins.deskChannel')"
+                      placeholder="https://t.me/..."
+                      style="min-width: 10rem"
+                      @update:model-value="(v: string) => patchShopDesk(a.id, { channel: v })"
+                    />
                   </div>
                   <div
                     v-for="(p, i) in deskOf(a.id).plans"

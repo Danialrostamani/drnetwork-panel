@@ -29,6 +29,9 @@
     («آفلاین — دادهٔ ذخیره‌شده») با Service Worker، و رفع باگ راهنمای دکمهٔ تم
     به‌همراه پاک‌سازی کدهای مرده.
   • تغییرات v43: کارت «مصرف امروز» حذف شد؛ QR مستقیم Sing-Box و نمایش شفاف حجم حفظ شدند.
+  • v51.7: تنظیمات صفحه از پنل (نام، لوگو، رنگ، اطلاعیه، پشتیبانی/کانال، بخش‌های پنهان) در
+    SERVER_CONFIG می‌آید؛ وضعیت لحظه‌ای از خود لینک (?format=status)؛ فونت و QR و PWA از خود پنل
+    (بدون CDN)؛ تمدید و اتصال با ربات تلگرام فروشنده (/start rn_… و cn_…).
 -->
 <html lang="fa" dir="rtl" style="-webkit-text-size-adjust:100%;text-size-adjust:100%">
 <head>
@@ -45,8 +48,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="format-detection" content="telephone=no">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%232783DE'/%3E%3Cpath d='M6.5 15.5a7 7 0 0 1 11 0M9 12.2a4.2 4.2 0 0 1 6 0' stroke='white' stroke-width='1.8' stroke-linecap='round' fill='none'/%3E%3Ccircle cx='12' cy='17.5' r='1.4' fill='white'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css">
-<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js" defer></script>
+<!-- فونت و کتابخانه‌ی QR از خود پنل سرو می‌شوند (بدون CDN) -->
+<style>@font-face{font-family:Vazirmatn;src:url("sui-font.woff2") format("woff2");font-weight:100 900;font-style:normal;font-display:swap}</style>
+<script src="sui-qr.js" defer></script>
 <style>
 :root{
   --canvas:#F7F7F8; --surface:#FFFFFF; --surface2:#F1F1F3; --border:#E5E5E8;
@@ -555,6 +559,7 @@ ul.checks li::before{content:"✓";position:absolute;inset-inline-start:0;top:1p
     <div id="demoBanner" class="banner demo" hidden data-i18n="banner.demo">حالت نمایشی — این داده‌ها واقعی نیستند.</div>
     <div id="noInfoBanner" class="banner warn" hidden data-i18n="banner.noInfo">جزئیات مصرف از سرور دریافت نشد (هدر اطلاعات در دسترس نیست) — راهنمای رفع مشکل در پایین صفحه.</div>
     <div id="alertBox" hidden></div>
+    <div id="noticeBanner" class="banner demo" hidden></div>
 
     <article class="card block" id="checklistCard" hidden>
       <div class="card-head"><h2 data-i18n="check.title">شروع کار</h2></div>
@@ -665,7 +670,10 @@ ul.checks li::before{content:"✓";position:absolute;inset-inline-start:0;top:1p
 
     <article class="card block" id="diagCard" hidden>
       <div class="card-head"><h2 data-i18n="net.title">وضعیت اتصال</h2></div>
-      <div class="card-head" style="margin:14px 0 0"><h2><a class="linktitle" id="dnsCheckLink" href="https://browserleaks.com/dns" target="_blank" rel="noopener" data-i18n="dns.title">تست نشتی DNS</a></h2></div>
+      <details class="acc" id="netAcc">
+        <summary data-i18n="net.more">تست نشتی DNS و تبلیغات</summary>
+        <div class="acc-body">
+      <div class="card-head" style="margin:12px 0 0"><h2><a class="linktitle" id="dnsCheckLink" href="https://browserleaks.com/dns" target="_blank" rel="noopener" data-i18n="dns.title">تست نشتی DNS</a></h2></div>
       <p class="muted small" style="margin:8px 0 0" data-i18n="dns.lead"></p>
       <p class="muted small" style="margin:10px 0 0" data-i18n="dns.hint"></p>
 
@@ -673,17 +681,20 @@ ul.checks li::before{content:"✓";position:absolute;inset-inline-start:0;top:1p
       <p class="muted small" style="margin:8px 0 0" data-i18n="adb.lead"></p>
       <p class="muted small" style="margin:10px 0 0" data-i18n="adb.hint"></p>
 
+        </div>
+      </details>
       <details class="acc" id="guideAcc">
         <summary data-i18n="guide.title">راهنمای اتصال Sing-Box</summary>
         <div class="acc-body" id="guideBody"></div>
       </details>
-      <details class="acc">
+      <details class="acc" id="fixAcc">
         <summary data-i18n="fix.title">اگر وصل نمی‌شوید، این‌ها را بررسی کنید</summary>
         <div class="acc-body"><ul class="checks" id="fixList"></ul></div>
       </details>
     </article>
 
     <div class="actionrow block" id="mainActions">
+      <a class="btn sm btn-ghost" id="botConnectBtn" hidden target="_blank" rel="noopener" data-i18n="act.botConnect">اعلان‌ها در ربات تلگرام</a>
       <button class="btn sm btn-ghost" id="notifBtn" type="button" hidden data-i18n="act.notif">فعال‌سازی یادآور مرورگر</button>
     </div>
 
@@ -799,6 +810,10 @@ const CONFIG = {
 const $ = (s) => document.querySelector(s);
 // وضعیتی که خود پنل هنگام سرو صفحه می‌گذارد (مثلاً اشتراک تمام‌شده)؛ null یعنی چیزی نیست.
 const SERVER_STATE = /*SUB_STATE*/null;
+// تنظیمات صفحه که پنل می‌گذارد (نام، لوگو، رنگ، اطلاعیه، پلن‌ها و ربات فروشنده)؛ null یعنی پیش‌فرض‌های بالا.
+const SERVER_CONFIG = /*SUB_CONFIG*/null;
+if (SERVER_CONFIG && typeof SERVER_CONFIG === "object") Object.assign(CONFIG, SERVER_CONFIG);
+const UI = CONFIG.ui || {};
 
 /* ── v20: زبان و قالب‌بندی ── */
 /* نام برند پنل: در حالت انگلیسی اگر panelNameEn خالی باشد، نام پیش‌فرض انگلیسی استفاده می‌شود */
@@ -985,15 +1000,18 @@ const I18N = {
     "mtr.lastSeen": "آخرین فعالیت",
     "mtr.ago": "{v} پیش",
     "mtr.h24": "مصرف ۲۴ ساعت گذشته", "mtr.d7": "مصرف ۷ روز گذشته",
-    "mtr.servers": "ترافیک سرورها (۲۴ ساعت)",
+    "mtr.servers": "مصرف این دوره به تفکیک سرور",
     "mtr.updated": "به‌روزرسانی: {v}",
     "plans.title": "تمدید و خرید حجم",
     "plans.note": "پس از انتخاب، برای هماهنگی و پرداخت به پشتیبانی هدایت می‌شوید.",
     "plans.days": "{d} روز", "plans.gb": "{v} گیگابایت", "plans.unlimited": "حجم نامحدود",
     "plans.buy": "انتخاب و تمدید",
-    "ref.title": "معرفی   وستان",
+    "ref.title": "معرفی دوستان",
     "ref.lead": "با هر معرفی موفق، تخفیف یا حجم هدیه بگیرید.",
     "net.title": "تست شبکه",
+    "net.more": "تست نشتی DNS و مسدودسازی تبلیغات",
+    "act.botConnect": "اعلان‌ها در ربات تلگرام",
+    "plans.noteBot": "با انتخاب پلن، ربات تلگرام باز می‌شود و سفارش تمدید همین اشتراک ثبت می‌شود.",
     "dns.title": "تست نشتی DNS",
     "dns.lead": "برای دیدن اینکه پرس‌وجوهای DNS شما از کدام سرور و کدام کشور پاسخ می‌گیرند، روی عنوان «تست نشتی DNS» بزنید تا تست کامل BrowserLeaks در تب جدید باز شود.",
     "adb.title": "تست مسدودسازی تبلیغات",
@@ -1171,7 +1189,7 @@ const I18N = {
     "mtr.lastSeen": "Last activity",
     "mtr.ago": "{v} ago",
     "mtr.h24": "Usage in the last 24 hours", "mtr.d7": "Usage in the last 7 days",
-    "mtr.servers": "Server traffic (24h)",
+    "mtr.servers": "This period\u2019s usage by server",
     "mtr.updated": "Updated: {v}",
     "plans.title": "Renew / buy data",
     "plans.note": "After choosing a plan you will be redirected to support to complete the order.",
@@ -1180,6 +1198,9 @@ const I18N = {
     "ref.title": "Refer a friend",
     "ref.lead": "Get a discount or bonus data for every successful referral.",
     "net.title": "Network tests",
+    "net.more": "DNS leak and ad-block tests",
+    "act.botConnect": "Alerts in the Telegram bot",
+    "plans.noteBot": "Choosing a plan opens the Telegram bot with a renewal order for this subscription.",
     "dns.title": "DNS leak test",
     "dns.lead": "Tap the “DNS leak test” title to open the full BrowserLeaks test in a new tab and see which DNS servers and which countries answer your queries.",
     "adb.title": "Ad-block test",
@@ -2026,11 +2047,20 @@ function summaryLines(withId, headKey) {
 }
 function summaryText(withId, headKey) { return summaryLines(withId, headKey).join("\n"); }
 function renewalText() { return summaryText(true, "sum.renewHead"); }
+/* لینک ربات با /start: «rn_» تمدید و «cn_» اتصال اشتراک به چت؛ شناسه به base64url.
+   تلگرام بیش از ۶۴ نویسه نمی‌پذیرد؛ آن‌وقت فقط خود ربات باز می‌شود. */
+function botLink(prefix, id) {
+  const bot = String(CONFIG.renewBot || "").replace(/^https?:\/\/t\.me\//, "").replace(/^@/, "");
+  if (!bot) return "";
+  let arg = "";
+  try { arg = id ? prefix + b64url(unescape(encodeURIComponent(id))) : ""; } catch (e) { arg = ""; }
+  return "https://t.me/" + bot + (arg && arg.length <= 64 ? "?start=" + arg : "");
+}
 function renewUrl() {
   const id = subIdOf(state.url || "");
   const handle = function (v) { return String(v || "").replace(/^https?:\/\/t\.me\//, "").replace(/^@/, ""); };
   // ۱) اگر ربات فروشگاه تنظیم شده باشد: t.me/<ربات>?start=<شناسه>
-  if (CONFIG.renewBot) return "https://t.me/" + handle(CONFIG.renewBot) + "?start=" + encodeURIComponent(id);
+  if (CONFIG.renewBot) return botLink("rn_", id);
   // ۲) وگرنه: t.me/<مقصد>?direct&text=<متن کامل درخواست تمدید>
   const target = handle(CONFIG.renewTarget);
   if (target) return "https://t.me/" + target + "?direct&text=" + encodeURIComponent(renewalText());
@@ -2086,7 +2116,11 @@ async function renderConnectivity() {
     const el = $(pair[0]);
     if (el && pair[1]) el.href = pair[1];
   });
-  card.hidden = !state.url || state.demo;
+  const net = $("#netAcc"), guide = $("#guideAcc"), fix = $("#fixAcc");
+  if (net) net.hidden = !!UI.hideNet;
+  if (guide) guide.hidden = !!UI.hideTips;
+  if (fix) fix.hidden = !!UI.hideTips;
+  card.hidden = !state.url || state.demo || (UI.hideNet && UI.hideTips);
 }
 
 /* شمارش معکوس دقیق اعتبار */
@@ -2251,7 +2285,7 @@ function renderChecklist() {
   if (!card || !ul) return;
   const info = state.info;
   const used = info ? (info.upload || 0) + (info.download || 0) : null;
-  const show = !!info && used === 0;
+  const show = !!info && used === 0 && !UI.hideTips;
   card.hidden = !show;
   if (!show) return;
   ul.innerHTML = [1, 2, 3].map(function (i) { return "<li>" + t("check." + i) + "</li>"; }).join("");
@@ -2315,9 +2349,11 @@ function renderPlans() {
   const card = $("#plansCard"), grid = $("#plansGrid");
   if (!card || !grid) return;
   const plans = Array.isArray(CONFIG.plans) ? CONFIG.plans.filter(function (p) { return p && (p.name || p.days || p.gb); }) : [];
-  card.hidden = plans.length === 0 || !state.url;
+  card.hidden = plans.length === 0 || !state.url || UI.hidePlans;
   if (card.hidden) return;
   grid.innerHTML = "";
+  const note = card.querySelector('[data-i18n^="plans.note"]');
+  if (note) { note.setAttribute("data-i18n", CONFIG.renewBot ? "plans.noteBot" : "plans.note"); note.textContent = t(note.getAttribute("data-i18n")); }
   plans.forEach(function (p) {
     const meta = [];
     if (p.days) meta.push(t("plans.days", { d: FA0.format(p.days) }));
@@ -2345,15 +2381,21 @@ function renderPlans() {
 const BRIDGE_TTL = 45000;
 // کشِ «پرامیس» تا هر دو مصرف‌کننده (نمودار روزانه و کارت وضعیت لحظه‌ای)
 // یک درخواست مشترک بگیرند و کارت دوم با نتیجه‌ی خالی رندر نشود.
+function bridgeOn() { return !!(CONFIG.publicApi || CONFIG.statusSelf); }
+function bridgeUrl() {
+  // وضعیت لحظه‌ای از خود لینک اشتراک (?format=status)، مگر سرویس میانی جدا تنظیم شده باشد
+  if (!CONFIG.publicApi) return state.url + (state.url.indexOf("?") >= 0 ? "&" : "?") + "format=status";
+  const key = CONFIG.publicApiKey ? "&key=" + encodeURIComponent(CONFIG.publicApiKey) : "";
+  return CONFIG.publicApi + (CONFIG.publicApi.indexOf("?") >= 0 ? "&" : "?") + "id=" + encodeURIComponent(subIdOf(state.url)) + key;
+}
 function loadBridge(force) {
-  if (!CONFIG.publicApi || !state.url || state.demo) return Promise.resolve(null);
+  if (!bridgeOn() || !state.url || state.demo) return Promise.resolve(null);
   if (force) { state.bridgeP = null; state.bridgeAt = 0; }
   if (state.bridgeP && Date.now() - state.bridgeAt < BRIDGE_TTL) return state.bridgeP;
-  const key = CONFIG.publicApiKey ? "&key=" + encodeURIComponent(CONFIG.publicApiKey) : "";
-  const url = CONFIG.publicApi + (CONFIG.publicApi.indexOf("?") >= 0 ? "&" : "?") + "id=" + encodeURIComponent(subIdOf(state.url)) + key;
+  const url = bridgeUrl();
   state.bridgeAt = Date.now();
   state.bridgeP = fetch(url, { cache: "no-store" })
-    .then(function (res) { return res.json(); })
+    .then(function (res) { if (!res.ok) throw new Error("status " + res.status); return res.json(); })
     .then(function (j) { return j && j.ok !== false ? j : null; })
     .catch(function () { return null; });
   return state.bridgeP;
@@ -2385,7 +2427,7 @@ function renderCreated(ts, approxTs, reason) {
 async function renderMetrics() {
   const card = $("#metricsCard"), body = $("#mtrBody");
   if (!card || !body) return;
-  if (!CONFIG.publicApi || !state.url || state.demo) { card.hidden = true; renderCreated(0); return; }
+  if (!bridgeOn() || !state.url || state.demo) { card.hidden = true; renderCreated(0); return; }
   card.hidden = false;
   try {
     const j = await loadBridge();
@@ -2403,7 +2445,7 @@ async function renderMetrics() {
       inb.sort(function (a, b) { return ((b.up || 0) + (b.down || 0)) - ((a.up || 0) + (a.down || 0)); }).forEach(function (s) {
         const v = (s.up || 0) + (s.down || 0);
         const pct = Math.max(2, Math.round((v / max) * 100));
-        html += '<div class="loadrow"><span class="lname">' + (s.tag || "—") + '</span><span class="loadbar"><i style="width:' + pct + '%"></i></span><span class="lval">' + formatBytes(v) + "</span></div>";
+        html += '<div class="loadrow"><span class="lname">' + escHtml(s.tag || "—") + '</span><span class="loadbar"><i style="width:' + pct + '%"></i></span><span class="lval">' + formatBytes(v) + "</span></div>";
       });
       rows.push(html + "</div>");
     }
@@ -2476,11 +2518,12 @@ async function initPwa() {
     }
   });
   try {
-    const m = await fetch("manifest.json", { method: "HEAD" });
+    const mid = state.url && !state.demo ? "?id=" + encodeURIComponent(subIdOf(state.url)) : "";
+    const m = await fetch("manifest.json" + mid, { method: "HEAD" });
     if (m.ok && !document.querySelector('link[rel="manifest"]')) {
       const l = document.createElement("link");
       l.rel = "manifest";
-      l.href = "manifest.json";
+      l.href = "manifest.json" + mid;
       document.head.appendChild(l);
     }
   } catch (e) {}
@@ -2541,6 +2584,13 @@ function renderExtras() {
   }
   const sc = $("#supportCard");
   if (sc && CONFIG.supportLink) sc.href = CONFIG.supportLink;
+  const bc = $("#botConnectBtn");
+  if (bc) {
+    const u = UI.connectBot && state.url && !state.demo ? botLink("cn_", subIdOf(state.url)) : "";
+    bc.hidden = !u;
+    if (u) bc.href = u;
+  }
+  applySectionFlags();
   maybeNotify();
   renderMetrics();
   renderConnectivity(false);
@@ -2559,6 +2609,7 @@ function setLang(next) {
   initFormatters();
   applyI18n();
   applyTheme();
+  renderNotice();
   if (state.info) renderDash();
   else {
     if (state.endReason) renderEnded(state.endReason);
@@ -2570,6 +2621,40 @@ function setLang(next) {
   }
 }
 
+/* ── تنظیمات ظاهری پنل: لوگو، رنگ، اطلاعیه و بخش‌های پنهان ── */
+function escHtml(v) {
+  return String(v).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; });
+}
+function applyBrandUi() {
+  if (UI.logo) {
+    const img = document.querySelector(".brand .logo img");
+    if (img) { img.src = UI.logo; img.referrerPolicy = "no-referrer"; }
+  }
+  if (UI.accent && /^#[0-9a-fA-F]{3,6}$/.test(UI.accent)) {
+    const r = document.documentElement.style;
+    r.setProperty("--accent", UI.accent);
+    r.setProperty("--accent2", UI.accent);
+    r.setProperty("--accent-soft", "color-mix(in srgb, " + UI.accent + " 12%, transparent)");
+    document.querySelectorAll('meta[name="theme-color"]').forEach(function (m) { m.setAttribute("content", UI.accent); });
+  }
+  renderNotice();
+}
+function renderNotice() {
+  const el = $("#noticeBanner");
+  if (!el) return;
+  const txt = (LANG === "en" && UI.noticeEn) || UI.notice || "";
+  el.hidden = !txt;
+  el.textContent = txt;
+  el.style.whiteSpace = "pre-line";
+}
+function applySectionFlags() {
+  [["#appsBox", UI.hideApps], ["#qrCard", UI.hideQr], ["#checklistCard", UI.hideTips]].forEach(function (p) {
+    const el = $(p[0]);
+    if (el && p[1]) el.hidden = true;
+  });
+  if (UI.hideLive) { const m = $("#metricsCard"); if (m) m.hidden = true; }
+}
+
 /* ── شروع ── */
 function selfSubUrl() { return location.origin + location.pathname.replace(/\/+$/, ""); }
 
@@ -2577,6 +2662,8 @@ function init() {
   syncQrVisibility();
   applyTheme();
   applyI18n();
+  applyBrandUi();
+  applySectionFlags();
   window.addEventListener("load", () => { syncQrVisibility(); renderQrBox(); });
 
   if (!CONFIG.defaultSubBase) {

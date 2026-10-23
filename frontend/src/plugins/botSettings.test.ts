@@ -27,4 +27,14 @@ describe('bot settings', () => {
   it('reads a broken shop as empty', () => {
     expect(parseShop('{nope').plans).toEqual([])
   })
+  it('keeps what a desk has beyond this page and writes its page links', () => {
+    const raw = '{"desks":{"77":{"payCard":"1","trialGB":5,"support":"https://t.me/old"}}}'
+    const s = parseShop(raw)
+    expect(s.desks['77'].support).toBe('https://t.me/old')
+    s.desks['77'] = { ...s.desks['77'], support: '', channel: ' https://t.me/news ' }
+    const out = JSON.parse(shopJSON(raw, s))
+    expect(out.desks['77'].trialGB).toBe(5)
+    expect(out.desks['77'].support).toBeUndefined()
+    expect(out.desks['77'].channel).toBe('https://t.me/news')
+  })
 })

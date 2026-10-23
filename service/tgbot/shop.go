@@ -44,6 +44,10 @@ type shopDesk struct {
 	TrialGB    int          `json:"trialGB,omitempty"`
 	TrialHours int          `json:"trialHours,omitempty"`
 	TrialGroup string       `json:"trialGroup,omitempty"`
+	// Support and Channel are the administrator's own, shown on the
+	// subscription page of their customers.
+	Support string `json:"support,omitempty"`
+	Channel string `json:"channel,omitempty"`
 }
 
 func (s shopConfig) trialOn() bool {
@@ -185,7 +189,11 @@ func (b *bot) saveShop(s shopConfig) error {
 		if cur.Desks == nil {
 			cur.Desks = map[string]shopDesk{}
 		}
-		cur.Desks[strconv.FormatInt(b.self, 10)] = deskFrom(s)
+		key := strconv.FormatInt(b.self, 10)
+		d := deskFrom(s)
+		// The bot does not edit these; the panel does.
+		d.Support, d.Channel = cur.Desks[key].Support, cur.Desks[key].Channel
+		cur.Desks[key] = d
 		s = cur
 	} else {
 		s.Desks = cur.Desks

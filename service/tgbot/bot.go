@@ -558,6 +558,8 @@ func (b *bot) run(ctx context.Context) {
 		logger.Warning("telegram bot: getMe failed (check the token and proxy): ", err)
 	} else {
 		logger.Info("telegram bot: running as @", me.Username)
+		setRunningName(me.Username)
+		defer setRunningName("")
 	}
 	b.registerCommands(ctx)
 	go b.watch(ctx)

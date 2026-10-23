@@ -65,6 +65,9 @@ func (b *bot) customerPress(ctx context.Context, chatID int64, from *fromUser, d
 func (b *bot) customerCommand(ctx context.Context, chatID int64, from *fromUser, cmd, arg string) {
 	switch cmd {
 	case "start", "menu":
+		if cmd == "start" && b.startSubLink(ctx, chatID, from, arg) {
+			return
+		}
 		if cmd == "start" && arg != "" && b.trySaveRef(from.ID, arg) {
 			b.send(ctx, chatID, b.tr("✅ معرف ثبت شد.", "✅ Introducer saved."))
 		}

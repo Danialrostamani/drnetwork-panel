@@ -92,6 +92,7 @@ var defaultValueMap = map[string]string{
 	"subEncode":          "true",
 	"subShowInfo":        "false",
 	"subPage":            "true",
+	"subPageConf":        "{}",
 	"subLoadOrder":       "false",
 	"subNodeRoute":       "{}",
 	"subURI":             "",
@@ -667,6 +668,11 @@ func (s *SettingService) Save(tx *gorm.DB, data json.RawMessage) error {
 		if key == "globalReset" && obj != "" && obj != "off" {
 			if _, err = CronParser.Parse(obj); err != nil {
 				return common.NewError("invalid cron spec <", obj, ">: ", err)
+			}
+		}
+		if key == "subPageConf" {
+			if obj, err = normalizeSubPageConf(obj); err != nil {
+				return err
 			}
 		}
 		if key == "subNodeRoute" {

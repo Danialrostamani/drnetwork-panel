@@ -100,6 +100,12 @@ func (b *bot) customerAcceptRef(ctx context.Context, chatID int64, from *fromUse
 		b.autoTrial(ctx, chatID, from)
 	case after == "home":
 		b.customerStart(ctx, chatID, from)
+	case strings.HasPrefix(after, "bind:"):
+		if c, ok := clientByIDString(strings.TrimPrefix(after, "bind:")); ok {
+			b.bindClientRequest(ctx, chatID, from, c)
+			return
+		}
+		b.customerStart(ctx, chatID, from)
 	case strings.HasPrefix(after, "p:"):
 		b.customerPress(ctx, chatID, from, after)
 	default:

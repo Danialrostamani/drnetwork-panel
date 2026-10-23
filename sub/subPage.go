@@ -8,6 +8,7 @@ import (
 
 	"github.com/Danialrostamani/drnetwork-panel/database"
 	"github.com/Danialrostamani/drnetwork-panel/database/model"
+	"github.com/Danialrostamani/drnetwork-panel/service/tgbot"
 
 	"github.com/gin-gonic/gin"
 )
@@ -34,8 +35,65 @@ func (s *SubHandler) page(c *gin.Context, subID string) bool {
 	}
 	c.Header("Cache-Control", "no-store")
 	c.Header("X-Robots-Tag", "noindex")
-	c.Data(200, "text/html; charset=utf-8", []byte(pageFor(&client, time.Now())))
+	html := withPageConfig(pageFor(&client, time.Now()), s.pageConfig(&client))
+	c.Data(200, "text/html; charset=utf-8", []byte(html))
 	return true
+}
+
+// subConfigMark is where the page reads the panel's settings for it.
+const subConfigMark = "/*SUB_CONFIG*/null"
+
+// withPageConfig puts the panel's settings into a page. json.Marshal escapes
+// <, > and &, so no text in them can close the script.
+func withPageConfig(html string, cfg map[string]any) string {
+	if len(cfg) == 0 {
+		return html
+	}
+	raw, err := json.Marshal(cfg)
+	if err != nil {
+		return html
+	}
+	return strings.Replace(html, subConfigMark, string(raw), 1)
+}
+
+// pageConfig is what the page of a client changes in its built-in settings:
+// the panel's page settings, and from the bot the seller's support, channel
+// and plans and the bot to renew through.
+func (s *SubHandler) pageConfig(client *model.Client) map[string]any {
+	conf := s.SettingService.GetSubPageConf()
+	extra := tgbot.SubPageExtras(client)
+	out := map[string]any{}
+	set := func(key string, vals ...string) {
+		for _, v := range vals {
+			if v != "" {
+				out[key] = v
+				return
+			}
+		}
+	}
+	set("panelName", conf.Name)
+	set("panelNameEn", conf.NameEn)
+	set("supportLink", extra.Support, conf.Support)
+	set("channelLink", extra.Channel, conf.Channel)
+	if _, own := out["supportLink"]; own {
+		// The renewal request goes to this support, not the built-in one.
+		out["renewTarget"] = ""
+	}
+	if !conf.NoBot && extra.Bot != "" {
+		out["renewBot"] = extra.Bot
+	}
+	if !conf.HidePlans && len(extra.Plans) > 0 {
+		out["plans"] = extra.Plans
+	}
+	out["statusSelf"] = !conf.HideLive
+	out["ui"] = map[string]any{
+		"logo": conf.Logo, "accent": conf.Accent,
+		"notice": conf.Notice, "noticeEn": conf.NoticeEn,
+		"hideNet": conf.HideNet, "hideApps": conf.HideApps, "hideQr": conf.HideQr,
+		"hideLive": conf.HideLive, "hidePlans": conf.HidePlans, "hideTips": conf.HideTips,
+		"connectBot": !conf.NoBot && extra.Bot != "",
+	}
+	return out
 }
 
 // subStateMark is where the page reads what the panel already knows.
