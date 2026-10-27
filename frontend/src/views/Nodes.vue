@@ -154,6 +154,8 @@
     </v-col>
   </v-row>
 
+  <OrphanLinks />
+
   <v-row
     v-if="nodes.length === 0"
     justify="center"
@@ -724,6 +726,7 @@ import NodeMultiAdd from '@/layouts/modals/NodeMultiAdd.vue'
 import NodeBackup from '@/layouts/modals/NodeBackup.vue'
 import NodeCard from '@/components/node/NodeCard.vue'
 import NodeMenu from '@/components/node/NodeMenu.vue'
+import OrphanLinks from '@/components/node/OrphanLinks.vue'
 import { fmtBytes, fmtPercent, fmtSpeed, fmtUptime } from '@/components/node/format'
 import { warningText } from '@/components/node/warnings'
 import { runNodeAction } from '@/components/node/actions'

@@ -14,11 +14,14 @@ import (
 // members page shows them: who they are, their introducer, whether they took
 // the test account and what they bought.
 type BotMember struct {
-	TgId      int64    `json:"tgId"`
-	Name      string   `json:"name"`
-	Username  string   `json:"username"`
-	Blocked   bool     `json:"blocked"`
-	AdminId   int64    `json:"adminId"`
+	TgId     int64  `json:"tgId"`
+	Name     string `json:"name"`
+	Username string `json:"username"`
+	Blocked  bool   `json:"blocked"`
+	AdminId  int64  `json:"adminId"`
+	// RefAdmin is the seller their introducer word belongs to, for a member
+	// the owner gave no seller of their own.
+	RefAdmin  int64    `json:"refAdmin,omitempty"`
 	Note      string   `json:"note"`
 	FirstSeen int64    `json:"firstSeen"`
 	LastSeen  int64    `json:"lastSeen"`
@@ -41,6 +44,7 @@ type BotMember struct {
 type BotRefOption struct {
 	Word  string `json:"word"`
 	Group string `json:"group"`
+	Admin int64  `json:"admin,omitempty"`
 }
 
 type BotMemberService struct{}
@@ -138,6 +142,12 @@ func (s *BotMemberService) List() ([]BotMember, error) {
 		}
 	}
 
+	refAdmin := map[string]int64{}
+	for _, r := range s.Refs() {
+		if r.Admin != 0 {
+			refAdmin[strings.ToLower(strings.TrimSpace(r.Word))] = r.Admin
+		}
+	}
 	var refs []model.BotRef
 	if err := db.Find(&refs).Error; err != nil {
 		return nil, err
@@ -148,6 +158,12 @@ func (s *BotMemberService) List() ([]BotMember, error) {
 		}
 		m := get(r.TgId)
 		m.Ref, m.RefGroup = r.Word, r.Group
+		m.RefAdmin = refAdmin[strings.ToLower(strings.TrimSpace(r.Word))]
+	}
+	for _, m := range members {
+		if m.AdminId != 0 {
+			m.RefAdmin = 0
+		}
 	}
 
 	var wallets []model.BotWallet

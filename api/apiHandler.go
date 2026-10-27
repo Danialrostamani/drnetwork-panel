@@ -74,6 +74,8 @@ func (a *APIHandler) postHandler(c *gin.Context) {
 		a.ApiService.ReconcileNode(c)
 	case "nodeAction":
 		a.ApiService.NodeAction(c, loginUser)
+	case "removeOrphanNodeLinks":
+		a.ApiService.RemoveOrphanNodeLinks(c, loginUser)
 	case "totp":
 		a.ApiService.SaveTotp(c)
 	case "panelUpdate":
@@ -86,6 +88,8 @@ func (a *APIHandler) postHandler(c *gin.Context) {
 		a.ApiService.BotMemberAction(c, "block", loginUser)
 	case "botMemberSeller":
 		a.ApiService.BotMemberAction(c, "seller", loginUser)
+	case "botOrderEdit":
+		a.ApiService.BotOrderEdit(c, loginUser)
 	case "botMemberWallet":
 		a.ApiService.BotMemberAction(c, "wallet", loginUser)
 	case "botMemberEdit":
@@ -191,6 +195,8 @@ func (a *APIHandler) getHandler(c *gin.Context) {
 		a.ApiService.GetNodeSyncPreview(c)
 	case "nodeSyncReport":
 		a.ApiService.GetNodeSyncReport(c)
+	case "orphanNodeLinks":
+		a.ApiService.GetOrphanNodeLinks(c)
 	case "nodeBackup":
 		a.ApiService.GetNodeBackup(c)
 	case "nodesBackup":
@@ -203,6 +209,8 @@ func (a *APIHandler) getHandler(c *gin.Context) {
 		a.ApiService.GetBotAdmins(c)
 	case "botDashboard":
 		a.ApiService.GetBotDashboard(c)
+	case "botOrders":
+		a.ApiService.GetBotOrders(c)
 	default:
 		jsonMsg(c, "failed", common.NewError("unknown action: ", action))
 	}

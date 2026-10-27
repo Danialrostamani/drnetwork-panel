@@ -72,6 +72,8 @@ func (a *APIv2Handler) postHandler(c *gin.Context) {
 		a.ApiService.BotMemberAction(c, "block", username)
 	case "botMemberSeller":
 		a.ApiService.BotMemberAction(c, "seller", username)
+	case "botOrderEdit":
+		a.ApiService.BotOrderEdit(c, username)
 	case "botMemberWallet":
 		a.ApiService.BotMemberAction(c, "wallet", username)
 	case "botMemberEdit":
@@ -164,6 +166,8 @@ func (a *APIv2Handler) getHandler(c *gin.Context) {
 		a.ApiService.GetBotAdmins(c)
 	case "botDashboard":
 		a.ApiService.GetBotDashboard(c)
+	case "botOrders":
+		a.ApiService.GetBotOrders(c)
 	default:
 		jsonMsg(c, "failed", common.NewError("unknown action: ", action))
 	}
