@@ -11,6 +11,7 @@ import (
 // ClientLocation is what a client used in its current cycle on one server,
 // named the way its user knows it.
 type ClientLocation struct {
+	Node uint   `json:"-"`
 	Name string `json:"tag"`
 	Up   int64  `json:"up"`
 	Down int64  `json:"down"`
@@ -68,7 +69,7 @@ func (s *StatsService) ClientLocations(c model.Client) []ClientLocation {
 	out := make([]ClientLocation, 0, len(order))
 	for _, node := range order {
 		u := usage[node]
-		out = append(out, ClientLocation{Name: LocationName(tags[node]), Up: u.Up, Down: u.Down})
+		out = append(out, ClientLocation{Node: node, Name: LocationName(tags[node]), Up: u.Up, Down: u.Down})
 	}
 	return out
 }

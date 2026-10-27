@@ -92,3 +92,20 @@ func TestStartFromTheSubPage(t *testing.T) {
 		t.Fatal("an unknown subscription was not reported")
 	}
 }
+
+// The page shows the plan a client was last sold or renewed with.
+func TestLastPlanOfAClient(t *testing.T) {
+	_, _ = ownerBot(t, shopConfig{Plans: []shopPlan{{ID: "p1", Name: "Gold", Days: 30, GB: 50, Price: "100"}}})
+	c := pageClient(t, "gold1", "", 0)
+	if LastPlanOf(&c) != nil {
+		t.Fatal("a plan without orders")
+	}
+	db := database.GetDB()
+	db.Create(&model.BotOrder{TgId: 5, Topic: "buy", PlanID: "p1", Status: orderApproved, ClientId: c.Id, PlanSet: true, PlanGB: 50, PlanDays: 30})
+	db.Create(&model.BotOrder{TgId: 5, Topic: "renew", PlanID: "p1", Status: orderApproved, ClientId: c.Id, PlanSet: true, PlanGB: 60, PlanDays: 31})
+	db.Create(&model.BotOrder{TgId: 5, Topic: "renew", PlanID: "p1", Status: orderPending, ClientId: c.Id, PlanSet: true, PlanGB: 70, PlanDays: 32})
+	p := LastPlanOf(&c)
+	if p == nil || p.Name != "Gold" || p.GB != 60 || p.Days != 31 || p.Kind != "renew" || p.At == 0 {
+		t.Fatalf("last plan %+v", p)
+	}
+}

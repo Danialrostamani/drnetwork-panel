@@ -683,12 +683,13 @@ func TestFilterNodeLinksRoutesByWeight(t *testing.T) {
 		return out
 	}
 	invalidateNodeLinkRules()
-	// id 1 → 1%100=1 → DE (0-49). Primary DE, then TR, then NL. Hidden dropped.
-	// Non-node links stay in place, node links swap among their slots.
-	if got := orderOf(1); got != "LDTON" {
-		t.Fatalf("client 1: %s, want LDTON", got)
+	// id 2 → frac(2·0.618)·100 = 23 → DE (0-49). Primary DE, then TR, then NL.
+	// Hidden dropped. Non-node links stay in place, node links swap among
+	// their slots.
+	if got := orderOf(2); got != "LDTON" {
+		t.Fatalf("client 2: %s, want LDTON", got)
 	}
-	// id 50 → 50%100=50 → TR. Primary TR, then DE, NL.
+	// id 50 → frac(50·0.618)·100 = 90 → TR. Primary TR, then DE, NL.
 	if got := orderOf(50); got != "LTDON" {
 		t.Fatalf("client 50: %s, want LTDON", got)
 	}
