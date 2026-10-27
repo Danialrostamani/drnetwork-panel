@@ -456,9 +456,69 @@ ul.checks li::before{content:"✓";position:absolute;inset-inline-start:0;top:1p
 @media (max-width:520px){
   .actionrow .btn{flex:1 1 100%}
 }
+/* ── v51.8: کارت اصلی، اطلاعیه‌ها، سرورها، تست‌ها، گزارش و زبانه‌های موبایل ── */
+.hero-top{display:flex;align-items:center;gap:22px}
+.gauge.hero-g{width:150px;height:150px;margin:0}
+.gauge.hero-g .g-txt{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;text-align:center}
+.gauge.hero-g .g-txt b{font-size:19px;font-weight:800;letter-spacing:-.02em;white-space:nowrap}
+.gauge.hero-g .g-txt small{font-size:11.5px;font-weight:600;color:var(--text2)}
+.gauge.lvl-free .g-fg{stroke:var(--green)}
+.hero-side{display:flex;flex-direction:column;align-items:flex-start;gap:10px;min-width:0;flex:1}
+.hero-h{margin:0;font-size:15px;color:var(--text2);font-weight:700}
+.hero-days{display:flex;align-items:baseline;gap:6px}
+.hero-days b{font-size:30px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums}
+.hero-days span{color:var(--text2);font-weight:600;font-size:14px}
+.hero-cta{display:inline-flex;align-items:center;justify-content:center}
+.hero-lines{display:flex;flex-direction:column;gap:4px;margin-top:14px}
+.hero-line{font-size:13.5px;color:var(--text2)}
+.hero-line b{color:var(--text);font-weight:700}
+@media (max-width:560px){
+  .hero-top{gap:16px}
+  .gauge.hero-g{width:136px;height:136px}
+  .gauge.hero-g .g-txt b{font-size:15.5px}
+  .hero-days b{font-size:25px}
+  .hero-cta{width:100%}
+}
+#noticeBox .banner{white-space:pre-line}
+.banner.chan{background:var(--accent-soft);color:var(--accent);align-items:center}
+.banner.chan a{display:flex;align-items:center;gap:8px;color:inherit;text-decoration:none;flex:1;min-width:0}
+.banner.chan a span{flex:1}
+.banner.chan a b{padding:4px 12px;border-radius:999px;background:var(--accent);color:#fff;font-size:12.5px;white-space:nowrap}
+.banner.promo{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff}
+.srv{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-top:1px solid var(--border);font-size:14px}
+.srv:first-child{border-top:0}
+.srv b{font-weight:700}
+.srv .st{font-weight:700;font-size:13px}
+.srv .st.ok{color:var(--green)} .srv .st.busy{color:var(--orange)} .srv .st.down{color:var(--red)}
+.vpn-body{display:flex;flex-direction:column;gap:6px}
+.vpn-res{display:flex;align-items:center;gap:10px;font-weight:700;font-size:15px}
+.vpn-res .vi{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;flex:none;font-size:17px}
+.vpn-res.ok .vi{background:var(--green-soft);color:var(--green)}
+.vpn-res.bad .vi{background:var(--red-soft);color:var(--red)}
+.vpn-res.wait .vi,.vpn-res.unk .vi{background:var(--surface2);color:var(--text2)}
+.sites{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:8px}
+.site{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border:1px solid var(--border);border-radius:11px;background:var(--surface2);font-size:13.5px;font-weight:600;min-width:0}
+.site span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.site .ms{font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--text2);white-space:nowrap;direction:ltr}
+.site.good .ms{color:var(--green)} .site.mid .ms{color:var(--orange)} .site.bad .ms{color:var(--red)}
+.site.good{border-color:color-mix(in srgb,var(--green) 35%,var(--border))}
+.site.bad{border-color:color-mix(in srgb,var(--red) 35%,var(--border))}
+.reptext{width:100%;box-sizing:border-box;min-height:76px;padding:10px 12px;border:1px solid var(--border);border-radius:11px;background:var(--surface2);color:var(--text);font:inherit;font-size:14px;resize:vertical;margin-bottom:10px}
+.reptext:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.tabnav{display:none}
+@media (max-width:760px){
+  body:has(#dash:not([hidden])) .tabnav{display:flex;position:fixed;inset:auto 0 0 0;z-index:40;background:color-mix(in srgb,var(--surface) 92%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--border);padding:6px 6px calc(6px + env(safe-area-inset-bottom))}
+  body:has(#dash:not([hidden])) .wrap{padding-bottom:96px}
+  .tabnav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:0;color:var(--text2);font:inherit;font-size:11.5px;font-weight:600;padding:6px 2px;border-radius:10px;cursor:pointer}
+  .tabnav button.on{color:var(--accent);background:var(--accent-soft)}
+  body:has(#dash:not([hidden])):not([data-cur="status"]) #dash [data-pane="status"],
+  body:has(#dash:not([hidden])):not([data-cur="connect"]) #dash [data-pane="connect"],
+  body:has(#dash:not([hidden])):not([data-cur="tests"]) #dash [data-pane="tests"],
+  body:has(#dash:not([hidden])):not([data-cur="support"]) #dash [data-pane="support"]{display:none!important}
+}
 </style>
 </head>
-<body>
+<body data-cur="status">
 <div class="wrap">
 
   <header class="top">
@@ -559,17 +619,30 @@ ul.checks li::before{content:"✓";position:absolute;inset-inline-start:0;top:1p
     <div id="demoBanner" class="banner demo" hidden data-i18n="banner.demo">حالت نمایشی — این داده‌ها واقعی نیستند.</div>
     <div id="noInfoBanner" class="banner warn" hidden data-i18n="banner.noInfo">جزئیات مصرف از سرور دریافت نشد (هدر اطلاعات در دسترس نیست) — راهنمای رفع مشکل در پایین صفحه.</div>
     <div id="alertBox" hidden></div>
-    <div id="noticeBanner" class="banner demo" hidden></div>
+    <div id="chanTop" class="banner chan take" hidden><a id="chanTopLink" target="_blank" rel="noopener"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/></svg><span data-i18n="chan.join">برای اطلاع از آپدیت‌ها و اطلاعیه‌ها عضو کانال ما شوید</span><b data-i18n="chan.cta">عضویت</b></a><button type="button" class="bxx" id="chanTopX" data-i18n-aria="alert.dismiss" aria-label="بستن">×</button></div>
+    <div id="noticeBox" hidden></div>
 
-    <article class="card block" id="checklistCard" hidden>
+    <article class="card block" id="checklistCard" data-pane="connect" hidden>
       <div class="card-head"><h2 data-i18n="check.title">شروع کار</h2></div>
       <p class="muted small" style="margin:2px 0 0" data-i18n="check.lead">اشتراک شما آماده است؛ این سه کار را انجام دهید:</p>
       <ul class="checks" id="checkList"></ul>
     </article>
 
-    <div class="grid2">
-      <article class="card">
-        <div class="card-head"><h2 data-i18n="card.usage">حجم مصرفی</h2><span id="usageGauge" class="gauge" hidden aria-hidden="true"><svg viewBox="0 0 52 52"><circle class="g-bg" cx="26" cy="26" r="22" fill="none" stroke-width="5"/><circle class="g-fg" cx="26" cy="26" r="22" fill="none" stroke-width="5" stroke-dasharray="138.23" stroke-dashoffset="138.23"/></svg><span class="g-txt" id="usagePct"></span></span></div>
+    <div class="grid2" data-pane="status">
+      <article class="card hero" id="heroCard">
+        <div class="hero-top">
+          <span id="usageGauge" class="gauge hero-g" hidden aria-hidden="true"><svg viewBox="0 0 52 52"><circle class="g-bg" cx="26" cy="26" r="22" fill="none" stroke-width="4"/><circle class="g-fg" cx="26" cy="26" r="22" fill="none" stroke-width="4" stroke-dasharray="138.23" stroke-dashoffset="138.23"/></svg><span class="g-txt"><b id="heroRemain">—</b><small data-i18n="card.remainLabel">باقی‌مانده</small><small id="usagePct"></small></span></span>
+          <div class="hero-side">
+            <h2 class="hero-h" data-i18n="card.usage">حجم مصرفی</h2>
+            <div class="hero-days"><b id="heroDays">—</b><span id="heroDaysLbl"></span></div>
+            <span id="heroStatus" class="chip" hidden><span class="dot"></span><span id="heroStatusTxt"></span></span>
+            <a class="btn hero-cta" id="heroCta" hidden data-i18n="hero.add">افزودن به اپ</a>
+          </div>
+        </div>
+        <div class="hero-lines">
+          <div class="hero-line" id="heroPlan" hidden></div>
+          <div class="hero-line" id="heroDevices" hidden></div>
+        </div>
         <div class="usage-metrics">
           <div class="usage-metric"><span class="metric-label" data-i18n="card.total">حجم کل</span><strong class="metric-value" id="totalVal">—</strong></div>
           <div class="usage-metric"><span class="metric-label" data-i18n="card.usedLabel">مصرف‌شده</span><strong class="metric-value" id="usedVal">—</strong></div>
@@ -581,7 +654,7 @@ ul.checks li::before{content:"✓";position:absolute;inset-inline-start:0;top:1p
       </article>
     </div>
 
-    <div class="grid3" id="statsGrid">
+    <div class="grid3" id="statsGrid" data-pane="status">
       <div class="stat card">
         <span class="stat-ico" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M19 12l-7 7-7-7"/></svg></span>
         <div><span class="stat-val" id="dlVal">—</span><span class="muted small" data-i18n="card.dl">دانلود</span></div>
@@ -606,18 +679,18 @@ ul.checks li::before{content:"✓";position:absolute;inset-inline-start:0;top:1p
       </a>
     </div>
 
-    <article class="card insight" id="insightCard" hidden>
+    <article class="card insight" id="insightCard" data-pane="status" hidden>
       <span class="insight-ico" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 1 3.6 10.8c-.4.3-.6.8-.6 1.2v1h-6v-1c0-.4-.2-.9-.6-1.2A6 6 0 0 1 12 3z"/></svg></span>
       <div><span class="insight-main" id="insightMain"></span><span class="muted small insight-sub" id="insightSub"></span></div>
     </article>
 
-    <article class="card block" id="appsBox">
+    <article class="card block" id="appsBox" data-pane="connect">
       <p class="muted small" id="appsNote" style="margin:0 0 12px"></p>
       <div class="apps" id="appsGrid"></div>
       <p class="muted small" style="margin:10px 0 0" data-i18n="apps.note"></p>
     </article>
 
-    <article class="card block" id="qrCard">
+    <article class="card block" id="qrCard" data-pane="connect">
       <div class="card-head"><h2 data-i18n="qr.title">لینک اشتراک و کد QR</h2></div>
       <div class="tabs" id="qrTabs" role="tablist">
         <button class="tab active" type="button" data-qr-mode="json" role="tab" data-i18n="qr.tabJson">Sing-Box</button>
@@ -646,18 +719,35 @@ ul.checks li::before{content:"✓";position:absolute;inset-inline-start:0;top:1p
     </article>
 
 
-    <article class="card block" id="metricsCard" hidden>
+    <article class="card block" id="metricsCard" data-pane="status" hidden>
       <div class="card-head"><h2 data-i18n="mtr.title">وضعیت لحظه‌ای</h2><span class="muted small" id="mtrFresh"></span></div>
       <div id="mtrBody"></div>
     </article>
 
-    <article class="card block" id="plansCard" hidden>
+    <article class="card block" id="serversCard" data-pane="status" hidden>
+      <div class="card-head"><h2 data-i18n="srv.title">وضعیت سرورها</h2></div>
+      <div id="srvBody"></div>
+    </article>
+
+    <article class="card block" id="vpnCard" data-pane="tests" hidden>
+      <div class="card-head"><h2 data-i18n="vpn.title">الان از VPN رد می‌شوید؟</h2><button class="btn sm btn-ghost" id="vpnBtn" type="button" data-i18n="vpn.again">بررسی دقیق‌تر</button></div>
+      <div id="vpnBody" class="vpn-body"></div>
+    </article>
+
+    <article class="card block" id="sitesCard" data-pane="tests" hidden>
+      <div class="card-head"><h2 data-i18n="sites.title">دسترسی به سرویس‌ها</h2><button class="btn sm" id="sitesBtn" type="button" data-i18n="sites.start">شروع تست</button></div>
+      <p class="muted small" style="margin:2px 0 10px" id="sitesLead" data-i18n="sites.lead">بررسی می‌کند سرویس‌های پرکاربرد از همین دستگاه باز می‌شوند یا نه، و با چه سرعتی.</p>
+      <div class="sites" id="sitesGrid"></div>
+      <p class="muted small" id="sitesSum" style="margin:10px 0 0" hidden></p>
+    </article>
+
+    <article class="card block" id="plansCard" data-pane="support" hidden>
       <div class="card-head"><h2 data-i18n="plans.title">تمدید و خرید حجم</h2></div>
       <div class="plans" id="plansGrid"></div>
       <p class="muted small" style="margin:12px 0 0" data-i18n="plans.note">پس از انتخاب، برای هماهنگی و پرداخت به پشتیبانی هدایت می‌شوید.</p>
     </article>
 
-    <article class="card block" id="refCard" hidden>
+    <article class="card block" id="refCard" data-pane="support" hidden>
       <div class="card-head"><h2 data-i18n="ref.title">معرفی دوستان</h2></div>
       <p class="muted small" style="margin:2px 0 12px" data-i18n="ref.lead">با هر معرفی موفق، تخفیف یا حجم هدیه بگیرید.</p>
       <div class="copyline">
@@ -668,7 +758,7 @@ ul.checks li::before{content:"✓";position:absolute;inset-inline-start:0;top:1p
       </div>
     </article>
 
-    <article class="card block" id="diagCard" hidden>
+    <article class="card block" id="diagCard" data-pane="tests" hidden>
       <div class="card-head"><h2 data-i18n="net.title">وضعیت اتصال</h2></div>
       <details class="acc" id="netAcc">
         <summary data-i18n="net.more">تست نشتی DNS و تبلیغات</summary>
@@ -693,12 +783,19 @@ ul.checks li::before{content:"✓";position:absolute;inset-inline-start:0;top:1p
       </details>
     </article>
 
-    <div class="actionrow block" id="mainActions">
+    <article class="card block" id="reportCard" data-pane="support" hidden>
+      <div class="card-head"><h2 data-i18n="rep.title">گزارش مشکل</h2></div>
+      <p class="muted small" style="margin:2px 0 10px" data-i18n="rep.lead">مشکل را بنویسید؛ نتیجه‌ی تست‌های همین صفحه هم خودکار برای پشتیبانی فرستاده می‌شود.</p>
+      <textarea id="repText" class="reptext" rows="3" maxlength="600" data-i18n-ph="rep.ph" placeholder="مثلا: از دیشب اینستاگرام باز نمی‌شود"></textarea>
+      <button class="btn" id="repBtn" type="button" data-i18n="rep.send">ارسال گزارش به پشتیبانی</button>
+    </article>
+
+    <div class="actionrow block" id="mainActions" data-pane="support">
       <a class="btn sm btn-ghost" id="botConnectBtn" hidden target="_blank" rel="noopener" data-i18n="act.botConnect">اعلان‌ها در ربات تلگرام</a>
       <button class="btn sm btn-ghost" id="notifBtn" type="button" hidden data-i18n="act.notif">فعال‌سازی یادآور مرورگر</button>
     </div>
 
-    <div class="contact-grid block">
+    <div class="contact-grid block" data-pane="support">
       <a class="stat card" id="channelCard" href="https://t.me/DrNetWorkSingBox" target="_blank" rel="noopener">
         <span class="stat-ico tm" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/></svg></span>
         <div><span class="stat-val" data-i18n="contact.channel">کانال اطلاع‌رسانی</span><span class="muted small" dir="ltr" id="channelHandle">t.me/DrNetWorkSingBox</span></div>
@@ -729,6 +826,13 @@ ul.checks li::before{content:"✓";position:absolute;inset-inline-start:0;top:1p
     <p id="qrSub" class="urltxt small"></p>
   </div>
 </div>
+
+<nav id="tabNav" class="tabnav" aria-label="sections">
+  <button type="button" data-go="status" class="on"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 9 9"/><path d="M12 3v9h9"/></svg><span data-i18n="tab.status">وضعیت</span></button>
+  <button type="button" data-go="connect"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 15l6-6"/><path d="M11 6l1.5-1.5a4.2 4.2 0 0 1 6 6L17 12"/><path d="M13 18l-1.5 1.5a4.2 4.2 0 0 1-6-6L7 12"/></svg><span data-i18n="tab.connect">اتصال</span></button>
+  <button type="button" data-go="tests"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg><span data-i18n="tab.tests">تست‌ها</span></button>
+  <button type="button" data-go="support"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span data-i18n="tab.support">پشتیبانی</span></button>
+</nav>
 
 <div id="toasts" role="status" aria-live="polite"></div>
 
@@ -1098,6 +1202,29 @@ const I18N = {
     "err.netTitle": "اتصال به سرور برقرار نشد",
     "err.corsMsg": "مرورگر اجازه خواندن پاسخ را نداد (CORS). سرویس اشتراک s-ui هدر CORS نمی‌فرستد؛ پس این صفحه باید روی همان دامنه و پورتی میزبانی شود که لینک اشتراک از آن می‌آید.",
     "err.netMsg": "اتصال اینترنت یا فیلترشکن خود را بررسی کنید و دوباره تلاش کنید.",
+    "chan.join": "برای اطلاع از آپدیت‌ها و اطلاعیه‌ها عضو کانال ما شوید", "chan.cta": "عضویت",
+    "hero.add": "افزودن به اپ", "hero.usedPct": "{p} مصرف‌شده", "hero.daysLeft": "روز مانده",
+    "hero.plan": "پلن فعلی", "hero.test": "اشتراک تست", "hero.renewed": "آخرین تمدید", "hero.bought": "تاریخ خرید",
+    "hero.planGb": "{v} گیگ", "hero.planDays": "{v} روز",
+    "hero.devices": "دستگاه‌های متصل", "hero.devOf": "{u} از {l}",
+    "srv.title": "وضعیت سرورها", "srv.ok": "پایدار", "srv.busy": "شلوغ", "srv.down": "قطع",
+    "vpn.title": "الان از VPN رد می‌شوید؟", "vpn.again": "بررسی دقیق‌تر", "vpn.checking": "در حال بررسی…",
+    "vpn.yes": "بله، از VPN رد می‌شوید", "vpn.via": "سرور: {v}",
+    "vpn.yesOther": "بله، IP شما خارج از ایران است", "vpn.exit": "کشور خروجی: {v}",
+    "vpn.no": "نه، ترافیک این مرورگر مستقیم می‌رود",
+    "vpn.noHint": "اپ را وصل کنید و حالت TUN یا «پروکسی سیستم» را روشن کنید، بعد دوباره بررسی کنید.",
+    "vpn.selfNo": "این مرورگر از سرور ما رد نمی‌شود",
+    "vpn.selfHint": "اگر اپ وصل است، شاید آدرس پنل مستقیم باز می‌شود؛ برای اطمینان «بررسی دقیق‌تر» را بزنید.",
+    "vpn.extNote": "«بررسی دقیق‌تر» IP خروجی شما را از سرویس بیرونی ip.sb می‌پرسد.",
+    "vpn.unknown": "بررسی ممکن نشد", "vpn.unknownHint": "سرویس تشخیص IP در دسترس نبود؛ کمی بعد دوباره امتحان کنید.",
+    "sites.title": "دسترسی به سرویس‌ها", "sites.start": "شروع تست", "sites.running": "در حال تست…",
+    "sites.lead": "بررسی می‌کند سرویس‌های پرکاربرد از همین دستگاه باز می‌شوند یا نه، و با چه سرعتی.",
+    "sites.sum": "{ok} از {all} سرویس در دسترس است", "sites.fail": "باز نشد",
+    "rep.title": "گزارش مشکل", "rep.lead": "مشکل را بنویسید؛ نتیجه‌ی تست‌های همین صفحه هم خودکار برای پشتیبانی فرستاده می‌شود.",
+    "rep.ph": "مثلا: از دیشب اینستاگرام باز نمی‌شود", "rep.send": "ارسال گزارش به پشتیبانی", "rep.sending": "در حال ارسال…",
+    "rep.ok": "گزارش برای پشتیبانی فرستاده شد", "rep.wait": "گزارش قبلی همین تازگی فرستاده شد؛ چند دقیقه دیگر دوباره امتحان کنید.",
+    "rep.fail": "ارسال گزارش ممکن نشد", "rep.vpn": "VPN", "rep.sites": "تست سرویس‌ها", "rep.device": "دستگاه",
+    "tab.status": "وضعیت", "tab.connect": "اتصال", "tab.tests": "تست‌ها", "tab.support": "پشتیبانی",
   },
   en: {
     "doc.title": "Subscription status",
@@ -1287,6 +1414,29 @@ const I18N = {
     "err.netTitle": "Could not reach the server",
     "err.corsMsg": "The browser refused to read the response (CORS). The s-ui subscription service sends no CORS headers, so this page must be hosted on the same domain and port as the subscription link.",
     "err.netMsg": "Check your internet connection or your VPN client and try again.",
+    "chan.join": "Join our channel for updates and announcements", "chan.cta": "Join",
+    "hero.add": "Add to app", "hero.usedPct": "{p} used", "hero.daysLeft": "days left",
+    "hero.plan": "Current plan", "hero.test": "Trial", "hero.renewed": "Last renewal", "hero.bought": "Purchased",
+    "hero.planGb": "{v} GB", "hero.planDays": "{v} days",
+    "hero.devices": "Connected devices", "hero.devOf": "{u} of {l}",
+    "srv.title": "Server status", "srv.ok": "Stable", "srv.busy": "Busy", "srv.down": "Down",
+    "vpn.title": "Are you on the VPN right now?", "vpn.again": "Check more precisely", "vpn.checking": "Checking…",
+    "vpn.yes": "Yes, you are going through the VPN", "vpn.via": "Server: {v}",
+    "vpn.yesOther": "Yes, your IP is outside Iran", "vpn.exit": "Exit country: {v}",
+    "vpn.no": "No, this browser goes out directly",
+    "vpn.noHint": "Connect the app and turn on TUN or system proxy mode, then check again.",
+    "vpn.selfNo": "This browser does not go through our server",
+    "vpn.selfHint": "If the app is connected, the panel address may be opened directly; tap \u201cCheck more precisely\u201d to be sure.",
+    "vpn.extNote": "\u201cCheck more precisely\u201d asks the outside service ip.sb for your exit IP.",
+    "vpn.unknown": "Couldn\u2019t check", "vpn.unknownHint": "The IP lookup service was unreachable; try again a bit later.",
+    "sites.title": "Service reachability", "sites.start": "Start test", "sites.running": "Testing…",
+    "sites.lead": "Checks whether popular services open from this device, and how fast.",
+    "sites.sum": "{ok} of {all} services reachable", "sites.fail": "Failed",
+    "rep.title": "Report a problem", "rep.lead": "Describe the problem; the results of this page\u2019s tests are sent to support too.",
+    "rep.ph": "e.g. Instagram hasn\u2019t opened since last night", "rep.send": "Send report to support", "rep.sending": "Sending…",
+    "rep.ok": "Report sent to support", "rep.wait": "A report was sent just now; try again in a few minutes.",
+    "rep.fail": "Couldn\u2019t send the report", "rep.vpn": "VPN", "rep.sites": "Service test", "rep.device": "Device",
+    "tab.status": "Status", "tab.connect": "Connect", "tab.tests": "Tests", "tab.support": "Support",
   },
 };
 function t(key, vars) {
@@ -1482,9 +1632,10 @@ function renderDash() {
       $("#remainLabel").textContent = t("card.used", { used: formatBytes(used), total: formatBytes(total), remain: formatBytes(remain) });
       const gw = $("#usageGauge");
       gw.hidden = false;
-      gw.className = "gauge" + (pct >= 95 ? " lvl-full" : pct >= 80 ? " lvl-warn" : "");
-      gw.querySelector(".g-fg").style.strokeDashoffset = (138.23 * (1 - pct / 100)).toFixed(2);
-      animateNum($("#usagePct"), pct, function (v) { return FA0.format(v) + pctSign; });
+      gw.className = "gauge hero-g" + (pct >= 95 ? " lvl-full" : pct >= 80 ? " lvl-warn" : "");
+      gw.querySelector(".g-fg").style.strokeDashoffset = (138.23 * (pct / 100)).toFixed(2);
+      animateNum($("#heroRemain"), remain, formatBytes);
+      animateNum($("#usagePct"), pct, function (v) { return t("hero.usedPct", { p: FA0.format(v) + pctSign }); });
       const fill = $("#barFill");
       fill.style.width = pct + "%";
       fill.className = pct >= 95 ? "lvl-full" : pct >= 80 ? "lvl-warn" : "";
@@ -1496,9 +1647,11 @@ function renderDash() {
       $("#remainVal").textContent = t("card.unlimited");
       $("#remainLabel").textContent = t("card.noLimit");
       const gw = $("#usageGauge");
-      gw.hidden = true;
-      gw.querySelector(".g-fg").style.strokeDashoffset = "138.23";
-      $("#usagePct").textContent = "";
+      gw.hidden = false;
+      gw.className = "gauge hero-g lvl-free";
+      gw.querySelector(".g-fg").style.strokeDashoffset = "0";
+      $("#heroRemain").textContent = "∞";
+      $("#usagePct").textContent = t("hero.usedPct", { p: formatBytes(used) });
       const fill = $("#barFill");
       fill.style.width = "100%";
       fill.className = "lvl-free";
@@ -1514,6 +1667,7 @@ function renderDash() {
     gw.hidden = true;
     gw.querySelector(".g-fg").style.strokeDashoffset = "138.23";
     $("#usagePct").textContent = "";
+    $("#heroRemain").textContent = "—";
     const fill = $("#barFill");
     fill.style.width = "0%";
     fill.className = "";
@@ -1532,7 +1686,11 @@ function renderDash() {
     $("#chipDetails").textContent = daysLeft > 0
       ? t("chip.daysLeft", { d: FA0.format(daysLeft), date: faDate.format(d) })
       : t("chip.expired", { date: faDate.format(d) });
+    $("#heroDays").textContent = FA0.format(Math.max(0, daysLeft));
+    $("#heroDaysLbl").textContent = daysLeft <= 0 ? t("card.expired") : t("hero.daysLeft");
   } else {
+    $("#heroDays").textContent = info ? "∞" : "—";
+    $("#heroDaysLbl").textContent = info ? t("card.noExpiry") : "";
     $("#daysVal").textContent = info ? t("card.unlimited") : "—";
     $("#daysUnit").textContent = "";
     $("#daysLabel").textContent = info ? t("card.noExpiry") : "";
@@ -1563,6 +1721,8 @@ function renderDash() {
     $("#ulVal").textContent = "—";
   }
 
+  renderHero(st);
+  renderChannelTop();
   renderApps();
   renderExtras();
   renderCountdown();
@@ -2427,7 +2587,7 @@ function renderCreated(ts, approxTs, reason) {
 async function renderMetrics() {
   const card = $("#metricsCard"), body = $("#mtrBody");
   if (!card || !body) return;
-  if (!bridgeOn() || !state.url || state.demo) { card.hidden = true; renderCreated(0); return; }
+  if (!bridgeOn() || !state.url || state.demo) { card.hidden = true; renderCreated(0); if (!state.demo) { renderDevices(null); renderServers(null); } return; }
   card.hidden = false;
   try {
     const j = await loadBridge();
@@ -2450,12 +2610,16 @@ async function renderMetrics() {
       rows.push(html + "</div>");
     }
     state.bridgeData = j;
+    renderDevices(j.devices);
+    renderServers(j.servers);
     body.innerHTML = rows.join("");
       const f = $("#mtrFresh");
     if (f) f.textContent = t("mtr.updated", { v: faTime.format(new Date()) });
     saveLastInfo();   // تاریخ ایجاد (هم در کش آفلاین بماند)
   } catch (e) {
     card.hidden = true;
+    renderDevices(null);
+    renderServers(null);
     const lg = readLastInfo();     // آفلاین: تاریخ ایجادِ ذخیره‌شده باید بماند
     renderCreated(state.offline && lg && lg.created ? lg.created : 0, 0, (state.offline && lg && lg.created) ? "" : "unreachable");
   }
@@ -2594,6 +2758,7 @@ function renderExtras() {
   maybeNotify();
   renderMetrics();
   renderConnectivity(false);
+  renderTests();
   const pct = state.info && state.info.total > 0
     ? Math.min(100, (((state.info.upload || 0) + (state.info.download || 0)) / state.info.total) * 100)
     : null;
@@ -2640,12 +2805,20 @@ function applyBrandUi() {
   renderNotice();
 }
 function renderNotice() {
-  const el = $("#noticeBanner");
-  if (!el) return;
-  const txt = (LANG === "en" && UI.noticeEn) || UI.notice || "";
-  el.hidden = !txt;
-  el.textContent = txt;
-  el.style.whiteSpace = "pre-line";
+  const box = $("#noticeBox");
+  if (!box) return;
+  box.textContent = "";
+  const today = new Date().toISOString().slice(0, 10);
+  (Array.isArray(UI.notices) ? UI.notices : []).forEach(function (n) {
+    if (!n || (n.until && n.until < today)) return;
+    const txt = (LANG === "en" && n.textEn) || n.text || "";
+    if (!txt) return;
+    const el = document.createElement("div");
+    el.className = "banner " + (n.kind === "warn" ? "warn" : n.kind === "promo" ? "promo" : "demo");
+    el.textContent = txt;
+    box.appendChild(el);
+  });
+  box.hidden = !box.children.length;
 }
 function applySectionFlags() {
   [["#appsBox", UI.hideApps], ["#qrCard", UI.hideQr], ["#checklistCard", UI.hideTips]].forEach(function (p) {
@@ -2653,6 +2826,293 @@ function applySectionFlags() {
     if (el && p[1]) el.hidden = true;
   });
   if (UI.hideLive) { const m = $("#metricsCard"); if (m) m.hidden = true; }
+  syncTabs();
+}
+
+/* ── v51.8: کارت اصلی (حلقه‌ی باقی‌مانده، پلن، دستگاه‌ها) ── */
+function renderHero(st) {
+  const chip = $("#heroStatus");
+  if (chip) {
+    chip.hidden = !state.info;
+    chip.className = "chip tone-" + st.tone;
+    $("#heroStatusTxt").textContent = st.label;
+  }
+  const cta = $("#heroCta");
+  if (cta) {
+    const first = state.url ? appButtons()[0] : null;
+    cta.hidden = !first;
+    if (first) cta.href = first.href;
+    if (!cta._wired) { cta._wired = 1; cta.addEventListener("click", function () { deepLinkTo(state.url || ""); }); }
+  }
+  const pl = $("#heroPlan");
+  if (!pl) return;
+  const lp = state.demo
+    ? { name: LANG === "en" ? "30 GB plan" : "پلن ۳۰ گیگ", gb: 30, days: 30, at: Math.floor(Date.now() / 1000) - 12 * 86400, kind: "renew" }
+    : CONFIG.lastPlan;
+  if (!lp || !(lp.name || lp.gb || lp.days)) { pl.hidden = true; return; }
+  const bits = [];
+  if (lp.gb) bits.push(t("hero.planGb", { v: FA0.format(lp.gb) }));
+  else if (lp.days) bits.push(t("card.unlimited"));
+  if (lp.days) bits.push(t("hero.planDays", { v: FA0.format(lp.days) }));
+  let html = escHtml(lp.kind === "test" ? t("hero.test") : t("hero.plan")) + ": <b>" + escHtml(lp.name || bits.join(" · ")) + "</b>";
+  if (lp.name && bits.length) html += " (" + escHtml(bits.join(" · ")) + ")";
+  if (lp.at) {
+    const d = new Date(lp.at * 1000);
+    html += " · " + escHtml(lp.kind === "renew" ? t("hero.renewed") : t("hero.bought")) + ": <b>" + escHtml(LANG === "en" ? enDate.format(d) : faDate.format(d)) + "</b>";
+  }
+  pl.innerHTML = html;
+  pl.hidden = false;
+}
+function renderDevices(d) {
+  const el = $("#heroDevices");
+  if (!el) return;
+  if (state.demo) d = { used: 2, limit: 3 };
+  if (!d || !(d.limit > 0)) { el.hidden = true; return; }
+  el.innerHTML = escHtml(t("hero.devices")) + ": <b" + (d.used >= d.limit ? ' style="color:var(--orange)"' : "") + ">" +
+    escHtml(t("hero.devOf", { u: FA0.format(d.used || 0), l: FA0.format(d.limit) })) + "</b>";
+  el.hidden = false;
+}
+/* لینک کانال بالای صفحه؛ با «×» دو هفته پنهان می‌ماند */
+function renderChannelTop() {
+  const box = $("#chanTop");
+  if (!box) return;
+  const link = CONFIG.channelLink || "";
+  const until = Number(readLS("sui-info:chanX", "0")) || 0;
+  box.hidden = !/^https:\/\//.test(link) || Date.now() < until;
+  if (!box.hidden) $("#chanTopLink").href = link;
+  const x = $("#chanTopX");
+  if (x && !x._wired) {
+    x._wired = 1;
+    x.addEventListener("click", function () { writeLS("sui-info:chanX", String(Date.now() + 14 * 864e5)); box.hidden = true; });
+  }
+}
+function renderServers(list) {
+  const card = $("#serversCard"), body = $("#srvBody");
+  if (!card || !body) return;
+  if (state.demo) list = [{ name: LANG === "en" ? "Germany" : "آلمان", state: "ok" }, { name: LANG === "en" ? "Netherlands" : "هلند", state: "busy" }];
+  if (UI.hideServers || !Array.isArray(list) || !list.length) { card.hidden = true; syncTabs(); return; }
+  const ico = { ok: "🟢", busy: "🟡", down: "🔴" };
+  body.innerHTML = list.map(function (s) {
+    const k = ico[s.state] ? s.state : "down";
+    return '<div class="srv"><b>' + escHtml(s.name || "—") + '</b><span class="st ' + k + '">' + ico[k] + " " + escHtml(t("srv." + k)) + "</span></div>";
+  }).join("");
+  card.hidden = false;
+  syncTabs();
+}
+
+/* ── v51.8: تست‌ها (VPN و دسترسی به سرویس‌ها) ── */
+const DEFAULT_SITES = [
+  { name: "Google", url: "https://www.google.com/generate_204" },
+  { name: "YouTube", url: "https://www.youtube.com/generate_204" },
+  { name: "Instagram", url: "https://www.instagram.com/favicon.ico" },
+  { name: "Telegram", url: "https://web.telegram.org/favicon.ico" },
+  { name: "WhatsApp", url: "https://web.whatsapp.com/favicon.ico" },
+  { name: "X", url: "https://x.com/favicon.ico" },
+  { name: "ChatGPT", url: "https://chatgpt.com/favicon.ico" },
+  { name: "GitHub", url: "https://github.com/favicon.ico" },
+  { name: "Spotify", url: "https://open.spotify.com/favicon.ico" },
+  { name: "Netflix", url: "https://www.netflix.com/favicon.ico" },
+  { name: "Cloudflare", url: "https://www.cloudflare.com/favicon.ico" },
+];
+function siteList() {
+  const l = Array.isArray(CONFIG.sites) ? CONFIG.sites.filter(function (x) { return x && x.name && /^https:\/\//.test(x.url || ""); }) : [];
+  return l.length ? l : DEFAULT_SITES;
+}
+function withTimeout(p, ms, ctl) {
+  return Promise.race([p, new Promise(function (r) { setTimeout(function () { if (ctl) { try { ctl.abort(); } catch (e) {} } r(null); }, ms); })]);
+}
+function fetchTimed(url, ms) {
+  const ctl = typeof AbortController === "function" ? new AbortController() : null;
+  const t0 = performance.now();
+  const p = fetch(url, { mode: "no-cors", cache: "no-store", credentials: "omit", referrerPolicy: "no-referrer", signal: ctl ? ctl.signal : undefined })
+    .then(function () { return Math.max(1, Math.round(performance.now() - t0)); })
+    .catch(function () { return null; });
+  return withTimeout(p, ms, ctl);
+}
+function fetchJsonT(url, ms, opts) {
+  const ctl = typeof AbortController === "function" ? new AbortController() : null;
+  const o = Object.assign({ cache: "no-store" }, opts || {});
+  if (ctl) o.signal = ctl.signal;
+  const p = fetch(url, o).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; });
+  return withTimeout(p, ms, ctl);
+}
+async function probeSite(url) {
+  const a = await fetchTimed(url, 7000);
+  if (a == null) return null;
+  const b = await fetchTimed(url, 7000);
+  return b == null ? a : Math.min(a, b);
+}
+function drawSites() {
+  const grid = $("#sitesGrid");
+  if (!grid) return;
+  state.sitesDrawn = true;
+  grid.innerHTML = siteList().map(function (x, i) {
+    return '<div class="site" id="site' + i + '"><span>' + escHtml(x.name) + '</span><span class="ms">—</span></div>';
+  }).join("");
+}
+async function runSites() {
+  const btn = $("#sitesBtn");
+  if (state.sitesBusy) return;
+  state.sitesBusy = true;
+  if (btn) { btn.disabled = true; btn.textContent = t("sites.running"); }
+  drawSites();
+  const list = siteList(), res = new Array(list.length);
+  let next = 0;
+  async function worker() {
+    while (next < list.length) {
+      const i = next++;
+      const el = $("#site" + i);
+      if (el) el.querySelector(".ms").textContent = "…";
+      const ms = await probeSite(list[i].url);
+      res[i] = { name: list[i].name, ms: ms };
+      if (el) {
+        el.className = "site " + (ms == null ? "bad" : ms < 300 ? "good" : ms < 800 ? "mid" : "bad");
+        el.querySelector(".ms").textContent = ms == null ? t("sites.fail") : FA0.format(ms) + " ms";
+      }
+    }
+  }
+  await Promise.all([worker(), worker(), worker(), worker()]);
+  state.sitesRes = res;
+  const ok = res.filter(function (x) { return x && x.ms != null; }).length;
+  const sum = $("#sitesSum");
+  if (sum) { sum.hidden = false; sum.textContent = t("sites.sum", { ok: FA0.format(ok), all: FA0.format(list.length) }); }
+  if (btn) { btn.disabled = false; btn.textContent = t("sites.start"); }
+  state.sitesBusy = false;
+}
+/* سرویس بیرونی تشخیص IP؛ فقط با زدن دکمه‌ی «بررسی دقیق‌تر» توسط خود کاربر صدا زده می‌شود. */
+async function extIp() {
+  const o = { credentials: "omit", referrerPolicy: "no-referrer" };
+  const a = await fetchJsonT("https://api.ip.sb/geoip", 6000, o);
+  if (a && a.ip) return { ip: String(a.ip), cc: String(a.country_code || "").toUpperCase(), country: String(a.country || "") };
+  return null;
+}
+function vpnRow(kind, main, sub) {
+  const ico = { ok: "✓", bad: "✕", wait: "…", unk: "?" }[kind] || "?";
+  return '<div class="vpn-res ' + kind + '"><span class="vi" aria-hidden="true">' + ico + "</span><span>" + escHtml(main) + "</span></div>" +
+    (sub ? '<p class="muted small" style="margin:0">' + escHtml(sub) + "</p>" : "");
+}
+/* بررسی خودکار فقط با خود سرور پنل است (بدون هیچ سرویس بیرونی).
+   بررسی دقیق‌تر با ip.sb فقط وقتی انجام می‌شود که کاربر خودش دکمه را بزند. */
+async function runVpn(withExt) {
+  const body = $("#vpnBody");
+  if (!body || state.vpnBusy || !state.url || state.demo) return;
+  state.vpnBusy = true;
+  const btn = $("#vpnBtn");
+  if (btn) btn.disabled = true;
+  body.innerHTML = vpnRow("wait", t("vpn.checking"), "");
+  const ext = withExt === true ? await extIp() : null;
+  const q = state.url + (state.url.indexOf("?") >= 0 ? "&" : "?") + "format=vpn" + (ext ? "&ip=" + encodeURIComponent(ext.ip) : "");
+  const v = await fetchJsonT(q, 8000);
+  let r;
+  if (v && v.ext && v.ext.ours) r = { kind: "ok", main: t("vpn.yes"), sub: v.ext.via ? t("vpn.via", { v: v.ext.via }) : "" };
+  else if (ext && ext.cc && ext.cc !== "IR") r = { kind: "ok", main: t("vpn.yesOther"), sub: t("vpn.exit", { v: ext.country || ext.cc }) };
+  else if (ext && ext.cc === "IR") r = { kind: "bad", main: t("vpn.no"), sub: t("vpn.noHint") };
+  else if (v && v.self && v.self.ours) r = { kind: "ok", main: t("vpn.yes"), sub: v.self.via ? t("vpn.via", { v: v.self.via }) : "" };
+  else if (withExt === true) r = { kind: "unk", main: t("vpn.unknown"), sub: t("vpn.unknownHint") };
+  else r = { kind: "unk", main: t("vpn.selfNo"), sub: t("vpn.selfHint") };
+  r.ip = ext ? ext.ip : "";
+  state.vpnRes = r;
+  body.innerHTML = vpnRow(r.kind, r.main, r.sub) + (r.ip ? '<p class="muted small" style="margin:0" dir="ltr">IP: ' + escHtml(r.ip) + "</p>" : "") +
+    (withExt === true ? "" : '<p class="muted small" style="margin:4px 0 0">' + escHtml(t("vpn.extNote")) + "</p>");
+  if (btn) btn.disabled = false;
+  state.vpnBusy = false;
+}
+function watchVpn() {
+  if (state.vpnWatch) return;
+  const card = $("#vpnCard");
+  if (!card) return;
+  state.vpnWatch = true;
+  if (!("IntersectionObserver" in window)) { runVpn(false); return; }
+  const io = new IntersectionObserver(function (es) {
+    if (es.some(function (e) { return e.isIntersecting; })) { io.disconnect(); runVpn(false); }
+  });
+  io.observe(card);
+}
+function renderTests() {
+  const live = !!state.url && !state.demo && !state.offline;
+  const vc = $("#vpnCard");
+  if (vc) { vc.hidden = !live || !!UI.hideVpn; if (!vc.hidden) watchVpn(); }
+  const sc = $("#sitesCard");
+  if (sc) { sc.hidden = !!UI.hideSites || !(state.url || state.demo); if (!sc.hidden && !state.sitesDrawn) drawSites(); }
+  const rc = $("#reportCard");
+  if (rc) rc.hidden = !live || !UI.report;
+  syncTabs();
+}
+
+/* ── v51.8: گزارش مشکل به پشتیبانی (از راه ربات) ── */
+function reportText() {
+  const lines = [];
+  const own = (($("#repText") || {}).value || "").trim();
+  if (own) lines.push(own, "");
+  if (state.vpnRes) lines.push(t("rep.vpn") + ": " + state.vpnRes.main + (state.vpnRes.sub ? " — " + state.vpnRes.sub : ""));
+  if (state.sitesRes) lines.push(t("rep.sites") + ": " + state.sitesRes.filter(Boolean).map(function (x) { return x.name + " " + (x.ms == null ? "✗" : x.ms + "ms"); }).join(", "));
+  lines.push(t("rep.device") + ": " + t("os." + detectOS()) + " · " + String(navigator.userAgent || "").slice(0, 160));
+  return lines.join("\n");
+}
+async function sendReport() {
+  const btn = $("#repBtn");
+  if (!state.url || state.demo || (btn && btn.disabled)) return;
+  if (btn) { btn.disabled = true; btn.textContent = t("rep.sending"); }
+  let code = 0;
+  try {
+    const res = await fetch(state.url + (state.url.indexOf("?") >= 0 ? "&" : "?") + "format=report", {
+      method: "POST", cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: reportText() }),
+    });
+    code = res.status;
+  } catch (e) { code = 0; }
+  if (code === 200) { toast(t("rep.ok"), "ok"); const ta = $("#repText"); if (ta) ta.value = ""; }
+  else if (code === 429) toast(t("rep.wait"), "info");
+  else toast(t("rep.fail"), "err");
+  if (btn) { btn.disabled = false; btn.textContent = t("rep.send"); }
+}
+
+/* ── v51.8: زبانه‌های پایین صفحه در موبایل ── */
+const PANES = ["status", "connect", "tests", "support"];
+function setTab(name, auto) {
+  if (PANES.indexOf(name) < 0) name = "status";
+  if (!auto) state.tabWant = name;
+  const was = document.body.getAttribute("data-cur");
+  document.body.setAttribute("data-cur", name);
+  document.querySelectorAll("#tabNav [data-go]").forEach(function (b) {
+    const on = b.getAttribute("data-go") === name;
+    b.classList.toggle("on", on);
+    b.setAttribute("aria-current", on ? "page" : "false");
+  });
+  if (was !== name && window.matchMedia && matchMedia("(max-width:760px)").matches) window.scrollTo(0, 0);
+}
+function syncTabs() {
+  const nav = $("#tabNav");
+  if (!nav) return;
+  PANES.forEach(function (p) {
+    const b = nav.querySelector('[data-go="' + p + '"]');
+    if (!b) return;
+    b.hidden = !Array.prototype.some.call(document.querySelectorAll('#dash [data-pane="' + p + '"]'), function (el) { return !el.hidden; });
+  });
+  // زبانه‌ی خواسته‌شده (مثلا از #tests) وقتی محتوایش آمد باز می‌شود
+  const want = nav.querySelector('[data-go="' + (state.tabWant || "status") + '"]');
+  if (want && !want.hidden) { if (document.body.getAttribute("data-cur") !== state.tabWant) setTab(state.tabWant, true); return; }
+  const cur = nav.querySelector('[data-go="' + document.body.getAttribute("data-cur") + '"]');
+  if (!cur || cur.hidden) setTab("status", true);
+}
+function wireV518() {
+  const nav = $("#tabNav");
+  if (nav) nav.addEventListener("click", function (e) {
+    const b = e.target.closest("[data-go]");
+    if (b) setTab(b.getAttribute("data-go"));
+  });
+  const sb = $("#sitesBtn");
+  if (sb) sb.addEventListener("click", runSites);
+  const vb = $("#vpnBtn");
+  if (vb) vb.addEventListener("click", function () { runVpn(true); });
+  const rb = $("#repBtn");
+  if (rb) rb.addEventListener("click", sendReport);
+  // لینک مستقیم به یک زبانه: …/sub/<id>#tests
+  const fromHash = function () { const h = location.hash.replace("#", ""); if (PANES.indexOf(h) >= 0) setTab(h); };
+  setTab("status");
+  fromHash();
+  window.addEventListener("hashchange", fromHash);
 }
 
 /* ── شروع ── */
@@ -2697,6 +3157,7 @@ function init() {
     if (state.url) load(state.url, { fromRefresh: true });
   });
   wireV20Events();
+  wireV518();
   initTilt();
   initIsland();
   $("#qrModal").addEventListener("click", (e) => {
