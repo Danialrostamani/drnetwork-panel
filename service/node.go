@@ -629,6 +629,13 @@ func (s *NodeService) Save(tx *gorm.DB, action string, data json.RawMessage) err
 		if replicas > 0 {
 			return common.NewErrorf("node still has %d adopted inbound(s)", replicas)
 		}
+		var gone model.Node
+		if err := tx.Select("id", "name").First(&gone, id).Error; err != nil && !database.IsNotFound(err) {
+			return err
+		}
+		if err := dropNodeLinks(tx, gone.Name); err != nil {
+			return err
+		}
 		if err := tx.Delete(&model.Node{}, id).Error; err != nil {
 			return err
 		}

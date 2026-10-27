@@ -641,6 +641,24 @@ func (a *ApiService) ReconcileNode(c *gin.Context) {
 	jsonMsg(c, "reconcileNode", err)
 }
 
+// GetOrphanNodeLinks lists the node names client links still carry with no
+// such node, left by nodes deleted before their links went with them.
+func (a *ApiService) GetOrphanNodeLinks(c *gin.Context) {
+	list, err := service.OrphanNodeLinks()
+	jsonObj(c, list, err)
+}
+
+// RemoveOrphanNodeLinks drops those links, names given as a JSON list.
+func (a *ApiService) RemoveOrphanNodeLinks(c *gin.Context, loginUser string) {
+	var names []string
+	if err := json.Unmarshal([]byte(c.PostForm("names")), &names); err != nil {
+		jsonMsg(c, "removeOrphanNodeLinks", common.NewError("invalid names"))
+		return
+	}
+	n, err := service.RemoveOrphanNodeLinks(names, loginUser)
+	jsonObj(c, map[string]int{"clients": n}, err)
+}
+
 // GetTotp tells whether the logged-in account has two-factor login on, and
 // when not, the secret and link to set it up with.
 func (a *ApiService) GetTotp(c *gin.Context) {

@@ -6,6 +6,8 @@ export interface BotMember {
   username: string
   blocked: boolean
   adminId: number
+  // The seller their introducer word belongs to, when the owner set none.
+  refAdmin?: number
   note: string
   firstSeen: number
   lastSeen: number
@@ -69,7 +71,7 @@ export function membersCSV(members: BotMember[], sellerName: (id: number) => str
   const head = ['telegram_id', 'name', 'username', 'introducer', 'introducer_group', 'seller', 'joined', 'last_seen',
     'test_account', 'buys', 'renews', 'paid', 'wallet', 'last_purchase', 'pending', 'blocked', 'clients', 'note']
   const rows = members.map(m => [
-    m.tgId, m.name, m.username, m.ref, m.refGroup, m.adminId ? sellerName(m.adminId) : '', day(m.firstSeen), day(m.lastSeen),
+    m.tgId, m.name, m.username, m.ref, m.refGroup, m.adminId ? sellerName(m.adminId) : m.refAdmin ? sellerName(m.refAdmin) : '', day(m.firstSeen), day(m.lastSeen),
     day(m.trialAt), m.buys, m.renews, m.spent, m.balance, day(m.lastBuy), m.pending, m.blocked ? 'yes' : '', m.clients.join(' '), m.note,
   ])
   return '\uFEFF' + [head, ...rows].map(r => r.map(csvCell).join(',')).join('\r\n') + '\r\n'
