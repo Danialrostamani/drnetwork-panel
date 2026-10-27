@@ -335,25 +335,145 @@
                         </v-text-field>
                       </v-col>
                     </v-row>
-                    <v-row>
-                      <v-col
-                        v-for="k in (['notice', 'noticeEn'] as const)"
-                        :key="k"
-                        cols="12"
-                        md="6"
-                      >
-                        <v-textarea
-                          :model-value="subPageConf[k]"
-                          :label="$t('setting.subPage_' + k)"
-                          :dir="k === 'noticeEn' ? 'ltr' : undefined"
-                          rows="2"
-                          auto-grow
-                          density="compact"
-                          hide-details
-                          @update:model-value="(v: string) => setSubPage(k, v)"
-                        />
-                      </v-col>
-                    </v-row>
+                    <div class="text-subtitle-2 mt-4 mb-1">
+                      {{ $t('setting.subPageNotices') }}
+                    </div>
+                    <div class="text-caption text-medium-emphasis mb-2">
+                      {{ $t('setting.subPageNoticesHint') }}
+                    </div>
+                    <v-card
+                      v-for="(n, idx) in noticeRows"
+                      :key="'n' + idx"
+                      variant="outlined"
+                      class="pa-3 mb-2"
+                    >
+                      <v-row dense>
+                        <v-col
+                          cols="12"
+                          md="6"
+                        >
+                          <v-textarea
+                            v-model="n.text"
+                            :label="$t('setting.subPage_notice')"
+                            rows="2"
+                            auto-grow
+                            density="compact"
+                            hide-details
+                            @update:model-value="writeSubPageLists"
+                          />
+                        </v-col>
+                        <v-col
+                          cols="12"
+                          md="6"
+                        >
+                          <v-textarea
+                            v-model="n.textEn"
+                            :label="$t('setting.subPage_noticeEn')"
+                            dir="ltr"
+                            rows="2"
+                            auto-grow
+                            density="compact"
+                            hide-details
+                            @update:model-value="writeSubPageLists"
+                          />
+                        </v-col>
+                        <v-col
+                          cols="12"
+                          sm="5"
+                        >
+                          <v-select
+                            v-model="n.kind"
+                            :items="subPageNoticeKinds.map(k => ({ value: k, title: $t('setting.subPageKind_' + k) }))"
+                            :label="$t('setting.subPageNoticeKind')"
+                            density="compact"
+                            hide-details
+                            @update:model-value="writeSubPageLists"
+                          />
+                        </v-col>
+                        <v-col
+                          cols="10"
+                          sm="5"
+                        >
+                          <v-text-field
+                            v-model="n.until"
+                            type="date"
+                            :label="$t('setting.subPageNoticeUntil')"
+                            density="compact"
+                            hide-details
+                            clearable
+                            @update:model-value="(v: string | null) => { n.until = v || ''; writeSubPageLists() }"
+                          />
+                        </v-col>
+                        <v-col
+                          cols="2"
+                          class="d-flex align-center justify-end"
+                        >
+                          <v-btn
+                            icon="mdi-delete-outline"
+                            variant="text"
+                            size="small"
+                            :aria-label="$t('setting.subNodeRouteRemove')"
+                            @click="noticeRows.splice(idx, 1); writeSubPageLists()"
+                          />
+                        </v-col>
+                      </v-row>
+                    </v-card>
+                    <v-btn
+                      v-if="noticeRows.length < 10"
+                      size="small"
+                      variant="tonal"
+                      prepend-icon="mdi-plus"
+                      class="mb-2"
+                      @click="noticeRows.push({ text: '', textEn: '', kind: 'info', until: '' })"
+                    >
+                      {{ $t('setting.subPageNoticeAdd') }}
+                    </v-btn>
+                    <div class="text-subtitle-2 mt-4 mb-1">
+                      {{ $t('setting.subPageSites') }}
+                    </div>
+                    <div class="text-caption text-medium-emphasis mb-2">
+                      {{ $t('setting.subPageSitesHint') }}
+                    </div>
+                    <div
+                      v-for="(x, idx) in siteRows"
+                      :key="'s' + idx"
+                      class="d-flex align-center ga-2 mb-2"
+                    >
+                      <v-text-field
+                        v-model="x.name"
+                        :label="$t('setting.subPageSiteName')"
+                        density="compact"
+                        hide-details
+                        style="max-width: 12rem"
+                        @update:model-value="writeSubPageLists"
+                      />
+                      <v-text-field
+                        v-model="x.url"
+                        :label="$t('setting.subPageSiteUrl')"
+                        placeholder="https://www.google.com/generate_204"
+                        dir="ltr"
+                        density="compact"
+                        hide-details
+                        @update:model-value="writeSubPageLists"
+                      />
+                      <v-btn
+                        icon="mdi-close"
+                        variant="text"
+                        size="small"
+                        :aria-label="$t('setting.subNodeRouteRemove')"
+                        @click="siteRows.splice(idx, 1); writeSubPageLists()"
+                      />
+                    </div>
+                    <v-btn
+                      v-if="siteRows.length < 24"
+                      size="small"
+                      variant="tonal"
+                      prepend-icon="mdi-plus"
+                      class="mb-4"
+                      @click="siteRows.push({ name: '', url: 'https://' })"
+                    >
+                      {{ $t('setting.subPageSiteAdd') }}
+                    </v-btn>
                     <v-row dense>
                       <v-col
                         v-for="k in subPageFlagKeys"
@@ -421,7 +541,8 @@
                   :model-value="row.weight"
                   type="number"
                   min="0"
-                  max="10000"
+                  max="100"
+                  suffix="%"
                   hide-details
                   density="compact"
                   style="max-width: 8rem"
@@ -435,6 +556,33 @@
                   :aria-label="$t('setting.subNodeRouteRemove')"
                   @click="removeRouteEntry(idx)"
                 />
+              </div>
+              <div
+                v-if="subNodeRoute.entries.length > 0"
+                class="d-flex align-center flex-wrap ga-2 mb-3"
+              >
+                <span :class="routeShareSum === 100 ? 'text-success' : 'text-warning'">
+                  {{ $t('setting.subNodeRouteSum', { sum: routeShareSum }) }}
+                </span>
+                <span
+                  v-if="routeShareSum !== 100 && routeShareSum > 0"
+                  class="text-medium-emphasis text-caption"
+                >{{ $t('setting.subNodeRouteSumHint') }}</span>
+                <v-btn
+                  size="small"
+                  variant="tonal"
+                  @click="equalRouteShares"
+                >
+                  {{ $t('setting.subNodeRouteEqual') }}
+                </v-btn>
+                <v-btn
+                  v-if="routeShareSum !== 100 && routeShareSum > 0"
+                  size="small"
+                  variant="tonal"
+                  @click="scaleRouteShares"
+                >
+                  {{ $t('setting.subNodeRouteScale') }}
+                </v-btn>
               </div>
               <div
                 v-if="subNodeRoute.entries.length === 0"
@@ -598,10 +746,11 @@
 
 <script lang="ts" setup>
 import { i18n } from '@/locales'
-import { Ref, computed, inject, onMounted, ref } from 'vue'
+import { Ref, computed, inject, onMounted, ref, watch } from 'vue'
 import HttpUtils from '@/plugins/httputil'
 import { FindDiff } from '@/plugins/utils'
-import { parseSubPageConf, subPageConfJSON, subPageFlagKeys, type SubPageConf } from '@/plugins/subPageConf'
+import { splitShares, sumShares } from '@/plugins/routeShares'
+import { parseSubPageConf, subPageConfJSON, subPageFlagKeys, subPageNoticeKinds, type SubPageConf, type SubPageNotice, type SubPageSite } from '@/plugins/subPageConf'
 import SubJsonExtVue from '@/components/SubJsonExt.vue'
 import SubClashExtVue from '@/components/SubClashExt.vue'
 import PanelUpdateVue from '@/components/PanelUpdate.vue'
@@ -813,9 +962,22 @@ const setRouteEnabled = (v: boolean | null) => {
   if (v && entries.length === 0) {
     entries = [...routeNodes.value]
       .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name))
-      .map(n => ({ id: n.id, weight: 100 }))
+      .map(n => ({ id: n.id, weight: 0 }))
+    entries = splitShares(entries.map(e => ({ ...e, weight: 1 })))
   }
   subNodeRoute.value = { enable: !!v, entries }
+}
+
+const routeShareSum = computed(() => sumShares(subNodeRoute.value.entries))
+
+const equalRouteShares = () => {
+  const cur = subNodeRoute.value
+  subNodeRoute.value = { ...cur, entries: splitShares(cur.entries.map(e => ({ ...e, weight: 1 }))) }
+}
+
+const scaleRouteShares = () => {
+  const cur = subNodeRoute.value
+  subNodeRoute.value = { ...cur, entries: splitShares(cur.entries) }
 }
 
 const setRouteWeight = (idx: number, v: string | number) => {
@@ -880,8 +1042,24 @@ const subPagePlaceholder: Record<string, string> = {
   name: 'وضعیت اشتراک', nameEn: 'Subscription status', logo: 'https://example.com/logo.png',
   accent: '#0C96B2', support: 'https://t.me/support', channel: 'https://t.me/channel',
 }
+// The notice and site lists are edited here, blank rows and all; the setting
+// gets them without the blank ones.
+const noticeRows = ref<SubPageNotice[]>([])
+const siteRows = ref<SubPageSite[]>([])
+let subPageWritten = ''
+watch(() => settings.value.subPageConf, (raw) => {
+  if (raw === subPageWritten) return
+  const c = parseSubPageConf(raw)
+  noticeRows.value = c.notices
+  siteRows.value = c.sites
+}, { immediate: true })
+const writeSubPage = (c: SubPageConf) => {
+  subPageWritten = subPageConfJSON({ ...c, notices: noticeRows.value, sites: siteRows.value })
+  settings.value.subPageConf = subPageWritten
+}
+const writeSubPageLists = () => writeSubPage(subPageConf.value)
 const setSubPage = <K extends keyof SubPageConf>(k: K, v: SubPageConf[K]) => {
-  settings.value.subPageConf = subPageConfJSON({ ...subPageConf.value, [k]: v })
+  writeSubPage({ ...subPageConf.value, [k]: v })
 }
 
 const subShowInfo = computed({

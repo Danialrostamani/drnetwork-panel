@@ -26,6 +26,7 @@ func NewSubHandler(g *gin.RouterGroup) {
 func (s *SubHandler) initRouter(g *gin.RouterGroup) {
 	g.GET("/:subid", s.subs)
 	g.HEAD("/:subid", s.subHeaders)
+	g.POST("/:subid", s.report)
 }
 
 func (s *SubHandler) subs(c *gin.Context) {
@@ -48,8 +49,12 @@ func (s *SubHandler) subs(c *gin.Context) {
 		return
 	}
 	format, isFormat := c.GetQuery("format")
-	if format == "status" {
+	switch format {
+	case "status":
 		s.status(c, subId)
+		return
+	case "vpn":
+		s.vpn(c, subId)
 		return
 	}
 	if isFormat {

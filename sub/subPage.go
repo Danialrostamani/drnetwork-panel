@@ -8,6 +8,7 @@ import (
 
 	"github.com/Danialrostamani/drnetwork-panel/database"
 	"github.com/Danialrostamani/drnetwork-panel/database/model"
+	"github.com/Danialrostamani/drnetwork-panel/service"
 	"github.com/Danialrostamani/drnetwork-panel/service/tgbot"
 
 	"github.com/gin-gonic/gin"
@@ -86,12 +87,26 @@ func (s *SubHandler) pageConfig(client *model.Client) map[string]any {
 		out["plans"] = extra.Plans
 	}
 	out["statusSelf"] = !conf.HideLive
+	if len(conf.Sites) > 0 {
+		out["sites"] = conf.Sites
+	}
+	if p := tgbot.LastPlanOf(client); p != nil {
+		out["lastPlan"] = p
+	}
+	loc, _ := s.SettingService.GetTimeLocation()
+	notices := conf.ActiveNotices(time.Now(), loc)
+	if notices == nil {
+		notices = []service.SubPageNotice{}
+	}
 	out["ui"] = map[string]any{
 		"logo": conf.Logo, "accent": conf.Accent,
-		"notice": conf.Notice, "noticeEn": conf.NoticeEn,
+		"notices": notices,
 		"hideNet": conf.HideNet, "hideApps": conf.HideApps, "hideQr": conf.HideQr,
 		"hideLive": conf.HideLive, "hidePlans": conf.HidePlans, "hideTips": conf.HideTips,
-		"connectBot": !conf.NoBot && extra.Bot != "",
+		"hideVpn": conf.HideVpn, "hideSites": conf.HideSites,
+		"hideServers": conf.HideServers || conf.HideLive,
+		"report":      !conf.HideReport && extra.Bot != "",
+		"connectBot":  !conf.NoBot && extra.Bot != "",
 	}
 	return out
 }

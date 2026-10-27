@@ -1,6 +1,8 @@
 package sub
 
 import (
+	"net/netip"
+	"strings"
 	"sync"
 	"time"
 
@@ -29,6 +31,13 @@ type pageStatus struct {
 	} `json:"client"`
 	Usage    map[string]int64         `json:"usage,omitempty"`
 	Inbounds []service.ClientLocation `json:"inbounds,omitempty"`
+	Servers  []service.ServerHealth   `json:"servers,omitempty"`
+	Devices  *pageDevices             `json:"devices,omitempty"`
+}
+
+type pageDevices struct {
+	Used  int `json:"used"`
+	Limit int `json:"limit"`
 }
 
 type statusEntry struct {
@@ -97,5 +106,55 @@ func buildStatus(client model.Client, now time.Time) pageStatus {
 		out.Usage = map[string]int64{"h24": day, "d7": week}
 	}
 	out.Inbounds = st.ClientLocations(client)
+	if !service.SubPageFlags().HideServers {
+		out.Servers = st.ClientServers(out.Inbounds)
+	}
+	if used, limit := service.ClientDevices(client); limit > 0 {
+		out.Devices = &pageDevices{Used: used, Limit: limit}
+	}
 	return out
+}
+
+// vpnSide is what the page learns about one address its user comes from.
+type vpnSide struct {
+	IP   string `json:"ip,omitempty"`
+	Ours bool   `json:"ours"`
+	Via  string `json:"via,omitempty"`
+}
+
+// vpn tells the page whether its user's traffic comes out of one of the
+// servers: the address this request came from, and the one an outside
+// service saw (ip=), which the page asks for itself.
+func (s *SubHandler) vpn(c *gin.Context, subID string) {
+	if s.SettingService.GetSubPageConf().HideVpn {
+		c.String(404, "")
+		return
+	}
+	var client model.Client
+	if err := database.GetDB().Where("name = ?", subID).First(&client).Error; err != nil {
+		c.String(400, "Error!")
+		return
+	}
+	locs := (&service.StatsService{}).ClientLocations(client)
+	side := func(ip string) vpnSide {
+		out := vpnSide{IP: ip}
+		if node, ok := service.ServerOf(ip); ok {
+			out.Ours = true
+			for _, l := range locs {
+				if l.Node == node {
+					out.Via = l.Name
+					break
+				}
+			}
+		}
+		return out
+	}
+	res := map[string]vpnSide{"self": side(subRequestIP(c))}
+	if ext, ok := c.GetQuery("ip"); ok {
+		if a, err := netip.ParseAddr(strings.TrimSpace(ext)); err == nil {
+			res["ext"] = side(a.String())
+		}
+	}
+	c.Header("Cache-Control", "no-store")
+	c.JSON(200, res)
 }

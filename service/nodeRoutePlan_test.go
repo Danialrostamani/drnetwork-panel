@@ -83,3 +83,29 @@ func mustJSON(t *testing.T, v interface{}) string {
 	}
 	return string(b)
 }
+
+// The shares hold for few clients as for many.
+func TestRouteSharesAreEven(t *testing.T) {
+	plan := nodeRoutePlan{enable: true, names: []string{"a", "b", "c"}, weight: map[string]int{"a": 70, "b": 20, "c": 10}, total: 100}
+	all := map[string]bool{"a": true, "b": true, "c": true}
+	for _, n := range []int{10, 50, 1000} {
+		got := map[string]int{}
+		for id := 1; id <= n; id++ {
+			got[pickPrimary(uint(id), plan, all)]++
+		}
+		for name, w := range plan.weight {
+			want := float64(n*w) / 100
+			if d := float64(got[name]) - want; d > 2+want*0.05 || d < -2-want*0.05 {
+				t.Fatalf("%d clients: %s got %d, want about %.0f (%v)", n, name, got[name], want, got)
+			}
+		}
+	}
+	half := nodeRoutePlan{enable: true, names: []string{"a", "b"}, weight: map[string]int{"a": 50, "b": 50}, total: 100}
+	got := map[string]int{}
+	for id := 1; id <= 20; id++ {
+		got[pickPrimary(uint(id), half, map[string]bool{"a": true, "b": true})]++
+	}
+	if got["a"] < 8 || got["b"] < 8 {
+		t.Fatalf("20 clients split %v", got)
+	}
+}
