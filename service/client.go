@@ -232,11 +232,11 @@ func (s *ClientService) Save(tx *gorm.DB, act string, data json.RawMessage, host
 		if err = s.fillCredentials(tx, clients); err != nil {
 			return nil, err
 		}
-		if len(inboundIds) > 0 {
-			err = s.updateLinksWithFixedInbounds(tx, clients, hostname)
-			if err != nil {
-				return nil, err
-			}
+		// The links follow any change: a group decides which nodes serve the
+		// client, and the config the links carry.
+		err = s.updateLinksWithFixedInbounds(tx, clients, hostname)
+		if err != nil {
+			return nil, err
 		}
 		err = tx.Save(clients).Error
 		if err != nil {
@@ -579,35 +579,42 @@ func (s *ClientService) updateLinksWithFixedInbounds(tx *gorm.DB, clients []*mod
 		inboundById[inbounds[i].Id] = &inbounds[i]
 	}
 
-	// Node links are system-owned. Preserve them only while the edited client
-	// still references the corresponding replica, even if that node is offline.
+	// Node links are system-owned and made here from the replicas, as a node
+	// sync makes them, for the nodes whose access serves the client: a client
+	// made, regrouped or given another config has the node's links in its
+	// subscription at once rather than only after the next sync reaches the
+	// node, which never came for a node offline or refusing another client.
 	var replicas []model.Inbound
 	if len(allIds) > 0 {
-		if err := tx.Model(model.Inbound{}).Select("id", "tag", "node_id").Where("id in ? AND node_id IS NOT NULL", allIds).Find(&replicas).Error; err != nil {
+		if err := tx.Model(model.Inbound{}).Where("id in ? AND node_id IS NOT NULL", allIds).Find(&replicas).Error; err != nil {
 			return err
 		}
 	}
 	var nodes []model.Node
-	if err := tx.Model(model.Node{}).Select("id", "name").Find(&nodes).Error; err != nil {
+	if err := tx.Model(model.Node{}).Select("id", "name", "base_url", "access").Find(&nodes).Error; err != nil {
 		return err
 	}
-	nodeNameByID := make(map[uint]string, len(nodes))
+	nodeByID := make(map[uint]*model.Node, len(nodes))
 	nodeNames := make([]string, 0, len(nodes))
-	for _, node := range nodes {
-		nodeNameByID[node.Id] = node.Name
-		nodeNames = append(nodeNames, node.Name)
+	for i := range nodes {
+		nodeByID[nodes[i].Id] = &nodes[i]
+		nodeNames = append(nodeNames, nodes[i].Name)
 	}
-	replicaRemarkByID := make(map[uint]string, len(replicas))
-	for _, replica := range replicas {
-		if replica.NodeId != nil {
-			replicaRemarkByID[replica.Id] = nodeLinkPrefix(nodeNameByID[*replica.NodeId]) + replica.Tag
+	// Longest first, so node "a" never claims the links of node "a b".
+	sort.Slice(nodeNames, func(i, j int) bool { return len(nodeNames[i]) > len(nodeNames[j]) })
+	replicaByID := make(map[uint]*model.Inbound, len(replicas))
+	for i := range replicas {
+		if replicas[i].NodeId != nil && nodeByID[*replicas[i].NodeId] != nil {
+			replicaByID[replicas[i].Id] = &replicas[i]
 		}
 	}
 
 	for index, client := range clients {
 		var clientLinks []map[string]string
-		if err := json.Unmarshal(client.Links, &clientLinks); err != nil {
-			return err
+		if len(client.Links) > 0 {
+			if err := json.Unmarshal(client.Links, &clientLinks); err != nil {
+				return err
+			}
 		}
 
 		newClientLinks := []map[string]string{}
@@ -626,20 +633,46 @@ func (s *ClientService) updateLinksWithFixedInbounds(tx *gorm.DB, clients []*mod
 			}
 		}
 
-		allowedNodeLinks := make(map[string]bool)
+		// The node links due, by node, in the order of the client's inbounds.
+		fresh := map[string][]map[string]string{}
+		var freshOrder []string
 		for _, inboundID := range clientInboundIds[index] {
-			if remark := replicaRemarkByID[inboundID]; remark != "" {
-				allowedNodeLinks[remark] = true
+			replica := replicaByID[inboundID]
+			if replica == nil {
+				continue
+			}
+			node := nodeByID[*replica.NodeId]
+			if !node.Access.Allows(client.Id, client.Group) {
+				continue
+			}
+			prefix := nodeLinkPrefix(node.Name)
+			for _, uri := range genNodeReplicaLinks(replica, client, nodeLinkHost(node.BaseUrl)) {
+				if _, seen := fresh[node.Name]; !seen {
+					freshOrder = append(freshOrder, node.Name)
+				}
+				fresh[node.Name] = append(fresh[node.Name], map[string]string{"remark": prefix + replica.Tag, "type": "external", "uri": uri})
 			}
 		}
+		// Each node's links go where that node's links were, so a save does
+		// not reorder the subscription.
+		placed := map[string]bool{}
 		for _, clientLink := range clientLinks {
 			if clientLink["type"] == "local" {
 				continue
 			}
-			if isNodeOwnedRemark(clientLink["remark"], nodeNames) && !allowedNodeLinks[clientLink["remark"]] {
+			if owner := nodeOwnerOf(clientLink["remark"], nodeNames); owner != "" {
+				if !placed[owner] {
+					placed[owner] = true
+					newClientLinks = append(newClientLinks, fresh[owner]...)
+				}
 				continue
 			}
 			newClientLinks = append(newClientLinks, clientLink)
+		}
+		for _, name := range freshOrder {
+			if !placed[name] {
+				newClientLinks = append(newClientLinks, fresh[name]...)
+			}
 		}
 
 		links, err := json.MarshalIndent(newClientLinks, "", "  ")
