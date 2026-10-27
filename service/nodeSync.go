@@ -241,13 +241,15 @@ var (
 
 func nodeLinkPrefix(nodeName string) string { return "[" + nodeName + "] " }
 
-func isNodeOwnedRemark(remark string, nodeNames []string) bool {
-	for _, name := range nodeNames {
+// nodeOwnerOf is the node a link remark belongs to, or "". names must be
+// longest first.
+func nodeOwnerOf(remark string, names []string) string {
+	for _, name := range names {
 		if strings.HasPrefix(remark, nodeLinkPrefix(name)) {
-			return true
+			return name
 		}
 	}
-	return false
+	return ""
 }
 
 func isNodeLinkFor(remark, tag string, nodeNames []string) bool {
@@ -941,18 +943,25 @@ func (s *NodeSyncService) refreshNodeLinks(node *model.Node, skip map[string]boo
 		var existing []map[string]string
 		_ = json.Unmarshal(client.Links, &existing)
 		hadPrefix := false
-		kept := make([]map[string]string, 0, len(existing))
+		// The node's links go back where they were, so syncing one node after
+		// another does not keep reordering every subscription.
+		merged := make([]map[string]string, 0, len(existing)+len(desired))
 		for _, link := range existing {
 			if link["type"] != "local" && strings.HasPrefix(link["remark"], prefix) {
+				if !hadPrefix {
+					merged = append(merged, desired...)
+				}
 				hadPrefix = true
 				continue
 			}
-			kept = append(kept, link)
+			merged = append(merged, link)
 		}
 		if len(desired) == 0 && !hadPrefix {
 			continue
 		}
-		merged := append(kept, desired...)
+		if !hadPrefix {
+			merged = append(merged, desired...)
+		}
 		newLinks, err := json.MarshalIndent(merged, "", "  ")
 		if err != nil || jsonEqual(client.Links, newLinks) {
 			continue
