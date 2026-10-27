@@ -74,6 +74,8 @@
           density="compact"
           items-per-page="10"
           :no-data-text="$t('botDash.noPending')"
+          hover
+          @click:row="emit('go', 'orders')"
         >
           <template #item.customer="{ item }">
             {{ item.customer || '-' }}
@@ -216,7 +218,7 @@ const cards = computed(() => {
   const d = dash.value
   return [
     { key: 'status', icon: 'mdi-robot', color: d.enabled && d.hasToken ? 'success' : 'error', title: t('botDash.status'), value: d.enabled && d.hasToken ? t('botDash.on') : t('botDash.offShort'), sub: '', tab: 'settings' },
-    { key: 'pending', icon: 'mdi-clipboard-clock', color: d.pending ? 'warning' : 'grey', title: t('botDash.pending'), value: fmtNum(d.pending), sub: '', tab: '' },
+    { key: 'pending', icon: 'mdi-clipboard-clock', color: d.pending ? 'warning' : 'grey', title: t('botDash.pending'), value: fmtNum(d.pending), sub: '', tab: 'orders' },
     { key: 'today', icon: 'mdi-cash', color: 'success', title: t('botDash.today'), value: fmtNum(d.todayRevenue), sub: t('botDash.orders', { n: d.todayOrders }), tab: '' },
     { key: 'month', icon: 'mdi-calendar-month', color: 'success', title: t('botDash.month'), value: fmtNum(d.monthRevenue), sub: t('botDash.orders', { n: d.monthOrders }), tab: '' },
     { key: 'customers', icon: 'mdi-account-multiple', color: 'primary', title: t('botDash.customers'), value: fmtNum(d.customers), sub: d.blocked ? t('botDash.blocked', { n: d.blocked }) : '', tab: 'customers' },

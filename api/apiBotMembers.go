@@ -197,3 +197,53 @@ func (a *ApiService) GetBotDashboard(c *gin.Context) {
 	d, err := tgbot.PanelBotDashboard()
 	jsonObj(c, d, err)
 }
+
+// GetBotOrders lists the bot's orders: status, seller (-1 or empty for all),
+// q to search, limit and offset.
+func (a *ApiService) GetBotOrders(c *gin.Context) {
+	q := tgbot.PanelOrderQuery{Status: c.Query("status"), Seller: -1, Search: c.Query("q")}
+	if v := strings.TrimSpace(c.Query("seller")); v != "" {
+		n, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			jsonMsg(c, "", common.NewError("invalid seller"))
+			return
+		}
+		q.Seller = n
+	}
+	q.Limit, _ = strconv.Atoi(c.Query("limit"))
+	q.Offset, _ = strconv.Atoi(c.Query("offset"))
+	page, err := tgbot.PanelOrders(q)
+	jsonObj(c, page, err)
+}
+
+// BotOrderEdit corrects one order: amount, detail and seller when given, and
+// status ("approved" or "rejected") with notify to tell the customer.
+func (a *ApiService) BotOrderEdit(c *gin.Context, loginUser string) {
+	id, err := strconv.ParseUint(c.PostForm("id"), 10, 32)
+	if err != nil || id == 0 {
+		jsonMsg(c, "botOrderEdit", common.NewError("invalid order id"))
+		return
+	}
+	e := tgbot.PanelOrderEdit{Id: uint(id), Status: c.PostForm("status"), Notify: c.PostForm("notify") == "true"}
+	if v, ok := c.GetPostForm("amount"); ok {
+		n, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
+		if err != nil {
+			jsonMsg(c, "botOrderEdit", common.NewError("invalid amount"))
+			return
+		}
+		e.Amount = &n
+	}
+	if v, ok := c.GetPostForm("detail"); ok {
+		e.Detail = &v
+	}
+	if v, ok := c.GetPostForm("seller"); ok {
+		n, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
+		if err != nil {
+			jsonMsg(c, "botOrderEdit", common.NewError("invalid seller"))
+			return
+		}
+		e.Seller = &n
+	}
+	row, err := tgbot.PanelEditOrder(c.Request.Context(), &a.ConfigService, loginUser, e)
+	jsonMsgObj(c, "botOrderEdit", row, err)
+}

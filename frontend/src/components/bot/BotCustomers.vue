@@ -575,7 +575,13 @@
           </template>
           <template #item.seller="{ item }">
             <span class="text-no-wrap">
-              {{ item.adminId ? sellerName(item.adminId) : '-' }}
+              {{ item.adminId ? sellerName(item.adminId) : item.refAdmin ? sellerName(item.refAdmin) : '-' }}
+              <v-icon
+                v-if="!item.adminId && item.refAdmin"
+                icon="mdi-account-arrow-left-outline"
+                size="small"
+                :title="$t('botMembers.viaRef')"
+              />
               <v-btn
                 icon="mdi-pencil"
                 size="x-small"
@@ -815,7 +821,7 @@ const shown = computed(() => {
   return members.value.filter(m => {
     if (!matches[filter.value](m)) return false
     if (q == '') return true
-    return [m.name, m.username, String(m.tgId), m.ref, m.note, m.adminId ? sellerName(m.adminId) : '', ...m.clients]
+    return [m.name, m.username, String(m.tgId), m.ref, m.note, m.adminId ? sellerName(m.adminId) : m.refAdmin ? sellerName(m.refAdmin) : '', ...m.clients]
       .some(v => (v ?? '').toLowerCase().includes(q))
   })
 })
@@ -823,7 +829,7 @@ const shown = computed(() => {
 const headers = computed(() => [
   { title: t('botMembers.user'), key: 'user', sortable: false },
   { title: t('botMembers.ref'), key: 'ref' },
-  { title: t('botMembers.seller'), key: 'seller', value: (m: BotMember) => m.adminId ? sellerName(m.adminId) : '' },
+  { title: t('botMembers.seller'), key: 'seller', value: (m: BotMember) => m.adminId ? sellerName(m.adminId) : m.refAdmin ? sellerName(m.refAdmin) : '' },
   { title: t('botMembers.joined'), key: 'firstSeen' },
   { title: t('botMembers.trial'), key: 'trialAt' },
   { title: t('botMembers.purchases'), key: 'purchases', value: (m: BotMember) => purchases(m) },
