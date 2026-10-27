@@ -55,6 +55,9 @@
             @go="(v: string) => tab = v"
           />
         </v-window-item>
+        <v-window-item value="orders">
+          <BotOrders @changed="dashRef?.load()" />
+        </v-window-item>
         <v-window-item value="sellers">
           <BotSellers v-if="loaded" />
         </v-window-item>
@@ -80,6 +83,7 @@ import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { useBotSettings } from '@/plugins/botSettings'
 import BotDashboard from '@/components/bot/BotDashboard.vue'
 import BotSellers from '@/components/bot/BotSellers.vue'
+import BotOrders from '@/components/bot/BotOrders.vue'
 import BotCustomers from '@/components/bot/BotCustomers.vue'
 import BotShop from '@/components/bot/BotShop.vue'
 import BotConfig from '@/components/bot/BotConfig.vue'
@@ -89,6 +93,7 @@ import BotConfig from '@/components/bot/BotConfig.vue'
 
 const tabs = [
   { value: 'dashboard', icon: 'mdi-view-dashboard', title: 'botPage.dashboard' },
+  { value: 'orders', icon: 'mdi-receipt-text', title: 'botPage.orders' },
   { value: 'sellers', icon: 'mdi-account-tie', title: 'botPage.sellers' },
   { value: 'customers', icon: 'mdi-account-multiple', title: 'botPage.customers' },
   { value: 'shop', icon: 'mdi-store', title: 'botPage.shop' },

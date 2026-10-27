@@ -524,3 +524,25 @@ func TestSupportMessageOffersAReply(t *testing.T) {
 		t.Fatalf("customer got %q", txt)
 	}
 }
+
+func TestIntroducerWordLinksTheCustomerToItsSeller(t *testing.T) {
+	b, _ := ownerBot(t, shopConfig{Refs: []shopReferrer{{ID: "1", Word: "ali", Group: "Sales", Admin: seller}}})
+	ctx := context.Background()
+	b.handle(ctx, privateMessage(buyer, "/start ali"))
+	if c, ok := customerRow(buyer); !ok || c.AdminId != seller {
+		t.Fatalf("customer row = %+v %v", c, ok)
+	}
+	// The owner can still clear the seller, and a seller set stays set.
+	b.handle(ctx, callbackFrom(boss, "q:cas:5001:0"))
+	if c, _ := customerRow(buyer); c.AdminId != 0 {
+		t.Fatalf("owner's choice not kept: %+v", c)
+	}
+	linkRefSeller(buyer, boss)
+	if c, _ := customerRow(buyer); c.AdminId != boss {
+		t.Fatalf("relink = %+v", c)
+	}
+	linkRefSeller(buyer, seller)
+	if c, _ := customerRow(buyer); c.AdminId != boss {
+		t.Fatalf("a chosen seller was replaced: %+v", c)
+	}
+}

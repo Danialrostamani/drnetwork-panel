@@ -3,6 +3,7 @@ package tgbot
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/Danialrostamani/drnetwork-panel/database"
 	"github.com/Danialrostamani/drnetwork-panel/database/model"
@@ -49,7 +50,31 @@ func (b *bot) trySaveRef(tgID int64, word string) bool {
 	if r == nil {
 		return false
 	}
-	return saveBotRef(tgID, r.Word, r.Group) == nil
+	if saveBotRef(tgID, r.Word, r.Group) != nil {
+		return false
+	}
+	linkRefSeller(tgID, r.Admin)
+	return true
+}
+
+// linkRefSeller gives a customer to the seller their introducer word belongs
+// to, so the seller is theirs in the panel and the bot from then on, even if
+// the word later changes hands. A seller the owner already chose stays.
+func linkRefSeller(tgID, admin int64) {
+	db := ownerDB()
+	if db == nil || tgID <= 0 || admin == 0 {
+		return
+	}
+	c, ok := customerRow(tgID)
+	if ok && c.AdminId != 0 {
+		return
+	}
+	if !ok {
+		now := time.Now().Unix()
+		_ = db.Create(&model.BotCustomer{TgId: tgID, AdminId: admin, FirstSeen: now, LastSeen: now}).Error
+		return
+	}
+	_ = db.Model(&model.BotCustomer{}).Where("tg_id = ? AND admin_id = 0", tgID).Update("admin_id", admin).Error
 }
 
 func (s shopConfig) hasRefs() bool {
