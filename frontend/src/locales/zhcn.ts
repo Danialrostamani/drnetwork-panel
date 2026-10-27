@@ -265,6 +265,15 @@ export default {
     nextReset: "下次重置",
   },
   node: {
+    orphans: {
+      title: "已删除节点的链接",
+      desc: "部分客户端仍带有已不存在节点的链接，因此其订阅中显示已删除的服务器。",
+      count: "{clients} 个客户端，{links} 条链接",
+      hint: "点击名称可将其排除。您自己添加的、名称带方括号的链接也可能出现在这里。",
+      remove: "从订阅中删除 ({n})",
+      confirm: "从所有客户端删除 {names} 的链接？",
+      done: "已从 {n} 个客户端删除",
+    },
     name: "名称",
     baseUrl: "面板地址",
     baseUrlHint: "节点面板的 scheme://host:port,如 https://1.2.3.4:2095",

@@ -265,6 +265,15 @@ export default {
     nextReset: "Đặt lại lần sau",
   },
   node: {
+    orphans: {
+      title: "Liên kết của các node đã xóa",
+      desc: "Một số khách hàng vẫn còn liên kết của các node không còn tồn tại, nên gói đăng ký của họ hiện các máy chủ đã mất.",
+      count: "{clients} khách hàng, {links} liên kết",
+      hint: "Chạm vào tên để bỏ qua. Liên kết bạn tự thêm với tên trong ngoặc vuông cũng có thể hiện ở đây.",
+      remove: "Xóa khỏi gói đăng ký ({n})",
+      confirm: "Xóa liên kết của {names} khỏi mọi khách hàng?",
+      done: "Đã xóa khỏi {n} khách hàng",
+    },
     name: "Tên",
     baseUrl: "Địa chỉ bảng điều khiển",
     baseUrlHint: "scheme://host:port của bảng node, ví dụ https://1.2.3.4:2095",

@@ -265,6 +265,15 @@ export default {
     nextReset: "下次重置",
   },
   node: {
+    orphans: {
+      title: "已刪除節點的連結",
+      desc: "部分用戶端仍帶有已不存在節點的連結，因此其訂閱中顯示已刪除的伺服器。",
+      count: "{clients} 個用戶端，{links} 條連結",
+      hint: "點擊名稱可將其排除。您自行新增、名稱帶方括號的連結也可能出現在這裡。",
+      remove: "從訂閱中刪除 ({n})",
+      confirm: "從所有用戶端刪除 {names} 的連結？",
+      done: "已從 {n} 個用戶端刪除",
+    },
     name: "名稱",
     baseUrl: "面板位址",
     baseUrlHint: "節點面板的 scheme://host:port,如 https://1.2.3.4:2095",
