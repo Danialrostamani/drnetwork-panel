@@ -3,6 +3,7 @@ package tgbot
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -160,4 +161,72 @@ func clientByIDString(id string) (model.Client, bool) {
 		return model.Client{}, false
 	}
 	return c, true
+}
+
+// SubPageLastPlan is the last plan a client was sold or renewed with through
+// the bot, for its page; nil when there is none.
+type SubPageLastPlan struct {
+	Name string `json:"name,omitempty"`
+	GB   int    `json:"gb"`
+	Days int    `json:"days"`
+	At   int64  `json:"at"`
+	Kind string `json:"kind"`
+}
+
+// LastPlanOf reads it from the approved orders; the bot need not run.
+func LastPlanOf(c *model.Client) *SubPageLastPlan {
+	if c == nil || c.Id == 0 || database.GetDB() == nil {
+		return nil
+	}
+	var o model.BotOrder
+	err := database.GetDB().Where("client_id = ? AND status = ? AND topic IN ?", c.Id, orderApproved, []string{"buy", "renew", "test"}).
+		Order("id desc").First(&o).Error
+	if err != nil {
+		return nil
+	}
+	at := o.UpdatedAt
+	if at == 0 {
+		at = o.CreatedAt
+	}
+	out := &SubPageLastPlan{GB: o.PlanGB, Days: o.PlanDays, At: at, Kind: o.Topic}
+	b := &bot{}
+	if p := b.loadShopRaw().forAdmin(o.AdminId).plan(o.PlanID); p != nil {
+		out.Name = p.Name
+		if !o.PlanSet {
+			out.GB, out.Days = p.GB, p.Days
+		}
+	}
+	return out
+}
+
+// errNoReport is a report the bot cannot pass on.
+var errNoReport = errors.New("the Telegram bot is not running")
+
+// SubPageReport passes a problem report from a client's page to its seller
+// and the owner.
+func SubPageReport(ctx context.Context, c *model.Client, ip, text string) error {
+	if RunningName() == "" || c == nil {
+		return errNoReport
+	}
+	b, err := panelBot()
+	if err != nil || !b.cfg.Enable || b.cfg.Token == "" {
+		return errNoReport
+	}
+	who := "<code>" + esc(c.Name) + "</code>"
+	if c.TgId != 0 {
+		who += " · TG <code>" + strconv.FormatInt(c.TgId, 10) + "</code>"
+		if row, ok := customerRow(c.TgId); ok {
+			if n := strings.TrimSpace(nonempty(row.Name, row.Username)); n != "" {
+				who += " (" + esc(n) + ")"
+			}
+		}
+	}
+	msg := b.tr("🆘 <b>گزارش مشکل از صفحه اشتراک</b>", "🆘 <b>Problem report from the subscription page</b>") +
+		"\n👤 " + who
+	if ip != "" {
+		msg += "\n🌐 IP: <code>" + esc(ip) + "</code>"
+	}
+	msg += "\n\n" + esc(text)
+	b.notifyIDs(ctx, b.sellerAndOwner(b.clientSeller(*c)), msg, nil)
+	return nil
 }

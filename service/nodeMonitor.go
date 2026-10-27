@@ -874,7 +874,8 @@ type nodeLinkRule struct {
 }
 
 // SubNodeRoute is the global subscription routing rule: each client gets a
-// primary node by weight, then the remaining nodes in this order as backup.
+// primary node by its share (a percentage; any weights still work, in
+// proportion), then the remaining nodes in this order as backup.
 type SubNodeRoute struct {
 	Enable  bool                `json:"enable"`
 	Entries []SubNodeRouteEntry `json:"entries"`
@@ -1160,13 +1161,26 @@ func orderByLoad(links []map[string]interface{}, loads map[int]int64) bool {
 	return moved
 }
 
-// pickPrimary chooses the client's main node: a stable hash of the client id
-// over the positive weights, then the first still-available node in the list
+// routeSlot places a client on [0, total): the fractional part of id times the
+// golden ratio (Fibonacci hashing). Consecutive ids spread evenly over the
+// whole range, so any number of clients -- ten as well as ten thousand -- is
+// split in the shares set; id modulo total filled one node with the first
+// clients before the next got any.
+func routeSlot(clientID uint, total int) int {
+	if total <= 0 {
+		return 0
+	}
+	x := uint64(clientID) * 0x9E3779B97F4A7C15
+	return int(((x >> 32) * uint64(total)) >> 32)
+}
+
+// pickPrimary chooses the client's main node: a stable spread of the client id
+// over the positive shares, then the first still-available node in the list
 // if that one is hidden or not on this client.
 func pickPrimary(clientID uint, plan nodeRoutePlan, available map[string]bool) string {
 	chosen := ""
 	if plan.total > 0 {
-		h := int(clientID % uint(plan.total))
+		h := routeSlot(clientID, plan.total)
 		acc := 0
 		for _, name := range plan.names {
 			w := plan.weight[name]

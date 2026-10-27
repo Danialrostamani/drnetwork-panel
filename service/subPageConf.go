@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/Danialrostamani/drnetwork-panel/util/common"
@@ -28,9 +29,63 @@ type SubPageConf struct {
 	HideLive  bool `json:"hideLive,omitempty"`
 	HidePlans bool `json:"hidePlans,omitempty"`
 	HideTips  bool `json:"hideTips,omitempty"`
+	// The checks: through the VPN, world services, server states, report.
+	HideVpn     bool `json:"hideVpn,omitempty"`
+	HideSites   bool `json:"hideSites,omitempty"`
+	HideServers bool `json:"hideServers,omitempty"`
+	HideReport  bool `json:"hideReport,omitempty"`
+	// Notices are shown at the top until their day ends; Sites are the
+	// services the page checks (empty: its own list).
+	Notices []SubPageNotice `json:"notices,omitempty"`
+	Sites   []SubPageSite   `json:"sites,omitempty"`
 	// NoBot keeps the renew and connect buttons off the Telegram bot even
 	// while it runs.
 	NoBot bool `json:"noBot,omitempty"`
+}
+
+// SubPageNotice is one notice of the page: kind "info", "warn" or "promo",
+// shown until the end of the day Until (YYYY-MM-DD, panel time); no Until
+// is for good.
+type SubPageNotice struct {
+	Text   string `json:"text,omitempty"`
+	TextEn string `json:"textEn,omitempty"`
+	Kind   string `json:"kind,omitempty"`
+	Until  string `json:"until,omitempty"`
+}
+
+// SubPageSite is a service the page checks it can reach.
+type SubPageSite struct {
+	Name string `json:"name"`
+	URL  string `json:"url"`
+}
+
+const (
+	subPageNoticesMax = 10
+	subPageSitesMax   = 24
+)
+
+var untilRe = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
+
+// ActiveNotices are the notices still to show at now, the single notice of
+// older settings first.
+func (c SubPageConf) ActiveNotices(now time.Time, loc *time.Location) []SubPageNotice {
+	var out []SubPageNotice
+	if c.Notice != "" || c.NoticeEn != "" {
+		out = append(out, SubPageNotice{Text: c.Notice, TextEn: c.NoticeEn, Kind: "info"})
+	}
+	if loc == nil {
+		loc = time.Local
+	}
+	for _, n := range c.Notices {
+		if n.Until != "" {
+			day, err := time.ParseInLocation("2006-01-02", n.Until, loc)
+			if err == nil && !now.Before(day.AddDate(0, 0, 1)) {
+				continue
+			}
+		}
+		out = append(out, n)
+	}
+	return out
 }
 
 const (
@@ -51,6 +106,9 @@ func (s *SettingService) GetSubPageConf() SubPageConf {
 	_ = json.Unmarshal([]byte(raw), &conf)
 	return conf
 }
+
+// SubPageFlags is the page setting read for its switches.
+func SubPageFlags() SubPageConf { return (&SettingService{}).GetSubPageConf() }
 
 // PageLink is a link the page can put in an href: an http(s) or tg address,
 // with a bare @handle taken as a Telegram one. Anything else is "".
@@ -119,6 +177,47 @@ func normalizeSubPageConf(raw string) (string, error) {
 		}
 		*f.v = link
 	}
+	if len(conf.Notices) > subPageNoticesMax {
+		return "", common.NewError("subscription page: at most ", subPageNoticesMax, " notices")
+	}
+	notices := conf.Notices[:0]
+	for _, n := range conf.Notices {
+		n.Text, n.TextEn, n.Until = strings.TrimSpace(n.Text), strings.TrimSpace(n.TextEn), strings.TrimSpace(n.Until)
+		if n.Text == "" && n.TextEn == "" {
+			continue
+		}
+		if utf8.RuneCountInString(n.Text) > subPageNoticeMax || utf8.RuneCountInString(n.TextEn) > subPageNoticeMax {
+			return "", common.NewError("subscription page: text is too long")
+		}
+		switch n.Kind {
+		case "info", "warn", "promo":
+		case "":
+			n.Kind = "info"
+		default:
+			return "", common.NewError("subscription page: unknown notice kind ", n.Kind)
+		}
+		if n.Until != "" && !untilRe.MatchString(n.Until) {
+			return "", common.NewError("subscription page: a notice date must look like 2025-12-31")
+		}
+		notices = append(notices, n)
+	}
+	conf.Notices = notices
+	if len(conf.Sites) > subPageSitesMax {
+		return "", common.NewError("subscription page: at most ", subPageSitesMax, " services to check")
+	}
+	sites := conf.Sites[:0]
+	for _, x := range conf.Sites {
+		x.Name, x.URL = strings.TrimSpace(x.Name), strings.TrimSpace(x.URL)
+		if x.Name == "" && x.URL == "" {
+			continue
+		}
+		u, err := url.Parse(x.URL)
+		if x.Name == "" || utf8.RuneCountInString(x.Name) > subPageNameMax || err != nil || !strings.EqualFold(u.Scheme, "https") || u.Host == "" || len(x.URL) > subPageLinkMax {
+			return "", common.NewError("subscription page: each service needs a name and an https:// address")
+		}
+		sites = append(sites, x)
+	}
+	conf.Sites = sites
 	conf.Logo = strings.TrimSpace(conf.Logo)
 	if conf.Logo != "" {
 		if u, err := url.Parse(conf.Logo); err != nil || len(conf.Logo) > subPageLinkMax || u.Host == "" ||
