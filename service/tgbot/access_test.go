@@ -366,11 +366,11 @@ func TestCustomAdminHelpListsTheirCommands(t *testing.T) {
 		t.Fatalf("command menu = %s", list)
 	}
 	// Full administrators get everything; group-limited ones their own list.
-	if got := len(e.b.commandsFor(fullAdmin)); got != len(adminCommands)+1 {
+	if got := len(e.b.commandsFor(fullAdmin)); got != len(adminCommands)+2 { // + /alerts and /id
 		t.Fatalf("full admin has %d commands", got)
 	}
 	for _, c := range e.b.commandsFor(salesAdmin) {
-		if c.name != "id" && !scopedCommands[c.name] {
+		if c.name != "id" && c.name != "alerts" && !scopedCommands[c.name] {
 			t.Errorf("limited admin is shown /%s", c.name)
 		}
 	}
