@@ -67,7 +67,16 @@ func GetExternalSubCached(url string) ([]map[string]interface{}, error) {
 	return parseExternalSub(GetExternalLinkCached(url))
 }
 
+func GetExternalSubCachedForClash(url string) ([]map[string]interface{}, error) {
+	if len(url) == 0 {
+		return nil, common.NewError("no url")
+	}
+	return parseExternalSubFor(GetExternalLinkCached(url), true)
+}
 func parseExternalSub(data string) ([]map[string]interface{}, error) {
+	return parseExternalSubFor(data, false)
+}
+func parseExternalSubFor(data string, forClash bool) ([]map[string]interface{}, error) {
 	var err error
 	var result []map[string]interface{}
 	if len(data) == 0 {
@@ -106,9 +115,13 @@ func parseExternalSub(data string) ([]map[string]interface{}, error) {
 	} else {
 		// if data is a text
 		links := strings.Split(data, "\n")
+		parse := GetOutbound
+		if forClash {
+			parse = GetOutboundForClash
+		}
 		for _, link := range links {
-			linkToJson, _, err := GetOutbound(link, 0)
-			if err == nil {
+			linkToJson, _, err := parse(link, 0)
+			if err == nil && linkToJson != nil {
 				result = append(result, *linkToJson)
 			}
 		}

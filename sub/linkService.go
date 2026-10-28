@@ -62,13 +62,20 @@ func (s *LinkService) named(link Link, n *namer, clientRemark string) string {
 }
 
 func (s *LinkService) GetExternalOutbounds(linkJson *json.RawMessage) ([]map[string]interface{}, []string) {
-	outbounds, tags, _ := s.externalOutbounds(linkJson, nil, "")
+	outbounds, tags, _ := s.externalOutbounds(linkJson, nil, "", false)
+	return outbounds, tags
+}
+
+// GetExternalOutboundsForClash is GetExternalOutbounds keeping XHTTP links,
+// for the Clash (Mihomo) export.
+func (s *LinkService) GetExternalOutboundsForClash(linkJson *json.RawMessage) ([]map[string]interface{}, []string) {
+	outbounds, tags, _ := s.externalOutbounds(linkJson, nil, "", true)
 	return outbounds, tags
 }
 
 // externalOutbounds turns the external links of a client into outbounds,
 // with what the name template knows of each (nil for links it leaves alone).
-func (s *LinkService) externalOutbounds(linkJson *json.RawMessage, n *namer, clientRemark string) ([]map[string]interface{}, []string, []*linkInfo) {
+func (s *LinkService) externalOutbounds(linkJson *json.RawMessage, n *namer, clientRemark string, forClash bool) ([]map[string]interface{}, []string, []*linkInfo) {
 	links := []Link{}
 	if linkJson == nil || len(*linkJson) == 0 {
 		return nil, nil, nil
@@ -81,11 +88,17 @@ func (s *LinkService) externalOutbounds(linkJson *json.RawMessage, n *namer, cli
 	var outbounds []map[string]interface{}
 	var tags []string
 	var infos []*linkInfo
+	parseOutbound := util.GetOutbound
+	parseSub := util.GetExternalSubCached
+	if forClash {
+		parseOutbound = util.GetOutboundForClash
+		parseSub = util.GetExternalSubCachedForClash
+	}
 
 	for _, link := range links {
 		switch link.Type {
 		case "external":
-			outbound, tag, err := util.GetOutbound(link.Uri, 0)
+			outbound, tag, err := parseOutbound(link.Uri, 0)
 			if err == nil && outbound != nil && len(tag) > 0 {
 				outbounds = append(outbounds, *outbound)
 				tags = append(tags, tag)
@@ -96,7 +109,7 @@ func (s *LinkService) externalOutbounds(linkJson *json.RawMessage, n *namer, cli
 				infos = append(infos, info)
 			}
 		case "sub":
-			subOutbounds, err := util.GetExternalSubCached(link.Uri)
+			subOutbounds, err := parseSub(link.Uri)
 			if err != nil {
 				logger.Warning("sub: Error getting external sub:", err)
 				continue

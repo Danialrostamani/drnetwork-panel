@@ -139,6 +139,8 @@ func panelEditAccess(cs *service.ConfigService, actor, host string, mutate func(
 	if cs == nil {
 		return fmt.Errorf("the panel is not ready to save settings")
 	}
+	accessEditMu.Lock()
+	defer accessEditMu.Unlock()
 	cfg, err := loadConfig()
 	if err != nil {
 		return err

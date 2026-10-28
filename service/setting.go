@@ -117,6 +117,7 @@ var defaultValueMap = map[string]string{
 	"tgBotSkin":          "colorful",
 	"tgBotNotify":        "true",
 	"tgBotPanel":         "false",
+	"tgBotPrivate":       "true",
 	"tgBotReport":        "",
 	"tgBotReportBackup":  "false",
 	"tgBotShop":          "{}",
@@ -457,6 +458,8 @@ type TgBotSettings struct {
 	// settings, logs, ...) in the bot; off, it has clients, the shop, the
 	// owner panel and the nodes' monitoring only.
 	Panel bool
+	// Private reserves global administration for the owner and full partners.
+	Private bool
 	// Skin is the look of the bot: "colorful" or "classic".
 	Skin string
 	// Report is a cron spec for the scheduled summary; empty disables it.
@@ -475,6 +478,9 @@ func (s *SettingService) GetTgBotSettings() (TgBotSettings, error) {
 	}
 	if out.Panel, err = s.getBool("tgBotPanel"); err != nil {
 		out.Panel = false
+	}
+	if out.Private, err = s.getBool("tgBotPrivate"); err != nil {
+		out.Private = true
 	}
 	if out.Token, err = s.getString("tgBotToken"); err != nil {
 		return out, err

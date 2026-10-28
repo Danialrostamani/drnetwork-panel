@@ -79,7 +79,7 @@ func (s *ClashService) GetClash(subId string) (*string, []string, error) {
 	}
 
 	// Proxy and Auto are the groups the config starts with.
-	outbounds, _, err := s.namedOutbounds(client, inDatas, "Proxy", "Auto", "DIRECT", "REJECT")
+	outbounds, _, err := s.namedOutboundsFor(client, inDatas, true, "Proxy", "Auto", "DIRECT", "REJECT")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -229,7 +229,8 @@ func (s *ClashService) ConvertToClashMeta(outbounds *[]map[string]interface{}, b
 			case "hysteria", "hysteria2", "tuic":
 				proxy["alpn"] = []string{"h3"}
 			default:
-				if alpn, ok := tls["alpn"].([]interface{}); ok {
+				switch alpn := tls["alpn"].(type) {
+				case []string, []interface{}:
 					proxy["alpn"] = alpn
 				}
 			}
@@ -346,6 +347,9 @@ func (s *ClashService) ConvertToClashMeta(outbounds *[]map[string]interface{}, b
 					wsOpts["v2ray-http-upgrade"] = true
 				}
 				proxy["ws-opts"] = wsOpts
+			case "xhttp":
+				proxy["network"] = "xhttp"
+				proxy["xhttp-opts"] = xhttpOptsFromTransport(transport)
 			case "grpc":
 				proxy["network"] = "grpc"
 				grpcOpts := make(map[string]interface{})

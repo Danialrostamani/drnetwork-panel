@@ -92,6 +92,12 @@ var defaultOutboundTags = []string{"proxy", "auto", "direct"}
 // named by the link name template when there is one. Tags are unique across
 // the whole list, reserved ones included.
 func (j *JsonService) namedOutbounds(client *model.Client, inbounds []*model.Inbound, reserved ...string) (*[]map[string]interface{}, *[]string, error) {
+	return j.namedOutboundsFor(client, inbounds, false, reserved...)
+}
+
+// namedOutboundsFor is namedOutbounds; forClash keeps the XHTTP settings of
+// external links, which only the Clash (Mihomo) export can express.
+func (j *JsonService) namedOutboundsFor(client *model.Client, inbounds []*model.Inbound, forClash bool, reserved ...string) (*[]map[string]interface{}, *[]string, error) {
 	outbounds, _, infos, err := j.getOutbounds(client, inbounds)
 	if err != nil {
 		return nil, nil, err
@@ -99,7 +105,7 @@ func (j *JsonService) namedOutbounds(client *model.Client, inbounds []*model.Inb
 	n := newNamer(client)
 	n.reserve(reserved...)
 	links := service.FilterNodeLinks(client)
-	extOutbounds, _, extInfos := j.LinkService.externalOutbounds(&links, n, client.Remark)
+	extOutbounds, _, extInfos := j.LinkService.externalOutbounds(&links, n, client.Remark, forClash)
 	*outbounds = append(*outbounds, extOutbounds...)
 	infos = append(infos, extInfos...)
 	tags := n.renameOutbounds(*outbounds, infos)

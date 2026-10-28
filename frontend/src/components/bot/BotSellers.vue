@@ -105,6 +105,31 @@
     </v-card>
   </v-dialog>
 
+  <v-row class="mb-2">
+    <v-col
+      cols="12"
+      md="8"
+    >
+      <v-text-field
+        v-model="search"
+        :label="$t('botAccess.search')"
+        prepend-inner-icon="mdi-magnify"
+        clearable
+        hide-details
+      />
+    </v-col>
+    <v-col
+      cols="12"
+      md="4"
+    >
+      <v-select
+        v-model="roleFilter"
+        :items="roleItems"
+        :label="$t('botAccess.roleFilter')"
+        hide-details
+      />
+    </v-col>
+  </v-row>
   <v-alert
     type="info"
     variant="tonal"
@@ -153,7 +178,7 @@
     variant="accordion"
   >
     <v-expansion-panel
-      v-for="a in admins"
+      v-for="a in visibleAdmins"
       :key="a.id"
       :value="a.id"
       rounded="lg"
@@ -675,7 +700,7 @@
 import HttpUtils from '@/plugins/httputil'
 import { i18n } from '@/locales'
 import { push } from 'notivue'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useBotSettings } from '@/plugins/botSettings'
 
 // Everything about the bot's administrators in one place: who they are, what
@@ -720,7 +745,7 @@ interface Form {
   ratePerGB: string
 }
 
-const { deskOf, hasDesk, patchShopDesk, patchShopDeskPlan, addShopDeskPlan, removeShopDeskPlan, removeShopDesk, refreshAccess } = useBotSettings()
+const { settings, deskOf, hasDesk, patchShopDesk, patchShopDeskPlan, addShopDeskPlan, removeShopDeskPlan, removeShopDesk, refreshAccess } = useBotSettings()
 
 const t = (key: string, args: Record<string, unknown> = {}) => i18n.global.t(key, args)
 const locale = computed(() => String(i18n.global.locale.value))
@@ -742,7 +767,17 @@ const autoMove = ref(true)
 const addDialog = ref(false)
 const addForm = ref({ id: '', full: false, group: '' })
 
-const sellers = computed(() => admins.value.filter(a => a.role != 'owner'))
+const search = ref('')
+const roleFilter = ref('all')
+const roleItems = computed(() => [
+ { title: t('botAccess.allRoles'), value: 'all' },
+ ...['owner', 'full', 'group', 'sections', 'locked'].map(role => ({ title: t('botAdmins.role.' + role), value: role })),
+])
+const sellers = computed(() => admins.value.filter(a => a.role !== 'owner'))
+const visibleAdmins = computed(() => admins.value.filter(a =>
+  (roleFilter.value === 'all' || a.role === roleFilter.value) &&
+  `${a.id} ${a.name} ${a.group} ${a.salesGroup ?? ''}`.toLocaleLowerCase().includes((search.value ?? '').trim().toLocaleLowerCase()),
+))
 
 const formFrom = (a: BotAdmin): Form => ({
   role: a.role == 'group' || a.role == 'sections' ? a.role : (a.role == 'locked' ? 'sections' : 'full'),
@@ -800,6 +835,7 @@ const load = async () => {
 }
 
 onMounted(load)
+watch(() => `${settings.value.tgBotAdmins}|${settings.value.tgBotScopes}|${settings.value.tgBotPerms}`, load)
 
 // after reloads the list, and the access settings the page holds.
 const after = async (ok: boolean, text: string) => {

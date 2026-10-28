@@ -1,12 +1,40 @@
 <template>
+  <div class="bot-heading mb-5 d-flex align-start flex-wrap ga-4">
+    <v-avatar
+      color="primary"
+      variant="tonal"
+      rounded="lg"
+      size="52"
+    >
+      <v-icon
+        icon="mdi-robot-outline"
+        size="30"
+      />
+    </v-avatar>
+    <div class="flex-grow-1">
+      <h1 class="text-h5 font-weight-bold">
+        {{ $t('botAccess.pageTitle') }}
+      </h1><p class="text-body-2 text-medium-emphasis mt-1">
+        {{ $t('botAccess.pageHint') }}
+      </p>
+    </div>
+    <v-btn
+      variant="tonal"
+      color="primary"
+      prepend-icon="mdi-shield-account-outline"
+      @click="tab = 'settings'"
+    >
+      {{ $t('botAccess.accessSettings') }}
+    </v-btn>
+  </div>
   <v-card
-    rounded="xl"
+    rounded="lg"
     :loading="saving"
   >
     <v-tabs
       v-model="tab"
       color="primary"
-      align-tabs="center"
+      align-tabs="start"
       show-arrows
     >
       <v-tab
@@ -105,6 +133,7 @@ const router = useRouter()
 const known = (v: unknown) => tabs.some(x => x.value == v)
 const tab = ref<string>(known(route.query.tab) ? String(route.query.tab) : 'dashboard')
 watch(tab, (v) => { router.replace({ query: { ...route.query, tab: v } }) })
+watch(() => route.query.tab, v => { if (known(v)) tab.value = String(v) })
 
 const { loaded, botChanged, loadBotSettings, saveBotSettings, discardBotSettings } = useBotSettings()
 const saving = ref(false)
@@ -129,3 +158,19 @@ onBeforeRouteLeave(() => {
   return true
 })
 </script>
+
+<style scoped>
+.bot-heading {
+  display: grid !important;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  align-items: center !important;
+  gap: 16px;
+}
+.bot-heading h1, .bot-heading p { margin: 0 !important; }
+.bot-heading p { margin-top: 8px !important; }
+@media (max-width: 600px) {
+  .bot-heading { grid-template-columns: 44px minmax(0, 1fr); }
+  .bot-heading .v-btn { grid-column: 1 / -1; justify-self: start; }
+  .bot-heading h1 { font-size: 1.25rem !important; }
+}
+</style>

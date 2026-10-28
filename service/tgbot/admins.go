@@ -23,6 +23,8 @@ import (
 // is recorded in the history like any other, the web panel shows it, and it is
 // applied to the running bot at once.
 
+var accessEditMu sync.Mutex
+
 var (
 	errBadID        = errors.New("bad telegram id")
 	errAdminExists  = errors.New("already an administrator")
@@ -71,6 +73,7 @@ type accessDoc struct {
 	admins []int64
 	scopes map[int64]string
 	perms  map[int64]sectionSet
+	shop   *string // optional shop update committed with the role change
 }
 
 // docFromConfig takes the roles the configuration gives out. Going through
@@ -188,6 +191,9 @@ func (d *accessDoc) settings() (map[string]string, error) {
 	if d.owner != 0 {
 		out["tgBotOwner"] = strconv.FormatInt(d.owner, 10)
 	}
+	if d.shop != nil {
+		out["tgBotShop"] = *d.shop
+	}
 	return out, nil
 }
 
@@ -196,6 +202,8 @@ func (d *accessDoc) settings() (map[string]string, error) {
 // once. The trusted management screens call it, and authority is checked
 // again against the settings it has just read.
 func (b *bot) editAccess(mutate func(d *accessDoc) error) error {
+	accessEditMu.Lock()
+	defer accessEditMu.Unlock()
 	if b.acc == nil || b.configService == nil {
 		return errors.New("the panel is not ready to save settings")
 	}

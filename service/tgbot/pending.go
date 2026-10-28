@@ -264,10 +264,10 @@ func (b *bot) wizardPrompt(p *pending) (string, [][]button) {
 			p.data["rnd"] = b.randomClientName()
 		}
 		return b.header("➕", b.tr("کلاینت جدید — ", "New client — ")+b.stepNo(1)) + "\n" +
-				b.tr("نام پیشنهادی (روی آن بزنید تا کپی شود):", "Suggested name (tap to copy):") + " <code>" + esc(p.data["rnd"]) + "</code>\n" +
-				b.tr("• «استفاده از این نام» را بزنید\n• یا نام دلخواه را بفرستید\n• یا با + شروع کنید تا به انتهای نام پیشنهادی اضافه شود؛ مثلاً <code>+_ali</code>", "• Tap “Use this name”\n• or send your own name\n• or start with + to append to the suggestion, e.g. <code>+_ali</code>"), [][]button{
-				{btn(b.tr("✅ استفاده از این نام", "✅ Use this name"), "name", "#ok"), btn(b.tr("🎲 نام دیگر", "🎲 Another"), "name", "#new")},
-				b.cancelRow()}
+			b.tr("نام پیشنهادی (روی آن بزنید تا کپی شود):", "Suggested name (tap to copy):") + " <code>" + esc(p.data["rnd"]) + "</code>\n" +
+			b.tr("• «استفاده از این نام» را بزنید\n• یا نام دلخواه را بفرستید\n• یا با + شروع کنید تا به انتهای نام پیشنهادی اضافه شود؛ مثلاً <code>+_ali</code>", "• Tap “Use this name”\n• or send your own name\n• or start with + to append to the suggestion, e.g. <code>+_ali</code>"), [][]button{
+			{btn(b.tr("✅ استفاده از این نام", "✅ Use this name"), "name", "#ok"), btn(b.tr("🎲 نام دیگر", "🎲 Another"), "name", "#new")},
+			b.cancelRow()}
 	case "sub":
 		return b.header("➕", b.stepNo(6)) + "\n" + b.tr("لینک اشتراک با اسم کاربر باشد یا با توکن تصادفی؟\nبا توکن، لینک قابل حدس نیست و لینک با اسم کار نمی‌کند.", "Subscription link by the client's name, or by a random token?\nWith a token the link cannot be guessed, and the link by name does not work."), [][]button{
 			{btn(b.tr("🔤 با اسم", "🔤 By name"), "sub", "0"), btn(b.tr("🔑 با توکن", "🔑 With a token"), "sub", "1")},

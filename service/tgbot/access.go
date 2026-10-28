@@ -497,7 +497,7 @@ func (b *bot) allowed(parts []string) bool {
 	if len(parts) >= 2 && parts[0] == "m" && (parts[1] == "prest" || parts[1] == "prestY") && b.canManageAdmins() {
 		return true
 	}
-	if !b.cfg.Panel && len(parts) >= 3 && parts[0] == "o" && parts[1] == "nd" && nodeEditVerbs[parts[2]] {
+	if !b.cfg.Panel && !(b.cfg.Private && b.canManageAdmins()) && len(parts) >= 3 && parts[0] == "o" && parts[1] == "nd" && nodeEditVerbs[parts[2]] {
 		return false
 	}
 	return b.allowedBy(callbackSection(parts))
@@ -515,7 +515,7 @@ func (b *bot) allowedCommand(cmd string) bool {
 // the prompt the bot is waiting on. Rights can change between the question and
 // the answer.
 func (b *bot) pendingAllowed(p *pending) bool {
-	if !b.cfg.Panel && strings.HasPrefix(p.kind, "obj.") && p.key == "nd" {
+	if !b.cfg.Panel && !(b.cfg.Private && b.canManageAdmins()) && strings.HasPrefix(p.kind, "obj.") && p.key == "nd" {
 		return false
 	}
 	if b.scope != "" {

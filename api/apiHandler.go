@@ -106,6 +106,8 @@ func (a *APIHandler) postHandler(c *gin.Context) {
 		a.ApiService.BotAdminAction(c, "move", loginUser)
 	case "botAdminsAuto":
 		a.ApiService.BotAdminAction(c, "auto", loginUser)
+	case "botPartner":
+		a.ApiService.BotAdminAction(c, "partner", loginUser)
 	case "botAdminAdd":
 		a.ApiService.BotAdminAction(c, "add", loginUser)
 	case "botAdminRemove":

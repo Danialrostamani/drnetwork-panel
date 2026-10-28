@@ -10,6 +10,7 @@
 package usersession
 
 import (
+	"errors"
 	"io"
 	"sync"
 	"time"
@@ -31,6 +32,7 @@ const (
 	// its session stays alive on keepalives and it retries on every request,
 	// so a disconnect became a lockout of up to blockTimeout (#1271).
 	kickMuteWindow = 30 * time.Second
+	sweepInterval  = time.Minute
 )
 
 // Closer is implemented by the inbounds that own a Registry.
@@ -41,6 +43,15 @@ type Closer interface {
 	// KickUserSessions cuts the sessions of one user who is still enabled, for
 	// a disconnect asked for from the panel.
 	KickUserSessions(user string) int
+}
+
+// ErrNotClosed lets a migrated QUIC session fall back to a temporary mute.
+var ErrNotClosed = E.New("session not found")
+
+type pending struct {
+	source string
+	closer io.Closer
+	block  block
 }
 
 type entry struct {
@@ -63,6 +74,7 @@ type Registry struct {
 	access  sync.Mutex
 	sources map[string]*entry
 	blocked map[string]*block
+	swept   time.Time
 }
 
 func NewRegistry() *Registry {
@@ -73,12 +85,16 @@ func NewRegistry() *Registry {
 }
 
 func (r *Registry) load(source string) *entry {
+	now := time.Now()
 	e, loaded := r.sources[source]
 	if !loaded {
+		if now.Sub(r.swept) >= sweepInterval {
+			r.sweep(now)
+		}
 		e = &entry{}
 		r.sources[source] = e
 	}
-	e.lastSeen = time.Now()
+	e.lastSeen = now
 	return e
 }
 
@@ -149,7 +165,7 @@ func (r *Registry) CloseUsers(keep map[string]struct{}) int {
 	now := time.Now()
 
 	r.access.Lock()
-	var closers []io.Closer
+	var closers []pending
 	cut := 0
 	for source, e := range r.sources {
 		if now.Sub(e.lastSeen) > idleTimeout {
@@ -166,7 +182,7 @@ func (r *Registry) CloseUsers(keep map[string]struct{}) int {
 		}
 		cut++
 		if e.closer != nil {
-			closers = append(closers, e.closer)
+			closers = append(closers, pending{source, e.closer, block{at: now}})
 			delete(r.sources, source)
 			delete(r.blocked, source)
 			continue
@@ -182,9 +198,7 @@ func (r *Registry) CloseUsers(keep map[string]struct{}) int {
 
 	// Outside the lock: closing a tracked session runs the inbound's own close
 	// handler, which comes back through Untrack.
-	for _, closer := range closers {
-		_ = closer.Close()
-	}
+	r.runClosers(closers)
 	return cut
 }
 
@@ -211,7 +225,7 @@ func (r *Registry) KickUserSessions(user string) int {
 	now := time.Now()
 
 	r.access.Lock()
-	var closers []io.Closer
+	var closers []pending
 	kicked := 0
 	for source, e := range r.sources {
 		if e.user != user {
@@ -221,15 +235,41 @@ func (r *Registry) KickUserSessions(user string) int {
 		if e.closer != nil {
 			delete(r.sources, source)
 			delete(r.blocked, source)
-			closers = append(closers, e.closer)
+			closers = append(closers, pending{source, e.closer, block{at: now, kick: true}})
 			continue
 		}
 		r.blocked[source] = &block{at: now, kick: true}
 	}
 	r.access.Unlock()
 
-	for _, closer := range closers {
-		_ = closer.Close()
-	}
+	r.runClosers(closers)
 	return kicked
+}
+
+// sweep is called under access; a block can outlive its idle source.
+func (r *Registry) sweep(now time.Time) {
+	r.swept = now
+	for source, e := range r.sources {
+		if now.Sub(e.lastSeen) > idleTimeout {
+			delete(r.sources, source)
+		}
+	}
+	for source, b := range r.blocked {
+		if now.Sub(b.at) > blockTimeout || b.kick && now.Sub(b.at) > kickMuteWindow {
+			delete(r.blocked, source)
+		}
+	}
+}
+
+// Run outside the registry lock: a real close may call Untrack. If QUIC has
+// migrated and its closer finds no session, mute the old address instead.
+func (r *Registry) runClosers(closers []pending) {
+	for _, p := range closers {
+		if err := p.closer.Close(); errors.Is(err, ErrNotClosed) {
+			r.access.Lock()
+			b := p.block
+			r.blocked[p.source] = &b
+			r.access.Unlock()
+		}
+	}
 }
