@@ -111,6 +111,7 @@ export interface NodeTrafficSummary {
 // optional: older nodes do not report it, and a node not probed yet has
 // nothing.
 export interface NodeStatus {
+  balance?: { state: string, capacity: number, free: number, assigned: number }
   state: NodeState
   latency: number
   cpu: number

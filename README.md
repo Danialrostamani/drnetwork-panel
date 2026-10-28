@@ -15,6 +15,67 @@
 
 **Want to contribute?** See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, coding conventions, testing, and the pull request process.
 
+## Stable hardware-aware balancing (v52.4)
+
+Enable **Settings → Subscription → node assignment → Hardware-aware stable balancing**.
+The option is off by default: upgrading does not change an existing percentage policy.
+Only listed managed nodes that already serve the client participate; access rules,
+private subscription tokens and non-node/manual links are preserved.
+
+- CPU cores and RAM are read from node probes. The automatic baseline is
+  `min(cores, RAM GiB / 2)` (minimum 0.25 units; missing hardware uses a conservative
+  one-core baseline). This is a heuristic, not a CPU-model benchmark. An optional
+  **capacity override** replaces it. The existing share becomes a relative capacity
+  multiplier, not an exact percentage, in smart mode; zero is emergency-only.
+- Enter **measured network capacity in Mbps**, not advertised NIC/port speed.
+  Empty means unknown and is omitted from scoring. Client up/down rates use the
+  busier direction, not their sum (full duplex). An optional online admission
+  threshold is sampled, not a hard live connection limit.
+- New assignments use hardware capacity × multiplier × free headroom × remaining
+  monthly quota × recovery ramp. CPU, memory and network rates use a time-based
+  one-minute EWMA. This is server-side capacity, not ISP-specific user latency.
+- Weighted rendezvous hashing spreads primary and backup choices. The primary is
+  stored in the database (and backups), survives panel restart and is not re-picked
+  because a load reading or multiplier changes. Allocation happens on first
+  subscription generation, not at account creation. Assigned accounts are not
+  the same as active connections.
+- New users avoid disabled, draining, busy, exhausted, stale (>120 s) or unconfirmed
+  nodes. At least two healthy probes are required. One failed probe stops new
+  assignments but allows an existing choice a short grace (at most 30 s); a second
+  failed probe removes that grace. Full traffic caps apply even if manual link
+  hiding is disabled. Access permissions always limit the available set.
+- Confirmed failure redistributes affected users among eligible nodes instead of
+  concentrating them on the first list entry. Recovered nodes ramp new admissions
+  over five minutes; users that moved away are not automatically called back.
+- Sustained overload for at least two minutes can move a deterministic roughly
+  10% cohort per minute, only when that user fetches a profile and another normal
+  node is eligible. A ten-minute per-assignment cooldown prevents repeated moves.
+- **Drain** stops new assignments without evicting existing ones or closing sockets.
+  It does not forcibly migrate existing users. Settings show hardware, eligibility,
+  relative capacity/free score and counts of assigned enabled accounts.
+
+### What Sing-box actually receives
+
+In smart mode, `proxy` defaults to `auto`. That `urltest` contains only compatible
+outbounds on the assigned node, so a globally low-ping node cannot silently defeat
+the capacity distribution. A separate `backup` choice tests the first eligible
+per-user backup node; other locations and local/manual links remain selectable.
+Generated group tags are collision-safe. If no eligible assignment or compatible
+assigned-node protocol exists, profile generation fails clearly instead of emitting
+an unintended direct connection or an invalid empty automatic group.
+
+**Stock Sing-box has no weighted, strict-priority failover group.** Backup is a
+separate user choice, not an instant automatic primary→backup switch. Panel health
+failover/rebalancing takes effect only after the client refreshes the JSON profile;
+this does not move open connections without interruption. Existing cached/manual
+selector choices or a custom template routing `final` elsewhere may override the
+new default. Use the generated JSON profile and select `proxy → auto`; refresh
+profiles after enabling this mode. URI-only subscriptions cannot enforce groups.
+
+Back up the database/settings before upgrading. The new assignment table is included
+in backups and removed for deleted clients. No deployment to your server, real
+traffic benchmark or ISP-path measurement is implied by unit/browser tests.
+
 ## Quick Overview
 | Features                               |      Enable?       |
 | -------------------------------------- | :----------------: |

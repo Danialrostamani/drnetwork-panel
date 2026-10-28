@@ -277,6 +277,9 @@ func (s *ClientService) Save(tx *gorm.DB, act string, data json.RawMessage, host
 		if err != nil {
 			return nil, err
 		}
+		if err = tx.Where("client_id in ?", ids).Delete(&model.NodeAssignment{}).Error; err != nil {
+			return nil, err
+		}
 		err = tx.Where("id in ?", ids).Delete(model.Client{}).Error
 		if err != nil {
 			return nil, err
@@ -298,6 +301,9 @@ func (s *ClientService) Save(tx *gorm.DB, act string, data json.RawMessage, host
 		}
 		err = bankDeletedClients(tx, []uint{id})
 		if err != nil {
+			return nil, err
+		}
+		if err = tx.Where("client_id = ?", id).Delete(&model.NodeAssignment{}).Error; err != nil {
 			return nil, err
 		}
 		err = tx.Where("id = ?", id).Delete(model.Client{}).Error

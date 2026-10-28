@@ -103,7 +103,7 @@ func (s *LinkService) externalOutbounds(linkJson *json.RawMessage, n *namer, cli
 				outbounds = append(outbounds, *outbound)
 				tags = append(tags, tag)
 				var info *linkInfo
-				if n.active() {
+				if n != nil {
 					info, _ = n.infoForLink(link, clientRemark)
 				}
 				infos = append(infos, info)
