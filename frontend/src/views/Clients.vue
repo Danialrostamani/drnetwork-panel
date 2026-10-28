@@ -294,6 +294,13 @@
             hide-details
             @update:model-value="(val:any) => toggleEnable(item, !!val)"
           />
+          <v-icon
+            v-if="item.dayLocked && !item.enable"
+            icon="mdi-timer-sand-paused"
+            size="small"
+            color="warning"
+            :title="$t('client.dailyVolume') + ' / ' + $t('client.dailyTime') + ': ' + $t('client.dayLocked')"
+          />
         </template>
         <template #item.inbounds="{ item }">
           <span>

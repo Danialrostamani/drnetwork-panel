@@ -29,6 +29,13 @@ export interface Client {
   createdAt?: number
   onlineAt?: number
   limitIp?: number
+  // Daily limits, bytes and seconds online (0 none), and today's counters.
+  dailyVolume?: number
+  dailyTime?: number
+  dayUsed?: number
+  dayOnline?: number
+  dayKey?: number
+  dayLocked?: boolean
   subToken?: string
   useSubToken?: boolean
 }
@@ -56,6 +63,8 @@ const defaultClient: Client = {
   createdAt: 0,
   onlineAt: 0,
   limitIp: 0,
+  dailyVolume: 0,
+  dailyTime: 0,
 }
 
 // Per-protocol client credentials, keyed by protocol. Which fields a protocol

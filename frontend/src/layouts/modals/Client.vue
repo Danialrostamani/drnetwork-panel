@@ -129,6 +129,38 @@
                   />
                 </v-col>
                 <v-col
+                  cols="12"
+                  sm="6"
+                  md="4"
+                >
+                  <v-text-field
+                    v-model.number="DailyVolume"
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    :label="$t('client.dailyVolume')"
+                    suffix="GiB"
+                    :hint="dailyHint('volume')"
+                    persistent-hint
+                  />
+                </v-col>
+                <v-col
+                  cols="12"
+                  sm="6"
+                  md="4"
+                >
+                  <v-text-field
+                    v-model.number="DailyTime"
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    :label="$t('client.dailyTime')"
+                    :suffix="$t('client.hours')"
+                    :hint="dailyHint('time')"
+                    persistent-hint
+                  />
+                </v-col>
+                <v-col
                   v-if="!(client.delayStart && !client.autoReset)"
                   cols="12"
                   sm="6"
@@ -538,6 +570,14 @@ export default {
       get() { return this.client.volume == 0 ? 0 : (this.client.volume / (1024 ** 3)) },
       set(v:number) { this.client.volume = v > 0 ? v*(1024 ** 3) : 0 }
     },
+    DailyVolume: {
+      get() { return (this.client.dailyVolume ?? 0) == 0 ? 0 : Math.round((this.client.dailyVolume ?? 0) / (1024 ** 3) * 100) / 100 },
+      set(v:number) { this.client.dailyVolume = v > 0 ? Math.round(v*(1024 ** 3)) : 0 }
+    },
+    DailyTime: {
+      get() { return (this.client.dailyTime ?? 0) == 0 ? 0 : Math.round((this.client.dailyTime ?? 0) / 36) / 100 },
+      set(v:number) { this.client.dailyTime = v > 0 ? Math.round(v*3600) : 0 }
+    },
     delayStart: {
       get() { return this.client.delayStart?? false },
       set(v:boolean) {
@@ -586,6 +626,25 @@ export default {
     },
   },
   methods: {
+    // dailyHint says what the client used today, against a daily limit.
+    dailyHint(kind: 'volume' | 'time'): string {
+      const t = this.$t
+      const today = (this.client.dayKey ?? 0) === this.todayKey()
+      if (kind === 'volume') {
+        if (!this.client.dailyVolume) return t('client.dailyHint')
+        return t('client.dailyToday', { v: HumanReadable.sizeFormat(today ? (this.client.dayUsed ?? 0) : 0) }) + (this.client.dayLocked ? ' · ' + t('client.dayLocked') : '')
+      }
+      if (!this.client.dailyTime) return t('client.dailyHint')
+      const sec = today ? (this.client.dayOnline ?? 0) : 0
+      const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60)
+      return t('client.dailyToday', { v: `${h}:${String(m).padStart(2, '0')}` }) + (this.client.dayLocked ? ' · ' + t('client.dayLocked') : '')
+    },
+    // todayKey is today as yyyymmdd; the server counts in its own time zone,
+    // which the hint only approximates with the browser's.
+    todayKey(): number {
+      const d = new Date()
+      return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate()
+    },
     async updateData(id: number) {
       if (id > 0) {
         this.loading = true
