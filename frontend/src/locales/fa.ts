@@ -609,6 +609,12 @@ export default {
     clashUdp: "فعال‌سازی پیش‌فرض UDP",
   },
   client: {
+    dailyVolume: "حجم روزانه",
+    dailyTime: "ساعت مجاز در روز",
+    hours: "ساعت",
+    dailyHint: "صفر یعنی بدون محدودیت روزانه؛ هر روز از نو شروع می‌شود",
+    dailyToday: "امروز: {v}",
+    dayLocked: "تا فردا متوقف است",
     limitIp: "محدودیت IP",
     limitIpHint: "حداکثر IP مبدأ هم‌زمان؛ صفر یعنی نامحدود",
     ipLimit: "محدودیت IP",
