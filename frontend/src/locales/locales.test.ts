@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import en from './en'
 import fa from './fa'
-import ru from './ru'
-import vi from './vi'
-import zhcn from './zhcn'
-import zhtw from './zhtw'
 
 type Tree = { [key: string]: string | Tree }
 
@@ -21,7 +17,7 @@ const english = flat(en as Tree)
 const placeholders = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map(m => m[1]).sort()
 
 describe('locales', () => {
-  const others: Record<string, Tree> = { fa, ru, vi, zhcn, zhtw }
+  const others: Record<string, Tree> = { fa }
   for (const [name, tree] of Object.entries({ en, ...others } as Record<string, Tree>)) {
     it(`${name} has no bare @, which vue-i18n reads as a link and fails on`, () => {
       for (const [key, value] of Object.entries(flat(tree))) {

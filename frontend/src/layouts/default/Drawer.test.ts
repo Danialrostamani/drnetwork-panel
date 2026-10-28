@@ -48,7 +48,7 @@ describe('the side menu', () => {
 
 describe('the translations', () => {
   it('thank nobody inside the panel', () => {
-    for (const lang of ['en', 'fa', 'vi', 'zhHans', 'zhHant', 'ru']) {
+    for (const lang of ['en', 'fa']) {
       const messages = JSON.stringify(i18n.global.getLocaleMessage(lang))
       expect(messages.length, lang).toBeGreaterThan(1000)
       expect(messages, lang).not.toMatch(/alireza/i)

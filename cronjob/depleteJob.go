@@ -46,6 +46,12 @@ func (s *DepleteJob) Run() {
 		}
 	}
 	if len(users) == 0 {
+		if len(inboundIds) > 0 {
+			// Clients a reset or a new day enabled again: the nodes take
+			// them back too.
+			s.NodeSyncService.MarkAllDirty()
+			go s.NodeSyncService.ReconcileDirtyOnline()
+		}
 		return
 	}
 	// The nodes serve these clients too: sync them now, then drop the open
