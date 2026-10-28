@@ -479,6 +479,15 @@ ul.checks li::before{content:"✓";position:absolute;inset-inline-start:0;top:1p
   .hero-days b{font-size:25px}
   .hero-cta{width:100%}
 }
+.daychart{display:flex;align-items:flex-end;gap:3px;height:84px;margin-top:8px;padding:6px 0 0;direction:ltr}
+.daychart i{flex:1;min-width:2px;border-radius:3px 3px 1px 1px;background:var(--accent);opacity:.85;min-height:2px}
+.daychart i.zero{background:var(--border);opacity:1}
+.daychart i.today{opacity:1;box-shadow:0 0 0 1px var(--accent)}
+.daychart-axis{display:flex;justify-content:space-between;margin-top:4px;font-size:11.5px;color:var(--text2);direction:ltr}
+.dailybox{margin-top:12px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:var(--surface2)}
+.dailybox.locked{border-color:var(--orange)}
+.dailybox .bar{margin-top:6px}
+.dailybox .kv b{white-space:nowrap}
 #noticeBox .banner{white-space:pre-line}
 .banner.chan{background:var(--accent-soft);color:var(--accent);align-items:center}
 .banner.chan a{display:flex;align-items:center;gap:8px;color:inherit;text-decoration:none;flex:1;min-width:0}
@@ -631,7 +640,6 @@ ul.checks li::before{content:"✓";position:absolute;inset-inline-start:0;top:1p
     <div class="grid2" data-pane="status">
       <article class="card hero" id="heroCard">
         <div class="hero-top">
-          <span id="usageGauge" class="gauge hero-g" hidden aria-hidden="true"><svg viewBox="0 0 52 52"><circle class="g-bg" cx="26" cy="26" r="22" fill="none" stroke-width="4"/><circle class="g-fg" cx="26" cy="26" r="22" fill="none" stroke-width="4" stroke-dasharray="138.23" stroke-dashoffset="138.23"/></svg><span class="g-txt"><b id="heroRemain">—</b><small data-i18n="card.remainLabel">باقی‌مانده</small><small id="usagePct"></small></span></span>
           <div class="hero-side">
             <h2 class="hero-h" data-i18n="card.usage">حجم مصرفی</h2>
             <div class="hero-days"><b id="heroDays">—</b><span id="heroDaysLbl"></span></div>
@@ -1104,6 +1112,10 @@ const I18N = {
     "mtr.lastSeen": "آخرین فعالیت",
     "mtr.ago": "{v} پیش",
     "mtr.h24": "مصرف ۲۴ ساعت گذشته", "mtr.d7": "مصرف ۷ روز گذشته",
+    "mtr.d30": "مصرف ۳۰ روز گذشته", "mtr.daysChart": "مصرف روزانه در ۳۰ روز گذشته", "mtr.today": "امروز",
+    "mtr.daily": "سقف مصرف روزانه", "mtr.dailyVol": "حجم امروز", "mtr.dailyTime": "زمان اتصال امروز",
+    "mtr.dayLocked": "سقف امروز تمام شده است؛ اشتراک از ابتدای روز بعد دوباره فعال می‌شود.",
+    "mtr.hm": "{h} ساعت و {m} دقیقه", "mtr.h": "{h} ساعت", "mtr.m": "{m} دقیقه",
     "mtr.servers": "مصرف این دوره به تفکیک سرور",
     "mtr.updated": "به‌روزرسانی: {v}",
     "plans.title": "تمدید و خرید حجم",
@@ -1316,6 +1328,10 @@ const I18N = {
     "mtr.lastSeen": "Last activity",
     "mtr.ago": "{v} ago",
     "mtr.h24": "Usage in the last 24 hours", "mtr.d7": "Usage in the last 7 days",
+    "mtr.d30": "Usage in the last 30 days", "mtr.daysChart": "Daily usage over the last 30 days", "mtr.today": "Today",
+    "mtr.daily": "Daily limit", "mtr.dailyVol": "Today\u2019s data", "mtr.dailyTime": "Online time today",
+    "mtr.dayLocked": "Today\u2019s limit is used up; the subscription turns back on at the start of the next day.",
+    "mtr.hm": "{h} h {m} min", "mtr.h": "{h} h", "mtr.m": "{m} min",
     "mtr.servers": "This period\u2019s usage by server",
     "mtr.updated": "Updated: {v}",
     "plans.title": "Renew / buy data",
@@ -1630,12 +1646,6 @@ function renderDash() {
       animateNum($("#usedVal"), used, formatBytes);
       animateNum($("#remainVal"), remain, formatBytes);
       $("#remainLabel").textContent = t("card.used", { used: formatBytes(used), total: formatBytes(total), remain: formatBytes(remain) });
-      const gw = $("#usageGauge");
-      gw.hidden = false;
-      gw.className = "gauge hero-g" + (pct >= 95 ? " lvl-full" : pct >= 80 ? " lvl-warn" : "");
-      gw.querySelector(".g-fg").style.strokeDashoffset = (138.23 * (pct / 100)).toFixed(2);
-      animateNum($("#heroRemain"), remain, formatBytes);
-      animateNum($("#usagePct"), pct, function (v) { return t("hero.usedPct", { p: FA0.format(v) + pctSign }); });
       const fill = $("#barFill");
       fill.style.width = pct + "%";
       fill.className = pct >= 95 ? "lvl-full" : pct >= 80 ? "lvl-warn" : "";
@@ -1646,12 +1656,6 @@ function renderDash() {
       animateNum($("#usedVal"), used, formatBytes);
       $("#remainVal").textContent = t("card.unlimited");
       $("#remainLabel").textContent = t("card.noLimit");
-      const gw = $("#usageGauge");
-      gw.hidden = false;
-      gw.className = "gauge hero-g lvl-free";
-      gw.querySelector(".g-fg").style.strokeDashoffset = "0";
-      $("#heroRemain").textContent = "∞";
-      $("#usagePct").textContent = t("hero.usedPct", { p: formatBytes(used) });
       const fill = $("#barFill");
       fill.style.width = "100%";
       fill.className = "lvl-free";
@@ -1663,11 +1667,6 @@ function renderDash() {
     $("#usedVal").textContent = "—";
     $("#remainVal").textContent = "—";
     $("#remainLabel").textContent = t("card.noInfo");
-    const gw = $("#usageGauge");
-    gw.hidden = true;
-    gw.querySelector(".g-fg").style.strokeDashoffset = "138.23";
-    $("#usagePct").textContent = "";
-    $("#heroRemain").textContent = "—";
     const fill = $("#barFill");
     fill.style.width = "0%";
     fill.className = "";
@@ -2259,6 +2258,41 @@ function askNotify() {
 }
 
 /* ── عیب‌یابی (v36: تست پینگ سرویس‌ها کامل حذف شد) ── */
+function durLabel(sec) {
+  const m = Math.max(0, Math.floor((sec || 0) / 60));
+  const h = Math.floor(m / 60);
+  if (!h) return t("mtr.m", { m: FA0.format(m) });
+  return m % 60 ? t("mtr.hm", { h: FA0.format(h), m: FA0.format(m % 60) }) : t("mtr.h", { h: FA0.format(h) });
+}
+function dayDate(k) {
+  return new Date(Math.floor(k / 10000), Math.floor(k / 100) % 100 - 1, k % 100, 12);
+}
+function dayChartHtml(days) {
+  const max = days.reduce(function (m, d) { return Math.max(m, (d.up || 0) + (d.down || 0)); }, 0) || 1;
+  const fmt = new Intl.DateTimeFormat(LANG === "en" ? "en-US" : "fa-IR", { month: "short", day: "numeric" });
+  let bars = "";
+  days.forEach(function (d, i) {
+    const v = (d.up || 0) + (d.down || 0);
+    const h = v ? Math.max(4, Math.round((v / max) * 100)) : 3;
+    const tip = fmt.format(dayDate(d.day)) + ": " + formatBytes(v);
+    bars += '<i class="' + (v ? "" : "zero") + (i === days.length - 1 ? " today" : "") + '" style="height:' + h + '%" title="' + escHtml(tip) + '"></i>';
+  });
+  return '<div style="margin-top:12px"><div class="muted small">' + t("mtr.daysChart") + '</div><div class="daychart" role="img" aria-label="' + escHtml(t("mtr.daysChart")) + '">' + bars +
+    '</div><div class="daychart-axis"><span>' + escHtml(fmt.format(dayDate(days[0].day))) + "</span><span>" + t("mtr.today") + "</span></div></div>";
+}
+function dailyHtml(d) {
+  if (!d || (!d.volume && !d.time)) return "";
+  const line = function (label, used, limit, f) {
+    const pct = Math.min(100, Math.round((used / limit) * 100));
+    return '<div class="kv" style="border-top:0;padding:6px 0 0"><span>' + label + "</span><b>" + escHtml(f(used)) + " / " + escHtml(f(limit)) + "</b></div>" +
+      '<div class="bar"><i class="' + (pct >= 95 ? "lvl-full" : pct >= 80 ? "lvl-warn" : "") + '" style="width:' + pct + '%"></i></div>';
+  };
+  let html = '<div class="dailybox' + (d.locked ? " locked" : "") + '"><div class="muted small">' + t("mtr.daily") + "</div>";
+  if (d.volume) html += line(t("mtr.dailyVol"), d.used || 0, d.volume, formatBytes);
+  if (d.time) html += line(t("mtr.dailyTime"), d.online || 0, d.time, durLabel);
+  if (d.locked) html += '<div class="small" style="margin-top:8px;color:var(--orange)">' + t("mtr.dayLocked") + "</div>";
+  return html + "</div>";
+}
 function agoLabel(sec) {
   if (sec == null) return t("diag.unknown");
   const s = Math.max(0, Math.round(sec));
@@ -2598,6 +2632,13 @@ async function renderMetrics() {
     if (c.lastSeen) rows.push('<div class="kv"><span>' + t("mtr.lastSeen") + "</span><b>" + agoLabel((j.now || Math.floor(Date.now() / 1000)) - c.lastSeen) + "</b></div>");
     if (us.h24 != null) rows.push('<div class="kv"><span>' + t("mtr.h24") + "</span><b>" + formatBytes(us.h24) + "</b></div>");
     if (us.d7 != null) rows.push('<div class="kv"><span>' + t("mtr.d7") + "</span><b>" + formatBytes(us.d7) + "</b></div>");
+    const days = Array.isArray(j.days) ? j.days : [];
+    if (days.length) {
+      const sum = days.reduce(function (m, d) { return m + (d.up || 0) + (d.down || 0); }, 0);
+      rows.push('<div class="kv"><span>' + t("mtr.d30") + "</span><b>" + formatBytes(sum) + "</b></div>");
+    }
+    rows.push(dailyHtml(j.daily));
+    if (days.length) rows.push(dayChartHtml(days));
     const inb = Array.isArray(j.inbounds) ? j.inbounds.slice() : [];
     if (inb.length) {
       const max = inb.reduce(function (m, x) { return Math.max(m, (x.up || 0) + (x.down || 0)); }, 0) || 1;
