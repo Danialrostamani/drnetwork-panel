@@ -187,6 +187,25 @@ var userCommands = []commandInfo{
 
 var idCommand = commandInfo{"id", "شناسه تلگرام من", "My Telegram ID"}
 
+// alertsCommand is every administrator's /alerts: whether they hear the
+// client alerts, and on / off.
+var alertsCommand = commandInfo{"alerts", "هشدار کلاینت‌ها برای من (روشن/خاموش)", "Client alerts for me (on/off)"}
+
+func (b *bot) alertsCommand(ctx context.Context, chatID, from int64, arg string) {
+	switch strings.ToLower(strings.TrimSpace(arg)) {
+	case "on", "روشن":
+		_ = setPersonAlerts(from, true)
+	case "off", "خاموش":
+		_ = setPersonAlerts(from, false)
+	}
+	state := b.tr("روشن ✅", "on ✅")
+	if !personAlertsOn(from) {
+		state = b.tr("خاموش 🔕", "off 🔕")
+	}
+	b.send(ctx, chatID, "🔔 "+b.tr("هشدار کلاینت‌ها برای شما: ", "Client alerts for you: ")+state+"\n"+
+		b.tr("روشن: <code>/alerts on</code> · خاموش: <code>/alerts off</code>", "On: <code>/alerts on</code> · Off: <code>/alerts off</code>"))
+}
+
 func (b *bot) handle(ctx context.Context, u update) {
 	if u.Callback != nil {
 		b.handleCallback(ctx, u)
@@ -275,6 +294,10 @@ func (b *bot) handle(ctx context.Context, u update) {
 		return
 	}
 	if b.isAdmin(from) {
+		if cmd == "alerts" {
+			b.alertsCommand(ctx, chatID, from, arg)
+			return
+		}
 		if cmd == "start" || cmd == "admin" || cmd == "menu" {
 			text, kb := b.menuScreen()
 			if kb != nil {
@@ -308,6 +331,7 @@ func boundClients(tgID int64) []model.Client {
 
 func (b *bot) userView(c model.Client) (string, [][]button) {
 	c.Desc, c.Group = "", ""
+	tg := c.TgId
 	c.TgId = 0
 	online := false
 	for _, n := range allOnlineUsers() {
@@ -317,6 +341,9 @@ func (b *bot) userView(c model.Client) (string, [][]button) {
 	}
 	id := strconv.FormatUint(uint64(c.Id), 10)
 	kb := [][]button{{b.btn("btnSub", "u:sub:"+id), b.btn("btnRefresh", "u:view:"+id)}}
+	if tg != 0 {
+		kb = append(kb, []button{{Text: onOff(personAlertsOn(tg)) + " " + b.tr("هشدارهای حجم و زمان", "Data and time alerts"), Data: "u:al:" + id}})
+	}
 	return b.clientDetail(c, online, time.Now()), kb
 }
 
@@ -952,6 +979,17 @@ func (b *bot) userCallback(ctx context.Context, cbID string, chatID, msgID int64
 		b.edit(ctx, chatID, msgID, text, kb)
 	case "sub":
 		b.sendSub(ctx, chatID, *client)
+	case "al":
+		on := !personAlertsOn(from.ID)
+		if err := setPersonAlerts(from.ID, on); err != nil {
+			b.send(ctx, chatID, b.t("failed", b.errText(err)))
+			return
+		}
+		if on {
+			b.send(ctx, chatID, "🔔 "+b.tr("هشدارهای حجم و زمان اشتراک دوباره برایتان فرستاده می‌شود.", "You will get the data and time alerts again."))
+		} else {
+			b.send(ctx, chatID, "🔕 "+b.tr("هشدارهای حجم و زمان دیگر فرستاده نمی‌شود. از «اشتراک‌های من» می‌توانید دوباره روشنش کنید.", "No more data and time alerts. You can turn them back on under your service."))
+		}
 	}
 }
 
