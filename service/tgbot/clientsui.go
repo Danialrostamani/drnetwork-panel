@@ -59,8 +59,33 @@ func (b *bot) subSummary(c model.Client, online bool, now time.Time) string {
 	if c.LimitIp > 0 {
 		lines = append(lines, fmt.Sprintf("📱 %s: %d", b.t("ipLimit"), c.LimitIp))
 	}
+	lines = append(lines, b.dailyLines(c, now)...)
 	lines = append(lines, fmt.Sprintf("🕒 %s: %s", b.t("lastOnline"), b.stamp(c.OnlineAt)), fmt.Sprintf("📅 %s: %s", b.t("createdAt"), b.stamp(c.CreatedAt)))
 	return strings.Join(lines, "\n")
+}
+
+// dailyLines tell a client with a daily limit what of today's allowance
+// went, and whether the client rests until tomorrow.
+func (b *bot) dailyLines(c model.Client, now time.Time) []string {
+	if c.DailyVolume <= 0 && c.DailyTime <= 0 {
+		return nil
+	}
+	var used, online int64
+	if c.DayKey == service.DayKey(now) {
+		used, online = c.DayUsed, c.DayOnline
+	}
+	var parts []string
+	if c.DailyVolume > 0 {
+		parts = append(parts, humanBytes(used)+" / "+humanBytes(c.DailyVolume))
+	}
+	if c.DailyTime > 0 {
+		parts = append(parts, "⏱ "+b.humanDuration(time.Duration(online)*time.Second)+" / "+b.humanDuration(time.Duration(c.DailyTime)*time.Second))
+	}
+	lines := []string{"🗓 <b>" + b.tr("سقف روزانه (امروز)", "Daily limit (today)") + "</b>: " + strings.Join(parts, "  ·  ")}
+	if c.DayLocked {
+		lines = append(lines, "⏸ "+b.tr("سقف امروز تمام شده؛ فردا دوباره فعال می‌شود", "Today's limit is used up; back on tomorrow"))
+	}
+	return lines
 }
 
 // volumeLines is the card's volume block: the bar, then the whole volume,
@@ -126,6 +151,7 @@ func (b *bot) clientDetail(c model.Client, online bool, now time.Time) string {
 	if c.LimitIp > 0 {
 		lines = append(lines, fmt.Sprintf("📱 %s: %d", b.t("ipLimit"), c.LimitIp))
 	}
+	lines = append(lines, b.dailyLines(c, now)...)
 	if c.Remark != "" {
 		lines = append(lines, "🗒 "+b.tr("یادداشت", "Remark")+": "+esc(c.Remark))
 	}

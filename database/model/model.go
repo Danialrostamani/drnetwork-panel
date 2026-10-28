@@ -78,6 +78,28 @@ type Client struct {
 	NextReset  int64 `json:"nextReset" form:"nextReset" gorm:"default:0;not null"`
 	TotalUp    int64 `json:"totalUp" form:"totalUp" gorm:"default:0;not null"`
 	TotalDown  int64 `json:"totalDown" form:"totalDown" gorm:"default:0;not null"`
+
+	// Daily limits: the bytes (DailyVolume) and the seconds online (DailyTime)
+	// the client may use in one day of the panel's time zone; 0 is no limit.
+	// Past one the client is disabled with DayLocked set, and enabled again
+	// when the day changes.
+	DailyVolume int64 `json:"dailyVolume" form:"dailyVolume" gorm:"default:0;not null"`
+	DailyTime   int64 `json:"dailyTime" form:"dailyTime" gorm:"default:0;not null"`
+	// What the client used on DayKey (yyyymmdd), kept by the stats jobs.
+	DayUsed   int64 `json:"dayUsed" form:"dayUsed" gorm:"default:0;not null"`
+	DayOnline int64 `json:"dayOnline" form:"dayOnline" gorm:"default:0;not null"`
+	DayKey    int   `json:"dayKey" form:"dayKey" gorm:"default:0;not null"`
+	DayLocked bool  `json:"dayLocked" form:"dayLocked" gorm:"default:false;not null"`
+}
+
+// ClientDay is what a client moved in one day (yyyymmdd, the panel's time
+// zone), on every server together: the history the subscription page shows
+// the last 30 days of.
+type ClientDay struct {
+	ClientId uint  `json:"clientId" gorm:"primaryKey;autoIncrement:false"`
+	Day      int   `json:"day" gorm:"primaryKey;autoIncrement:false;index"`
+	Up       int64 `json:"up"`
+	Down     int64 `json:"down"`
 }
 
 // SubTokenLength is how long a subscription token is: 24 letters and digits,
