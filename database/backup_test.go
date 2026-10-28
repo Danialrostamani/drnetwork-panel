@@ -50,6 +50,7 @@ func seedEveryTable(t *testing.T) {
 		&model.NodeTraffic{NodeId: 1, DateTime: 3600, Up: 1 << 20, Down: 2 << 20},
 		&model.ClientUsage{ClientId: 1, NodeId: 1, Up: 1 << 20, Down: 2 << 20},
 		&model.ClientDay{ClientId: 1, Day: 20260101, Up: 1 << 20, Down: 2 << 20},
+		&model.BotClientAlert{ClientId: 1, Expiry: 1, Start: 1, Sent: "vol90"},
 		&model.SiteStat{User: "alice", DateTime: 3600, Site: "google.com", Up: 1, Down: 2},
 	}
 	for _, row := range rows {
