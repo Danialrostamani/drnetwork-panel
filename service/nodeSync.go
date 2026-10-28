@@ -1067,14 +1067,19 @@ func (s *NodeSyncService) collectNodeTraffic(node *model.Node) error {
 	}
 	err = db.Transaction(func(tx *gorm.DB) error {
 		for name, value := range deltas {
-			if err := tx.Model(model.Client{}).Where("name = ?", name).Updates(map[string]interface{}{
+			update := map[string]interface{}{
 				"up":        gorm.Expr("up + ?", value.up),
 				"down":      gorm.Expr("down + ?", value.down),
 				"online_at": now,
-			}).Error; err != nil {
+			}
+			dayCounters(update, now, value.up+value.down)
+			if err := tx.Model(model.Client{}).Where("name = ?", name).Updates(update).Error; err != nil {
 				return err
 			}
 			if err := addClientUsage(tx, name, node.Id, value.up, value.down); err != nil {
+				return err
+			}
+			if err := addClientDay(tx, name, now, value.up, value.down); err != nil {
 				return err
 			}
 		}
@@ -1082,7 +1087,9 @@ func (s *NodeSyncService) collectNodeTraffic(node *model.Node) error {
 			if _, hasDelta := deltas[name]; hasDelta {
 				continue
 			}
-			if err := tx.Model(model.Client{}).Where("name = ?", name).Update("online_at", now).Error; err != nil {
+			update := map[string]interface{}{"online_at": now}
+			dayCounters(update, now, 0)
+			if err := tx.Model(model.Client{}).Where("name = ?", name).Updates(update).Error; err != nil {
 				return err
 			}
 		}
