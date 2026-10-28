@@ -76,12 +76,13 @@ func (s *ClientService) GetTrafficSnapshot() (map[string]ClientTraffic, error) {
 // rows back, and a save writes every column of the row it is given, so the
 // settings a bulk edit does not touch have to be in the list: without delay
 // start, auto reset, reset days and the next reset, a bulk edit switched them
-// off for every client it covered.
+// off for every client it covered. The daily limits ride along for the same
+// reason.
 func (s *ClientService) GetAll() (*[]model.Client, error) {
 	db := database.GetDB()
 	var clients []model.Client
 	err := db.Model(model.Client{}).
-		Select("`id`, `enable`, `name`, `desc`, `group`, `remark`, `inbounds`, `up`, `down`, `volume`, `expiry`, `created_at`, `online_at`, `limit_ip`, `delay_start`, `auto_reset`, `reset_days`, `next_reset`").
+		Select("`id`, `enable`, `name`, `desc`, `group`, `remark`, `inbounds`, `up`, `down`, `volume`, `expiry`, `created_at`, `online_at`, `limit_ip`, `delay_start`, `auto_reset`, `reset_days`, `next_reset`, `daily_volume`, `daily_time`, `day_used`, `day_online`, `day_key`, `day_locked`").
 		Scan(&clients).Error
 	if err != nil {
 		return nil, err
@@ -465,10 +466,14 @@ func (s *ClientService) attachAllInbounds(tx *gorm.DB, hostname string, only []u
 func (s *ClientService) preserveServerOwnedFields(tx *gorm.DB, client *model.Client) {
 	var existing model.Client
 	if err := tx.Model(model.Client{}).
-		Select("created_at", "online_at", "tg_id", "sub_token", "up", "down", "total_up", "total_down").
+		Select("created_at", "online_at", "tg_id", "sub_token", "up", "down", "total_up", "total_down", "enable", "day_used", "day_online", "day_key", "day_locked").
 		Where("id = ?", client.Id).First(&existing).Error; err != nil {
 		return
 	}
+	// The day's counters are the stats jobs'. The daily lock holds only while
+	// the client stays disabled: enabled or disabled by hand, it is theirs.
+	client.DayUsed, client.DayOnline, client.DayKey = existing.DayUsed, existing.DayOnline, existing.DayKey
+	client.DayLocked = existing.DayLocked && !existing.Enable && !client.Enable
 	// The subscription token changes through ResetSubToken only: a form that
 	// left it out, or sent another, would move the client's link.
 	client.SubToken = existing.SubToken
@@ -833,14 +838,21 @@ func (s *ClientService) UpdateLinksByInboundChange(tx *gorm.DB, inbounds *[]mode
 
 // depletedWhere matches the enabled clients that used their volume or whose
 // time is up.
-const depletedWhere = "enable = true AND ((volume > 0 AND up+down >= volume) OR (expiry > 0 AND expiry < ?))"
+const depletedWhere = "enable = true AND ((volume > 0 AND up+down >= volume) OR (expiry > 0 AND expiry < ?) OR (daily_volume > 0 AND day_key = ? AND day_used >= daily_volume) OR (daily_time > 0 AND day_key = ? AND day_online >= daily_time))"
+
+// depleted picks the enabled clients past their volume, expiry or a daily
+// limit at dt.
+func depleted(tx *gorm.DB, dt int64) *gorm.DB {
+	key := DayKey(time.Unix(dt, 0))
+	return tx.Model(model.Client{}).Where(depletedWhere, dt, key, key)
+}
 
 // HasDepleted reports, with one cheap query, whether an enabled client has
 // used up its volume or time; checked every few seconds so the client is cut
 // off at once, not at the next minute.
 func (s *ClientService) HasDepleted() bool {
 	var n int64
-	if err := database.GetDB().Model(model.Client{}).Where(depletedWhere, time.Now().Unix()).Limit(1).Count(&n).Error; err != nil {
+	if err := depleted(database.GetDB(), time.Now().Unix()).Limit(1).Count(&n).Error; err != nil {
 		return false
 	}
 	return n > 0
@@ -879,8 +891,19 @@ func (s *ClientService) DepleteClients() ([]uint, []string, error) {
 		return nil, nil, err
 	}
 
+	// A new day enables the clients a daily limit disabled.
+	var dailyIds []uint
+	dailyIds, _, err = dailyRollover(tx, dt)
+	if err != nil {
+		return nil, nil, err
+	}
+	inboundIds = common.UnionUintArray(inboundIds, dailyIds)
+	if err = lockDailyOver(tx, dt); err != nil {
+		return nil, nil, err
+	}
+
 	// Deplete clients
-	err = tx.Model(model.Client{}).Where(depletedWhere, dt).Scan(&clients).Error
+	err = depleted(tx, dt).Scan(&clients).Error
 	if err != nil {
 		return nil, nil, err
 	}
@@ -902,8 +925,11 @@ func (s *ClientService) DepleteClients() ([]uint, []string, error) {
 	}
 
 	// Save changes
+	if len(changes) > 0 || len(dailyIds) > 0 {
+		LastUpdate = dt
+	}
 	if len(changes) > 0 {
-		err = tx.Model(model.Client{}).Where(depletedWhere, dt).Update("enable", false).Error
+		err = depleted(tx, dt).Update("enable", false).Error
 		if err != nil {
 			return nil, nil, err
 		}
