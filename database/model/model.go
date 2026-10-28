@@ -346,6 +346,19 @@ type BotRenewNote struct {
 
 func (BotRenewNote) TableName() string { return "bot_renew_notes" }
 
+// BotClientAlert is where the client alerts stand for one client: the term
+// they measure the time against (Start, from when its Expiry was set) and
+// the alerts already sent in it (Sent, comma separated), so a restart does
+// not send them again.
+type BotClientAlert struct {
+	ClientId uint   `json:"clientId" gorm:"primaryKey;autoIncrement:false"`
+	Expiry   int64  `json:"expiry"`
+	Start    int64  `json:"start"`
+	Sent     string `json:"sent"`
+}
+
+func (BotClientAlert) TableName() string { return "bot_client_alerts" }
+
 type Tokens struct {
 	Id     uint   `json:"id" form:"id" gorm:"primaryKey;autoIncrement"`
 	Desc   string `json:"desc" form:"desc"`
