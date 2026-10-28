@@ -1040,7 +1040,7 @@ const subPageConf = computed((): SubPageConf => parseSubPageConf(settings.value.
 const subPageTextFields = ['name', 'nameEn', 'logo', 'accent', 'support', 'channel'] as const
 const subPagePlaceholder: Record<string, string> = {
   name: 'وضعیت اشتراک', nameEn: 'Subscription status', logo: 'https://example.com/logo.png',
-  accent: '#0C96B2', support: 'https://t.me/support', channel: 'https://t.me/channel',
+  accent: '#0C96B2', support: 'https://t.me/DrNetWorkSingBox?direct', channel: 'https://t.me/channel',
 }
 // The notice and site lists are edited here, blank rows and all; the setting
 // gets them without the blank ones.

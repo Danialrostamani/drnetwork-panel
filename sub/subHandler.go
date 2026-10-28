@@ -50,6 +50,9 @@ func (s *SubHandler) subs(c *gin.Context) {
 	}
 	format, isFormat := c.GetQuery("format")
 	switch format {
+	case "live":
+		s.live(c, subId)
+		return
 	case "status":
 		s.status(c, subId)
 		return

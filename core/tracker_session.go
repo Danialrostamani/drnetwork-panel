@@ -267,6 +267,17 @@ func (t *SessionTracker) GetStats() *[]model.Stats {
 	return &s
 }
 
+// UserTraffic reads undrained counters without resetting them. The caller must
+// serialize with GetStats and its database commit to avoid double counting.
+func (t *SessionTracker) UserTraffic(user string) (up, down int64) {
+	t.access.Lock()
+	defer t.access.Unlock()
+	if c, ok := t.users[user]; ok {
+		return c.read.Load(), c.write.Load()
+	}
+	return 0, 0
+}
+
 // Sessions returns a snapshot of the live sessions, newest counters included.
 func (t *SessionTracker) Sessions() []SessionInfo {
 	// Only the list is taken under the lock. Formatting every address of a
