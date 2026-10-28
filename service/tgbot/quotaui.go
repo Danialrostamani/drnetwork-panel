@@ -41,12 +41,12 @@ func (b *bot) quotaStateLine(id int64) string {
 	return b.quotaBrief(q)
 }
 
-// checkQuotaEditor is the rule for every change of a limit: only the owner
-// edits them, and only those of administrators other than themselves.
+// checkQuotaEditor is the rule for every change of a limit: the owner and
+// trusted full administrators edit them; the owner's entry stays protected.
 func (b *bot) checkQuotaEditor(id int64) error {
 	a := b.access()
 	switch {
-	case !b.owner:
+	case !b.canManageAdmins():
 		return errNotOwner
 	case a.isOwner(id):
 		return errIsOwner

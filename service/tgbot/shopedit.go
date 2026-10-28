@@ -12,7 +12,10 @@ func (b *bot) shopEditHome() (string, [][]button) {
 	title := b.tr("فروشگاه مشتری", "Customer shop")
 	hint := b.tr("هر چیزی که مشتری می‌بیند از اینجا عوض می‌شود. مراحل مشتری دکمه‌ای است.",
 		"Everything the customer sees is edited here. Their steps are buttons.")
-	if !b.owner && b.self > 0 {
+	if b.globalShop {
+		title = b.tr("فروشگاه عمومی — مدیریت سراسری", "Global shop — shared settings")
+	}
+	if !b.owner && !b.globalShop && b.self > 0 {
 		title = b.tr("فروشگاه شما", "Your shop")
 		hint = b.tr("پلن‌ها، قیمت و شماره کارت همین ادمین. مشتری‌های گروه شما همین را می‌بینند.",
 			"Plans, price and card number for this admin. Customers in your group see this.")
@@ -29,7 +32,7 @@ func (b *bot) shopEditHome() (string, [][]button) {
 	kb := [][]button{
 		{{Text: b.tr("📦 پلن‌ها", "📦 Plans"), Data: "k:plans"}, {Text: b.tr("🏦 کیف پول", "🏦 Wallet"), Data: "k:wals"}},
 	}
-	if b.owner || b.self == 0 {
+	if b.owner || b.globalShop || b.self == 0 {
 		kb = append(kb,
 			[]button{{Text: b.tr("📝 متن‌ها", "📝 Texts"), Data: "k:txts"}, {Text: b.tr("🔘 دکمه‌ها", "🔘 Buttons"), Data: "k:btns"}},
 			[]button{{Text: b.tr("👥 معرف‌ها", "👥 Introducers"), Data: "k:refs"}},
@@ -41,7 +44,11 @@ func (b *bot) shopEditHome() (string, [][]button) {
 		[]button{{Text: b.tr("📋 سفارش‌ها", "📋 Orders"), Data: "k:ordsP"}, {Text: b.tr("📊 گزارش فروش", "📊 Sales report"), Data: "k:sales"}},
 		[]button{{Text: b.tr("👁 نمای مشتری", "👁 Customer view"), Data: "k:shop"}},
 	)
-	if b.deskBy != 0 {
+	if !b.owner && !b.globalShop && b.canManageAdmins() {
+		lines = append(lines, "📁 "+b.tr("گروه فروش: ", "Sales group: ")+esc(nonempty(b.sellerGroup(b.self), "—")))
+		kb = append(kb, []button{{Text: b.tr("📁 گروه فروش اختصاصی", "📁 Personal sales group"), Data: "k:sgrp"}})
+	}
+	if b.deskBy != 0 || b.globalShop {
 		kb = append(kb, []button{{Text: b.tr("🚪 خروج از فروشگاه این ادمین", "🚪 Leave this admin's shop"), Data: "q:dx"}})
 	}
 	return strings.Join(lines, "\n"), kb
@@ -111,7 +118,7 @@ func (b *bot) shopPlanScreen(id string) (string, [][]button) {
 		b.tr("مدت", "Duration"), days,
 		b.tr("حجم", "Volume"), vol,
 		b.tr("قیمت", "Price"), nonempty(p.Price, "—"))
-	if !b.owner && b.self > 0 {
+	if !b.owner && !b.globalShop && b.self > 0 {
 		if min := b.sellerMinPrice(b.self, p.GB); min > 0 {
 			text += "\n" + b.tr("حداقل قیمت مجاز: ", "Lowest allowed price: ") + formatMoney(min)
 			if n, ok := parseMoney(p.Price); ok && n < min {
@@ -268,6 +275,12 @@ func shopPriceButtons(id string) [][]button {
 }
 
 func (b *bot) shopEditCallback(ctx context.Context, cbID string, chatID, msgID int64, parts []string) {
+	if b.deskTarget(chatID) != 0 && !b.canManageAdmins() {
+		b.clearDesk(chatID)
+		b.pend.clear(chatID)
+		b.answer(ctx, cbID, b.denied())
+		return
+	}
 	b = b.deskView(chatID)
 	show := func(text string, kb [][]button) {
 		b.answer(ctx, cbID, "")
@@ -277,7 +290,7 @@ func (b *bot) shopEditCallback(ctx context.Context, cbID string, chatID, msgID i
 		b.answer(ctx, cbID, "")
 		return
 	}
-	if !b.owner && b.self > 0 {
+	if !b.owner && !b.globalShop && b.self > 0 {
 		switch parts[1] {
 		case "txts", "btns", "refs", "rnew", "rgrp", "rdel", "rdelY":
 			b.answer(ctx, cbID, b.denied())
@@ -285,6 +298,17 @@ func (b *bot) shopEditCallback(ctx context.Context, cbID string, chatID, msgID i
 		}
 	}
 	switch parts[1] {
+	case "sgrp":
+		if b.owner || b.globalShop || !b.canManageAdmins() {
+			b.answer(ctx, cbID, b.denied())
+			return
+		}
+		b.answer(ctx, cbID, "")
+		b.pend.set(chatID, &pending{kind: "shop.salesgroup", msgID: msgID, back: "k:edit"})
+		b.edit(ctx, chatID, msgID, b.tr(
+			"نام گروه فروش اختصاصی را بفرستید (حداکثر ۶۴ نویسه و بدون خط جدید). «-» آن را پاک می‌کند. این گروه دسترسی مدیریتی شما را محدود نمی‌کند.",
+			"Send your personal sales group (up to 64 characters, no newlines). “-” clears it. This group does not limit your administrative access."),
+			[][]button{b.cancelRow()})
 	case "edit":
 		show(b.shopEditHome())
 	case "ords":
@@ -527,6 +551,11 @@ func (b *bot) patchPlan(id string, fn func(*shopPlan)) {
 }
 
 func (b *bot) shopPending(ctx context.Context, chatID int64, p *pending, text string, retry func(error), finish func(string, [][]button)) {
+	if b.deskTarget(chatID) != 0 && !b.canManageAdmins() {
+		b.clearDesk(chatID)
+		finish(b.denied(), [][]button{b.menuRow()})
+		return
+	}
 	b = b.deskView(chatID)
 	text = strings.TrimSpace(text)
 	if text == "" {
@@ -535,6 +564,13 @@ func (b *bot) shopPending(ctx context.Context, chatID int64, p *pending, text st
 	}
 	s := b.loadShop()
 	switch p.kind {
+	case "shop.salesgroup":
+		if err := b.setSalesGroup(text); err != nil {
+			retry(err)
+			return
+		}
+		t, kb := b.shopEditHome()
+		finish(b.t("done")+"\n\n"+t, kb)
 	case "shop.pname":
 		id := ""
 		if p.data != nil {

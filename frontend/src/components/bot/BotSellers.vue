@@ -170,12 +170,12 @@
             {{ $t('botAdmins.role.' + a.role) }}
           </v-chip>
           <v-chip
-            v-if="a.group"
+            v-if="a.group || a.salesGroup"
             size="small"
             variant="outlined"
             prepend-icon="mdi-folder-account"
           >
-            {{ a.group }}
+            {{ a.group || a.salesGroup }}
           </v-chip>
           <v-chip
             v-if="a.suspended"
@@ -329,7 +329,7 @@
                   </v-btn>
                 </div>
                 <div
-                  v-if="a.role == 'group'"
+                  v-if="a.group || a.salesGroup"
                   class="text-caption mt-2"
                 >
                   {{ $t('botAdmins.groupClients', { n: a.clients }) }}
@@ -518,6 +518,18 @@
                   {{ $t('botAdmins.deskHint') }}
                 </div>
                 <template v-if="hasDesk(a.id)">
+                  <v-combobox
+                    :model-value="a.role == 'group' ? a.group : deskOf(a.id).salesGroup"
+                    :items="groups"
+                    :label="$t('botAdmins.salesGroup')"
+                    :hint="$t('botAdmins.salesGroupHint')"
+                    persistent-hint
+                    clearable
+                    density="compact"
+                    class="mb-3"
+                    :disabled="a.role == 'group'"
+                    @update:model-value="(v: string | null) => patchShopDesk(a.id, { salesGroup: v ?? '' })"
+                  />
                   <div class="d-flex flex-wrap ga-2 mb-2">
                     <v-text-field
                       :model-value="deskOf(a.id).payCard"
@@ -676,6 +688,7 @@ interface BotAdmin {
   name: string
   role: Role
   group: string
+  salesGroup?: string
   sections: string[]
   clients: number
   customers: number

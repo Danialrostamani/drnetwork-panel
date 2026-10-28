@@ -14,8 +14,8 @@ import (
 )
 
 // The owner panel ("q:" buttons): customers, sellers, money, broadcasts,
-// alerts and the panel update. Only the owner reaches it, or a full
-// administrator while no owner is set (secBoss).
+// alerts and the panel update. The owner and trusted full administrators
+// reach it (secBoss); their personal shops remain independent.
 
 func (b *bot) pausedText() string {
 	return b.tr("⏸ دسترسی شما به ربات توسط مالک معلق شده است.", "⏸ The owner suspended your access to the bot.")
@@ -356,6 +356,11 @@ func (b *bot) deskView(chatID int64) *bot {
 		return b
 	}
 	id := b.deskTarget(chatID)
+	if id == -1 {
+		c := *b
+		c.globalShop = true
+		return &c
+	}
 	if id == 0 {
 		return b
 	}
@@ -365,7 +370,7 @@ func (b *bot) deskView(chatID int64) *bot {
 		return b
 	}
 	c := *b
-	c.owner, c.self, c.deskBy, c.scope, c.sections, c.paused = false, id, b.self, "", nil, false
+	c.owner, c.self, c.deskBy, c.scope, c.sections, c.paused, c.globalShop = false, id, b.self, "", nil, false, false
 	return &c
 }
 
@@ -399,6 +404,8 @@ func (b *bot) ownerHome(ctx context.Context) (string, [][]button) {
 		{{Text: b.tr("👮 فروشنده‌ها", "👮 Sellers"), Data: "q:ads"}, {Text: b.tr("💰 مالی و تسویه", "💰 Money"), Data: "q:fin"}},
 		{{Text: b.tr("📣 پیام همگانی", "📣 Broadcast"), Data: "q:bc"}, {Text: b.tr("🔔 هشدارها", "🔔 Alerts"), Data: "q:al"}},
 		{{Text: b.tr("📋 سفارش‌ها", "📋 Orders"), Data: "k:ordsP"}, {Text: b.tr("📄 خروجی CSV", "📄 CSV export"), Data: "q:csv"}},
+		{{Text: b.tr("🌐 فروشگاه عمومی", "🌐 Global shop"), Data: "q:gshop"}, {Text: b.tr("🛍 فروشگاه من", "🛍 My shop"), Data: "q:myshop"}},
+		{{Text: b.tr("📋 همه سفارش‌ها", "📋 All orders"), Data: "q:orders"}, {Text: b.tr("📊 فروش کل", "📊 All sales"), Data: "q:sales"}},
 		{{Text: b.tr("⬆️ آپدیت پنل", "⬆️ Update panel"), Data: "q:up"}, {Text: b.tr("🔄 ریستارت پنل", "🔄 Restart panel"), Data: "m:prest"}},
 		b.menuRow(),
 	}
@@ -1198,6 +1205,19 @@ func (b *bot) ownerCallback(ctx context.Context, cbID string, chatID, msgID int6
 		b.clearDesk(chatID)
 	}
 	switch verb {
+	case "myshop":
+		show(b.shopEditHome())
+	case "gshop":
+		b.desks.Store(chatID, int64(-1))
+		show(b.deskView(chatID).shopEditHome())
+	case "orders", "sales":
+		b.desks.Store(chatID, int64(-1))
+		view := b.deskView(chatID)
+		if verb == "orders" {
+			show(view.orderQueueScreen(true))
+		} else {
+			show(view.salesReportScreen())
+		}
 	case "home":
 		show(b.ownerHome(ctx))
 	case "cu":

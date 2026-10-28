@@ -15,6 +15,18 @@ import (
 
 // ---- helpers ----
 
+// Full partners now have unrestricted operational authority. Keep metering
+// tests on a custom all-sections account: it has the same client operations
+// but is not a trusted partner and cannot bypass the quota gate.
+func newMeteredEnv(t *testing.T) *scopeEnv {
+	t.Helper()
+	e := newAccessEnv(t)
+	e.configure(map[string]string{
+		"tgBotPerms": "42=" + strings.Join(allSections().keys(), ",") + "\n55=clients,stats\n56=\n57=nodes\n58=core",
+	})
+	return e
+}
+
 // giveQuota gives the administrator a limit of gb GB, nothing used.
 func giveQuota(t *testing.T, id int64, gb float64) {
 	t.Helper()
@@ -105,7 +117,7 @@ const usedUp = "volume limit is used up"
 // with 1000 GB took 10 GB, or 50 GB, off at once. Nothing is taken off when a
 // client is made or its volume is set; what users really consume is.
 func TestCreatingAClientDeductsNothing(t *testing.T) {
-	e := newAccessEnv(t)
+	e := newMeteredEnv(t)
 	giveQuota(t, fullAdmin, 1000)
 
 	out := e.runSay(fullAdmin, "/add ali 50 30")
@@ -151,7 +163,7 @@ func TestCreatingAClientDeductsNothing(t *testing.T) {
 // exactly those 20 are deducted from the admin" — and a traffic reset gives
 // nothing back either.
 func TestDeletingAndResettingKeepWhatWasUsed(t *testing.T) {
-	e := newAccessEnv(t)
+	e := newMeteredEnv(t)
 	giveQuota(t, fullAdmin, 1000)
 	e.runSay(fullAdmin, "/add ali 50 30")
 	e.consume("ali", 20*gib)
@@ -212,7 +224,7 @@ func TestDeletingAndResettingKeepWhatWasUsed(t *testing.T) {
 }
 
 func TestAnAdminsEarlierClientsAreFoundInTheHistory(t *testing.T) {
-	e := newAccessEnv(t)
+	e := newMeteredEnv(t)
 	// The administrator made clients while they had no limit; so did the owner.
 	e.runSay(fullAdmin, "/add early 50 30")
 	e.runSay(fullAdmin, "/addbulk pre 2 10 30")
@@ -261,7 +273,7 @@ func countedNames(t *testing.T, id int64) string {
 }
 
 func TestGroupLimitedAdminCountsTheirGroup(t *testing.T) {
-	e := newAccessEnv(t)
+	e := newMeteredEnv(t)
 	giveQuota(t, salesAdmin, 10)
 
 	// The first look finds the clients of the group; what they used before the
@@ -314,7 +326,7 @@ func TestGroupLimitedAdminCountsTheirGroup(t *testing.T) {
 // ---- when nothing is left ----
 
 func TestUsedUpLimitStopsOnlyNewVolume(t *testing.T) {
-	e := newAccessEnv(t)
+	e := newMeteredEnv(t)
 	giveQuota(t, fullAdmin, 10)
 	// Even a 50 GB client is allowed while something is left: it is the
 	// traffic that counts.
@@ -442,7 +454,7 @@ func TestUsedUpLimitStopsOnlyNewVolume(t *testing.T) {
 // A limit is about what users consume, so unlimited clients and auto reset are
 // no longer closed to a limited administrator: they are counted like any other.
 func TestUnlimitedAndAutoResetAreAllowedAndCounted(t *testing.T) {
-	e := newAccessEnv(t)
+	e := newMeteredEnv(t)
 	giveQuota(t, fullAdmin, 100)
 
 	if out := e.runSay(fullAdmin, "/add forever 0 30"); strings.Contains(out, "Failed") || e.client("forever").Volume != 0 {
@@ -479,7 +491,7 @@ func TestUnlimitedAndAutoResetAreAllowedAndCounted(t *testing.T) {
 }
 
 func TestOwnerAndAdminsWithoutALimitAreNotGated(t *testing.T) {
-	e := newAccessEnv(t)
+	e := newMeteredEnv(t)
 	// A row of the owner's changes nothing: they are never limited.
 	giveQuota(t, ownerID, 0)
 	if out := e.runSay(ownerID, "/add big 5000 30"); strings.Contains(out, "Failed") || !e.exists("big") {
@@ -548,7 +560,7 @@ func TestWhatGivesVolume(t *testing.T) {
 }
 
 func TestTheGateRefusesWhatItCannotJudgeOnlyWhenUsedUp(t *testing.T) {
-	e := newAccessEnv(t)
+	e := newMeteredEnv(t)
 	giveQuota(t, fullAdmin, 10)
 	ab := e.b.as(fullAdmin)
 	odd := []struct {
@@ -642,7 +654,7 @@ func TestQuotaStore(t *testing.T) {
 }
 
 func TestANewLimitStartsFromNothingAndRemovingOneForgetsTheClients(t *testing.T) {
-	e := newAccessEnv(t)
+	e := newMeteredEnv(t)
 	giveQuota(t, fullAdmin, 100)
 	e.runSay(fullAdmin, "/add a 5 30")
 	e.consume("a", 4*gib)
@@ -687,7 +699,7 @@ func TestANewLimitStartsFromNothingAndRemovingOneForgetsTheClients(t *testing.T)
 // ---- what the administrator sees ----
 
 func TestLimitedAdminSeesTheirLimit(t *testing.T) {
-	e := newAccessEnv(t)
+	e := newMeteredEnv(t)
 	giveQuota(t, fullAdmin, 100)
 	e.runSay(fullAdmin, "/add ali 30 30")
 	e.consume("ali", 30*gib)
@@ -725,7 +737,7 @@ func TestQuotaMessagesFitAButtonPopUp(t *testing.T) {
 		}
 	}
 	// In Persian the refusal and the line are in Persian.
-	e := newAccessEnv(t)
+	e := newMeteredEnv(t)
 	e.b.cfg.Lang = "fa"
 	giveQuota(t, fullAdmin, 1)
 	mustContain(t, e.runSay(fullAdmin, "/menu"), "حجم باقی‌مانده: <b>1.00 GiB</b> از 1.00 GiB")
@@ -738,7 +750,7 @@ func TestQuotaMessagesFitAButtonPopUp(t *testing.T) {
 // go through for free.
 func TestAnUnreadableLimitStopsTheWrite(t *testing.T) {
 	for _, table := range []interface{}{&model.BotQuota{}, &model.BotQuotaClient{}} {
-		e := newAccessEnv(t)
+		e := newMeteredEnv(t)
 		giveQuota(t, fullAdmin, 100)
 		e.runSay(fullAdmin, "/add base 5 30")
 		m := database.GetDB().Migrator()
@@ -777,7 +789,7 @@ func TestAnUnreadableLimitStopsTheWrite(t *testing.T) {
 
 // A JSON edit cannot zero the counters that the limit is worked out from.
 func TestJSONCannotWipeWhatWasUsed(t *testing.T) {
-	e := newAccessEnv(t)
+	e := newMeteredEnv(t)
 	giveQuota(t, fullAdmin, 100)
 	e.runSay(fullAdmin, "/add ali 30 30")
 	e.consume("ali", 12*gib)
@@ -808,7 +820,7 @@ func TestJSONCannotWipeWhatWasUsed(t *testing.T) {
 }
 
 func TestShopSaleDeductsAdminQuota(t *testing.T) {
-	e := newAccessEnv(t)
+	e := newMeteredEnv(t)
 	giveQuota(t, fullAdmin, 100)
 	if err := e.b.consumeSaleQuota(fullAdmin, 40*gib); err != nil {
 		t.Fatal(err)

@@ -366,6 +366,9 @@ type bot struct {
 	// owner editing this administrator's shop on their behalf.
 	paused bool
 	deskBy int64
+	// globalShop is a temporary, authorized management view. It changes the
+	// shop/report context, never the acting Telegram identity or owner flag.
+	globalShop bool
 }
 
 func newBot(cfg botConfig) *bot {

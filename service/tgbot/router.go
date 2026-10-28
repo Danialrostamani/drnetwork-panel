@@ -536,6 +536,7 @@ func (b *bot) adminCommand(ctx context.Context, chatID int64, cmd, arg string) {
 	}
 	switch cmd {
 	case "start", "menu":
+		b.clearDesk(chatID)
 		text, kb := b.menuScreen()
 		b.sendKeyboard(ctx, chatID, text, kb)
 	case "help":

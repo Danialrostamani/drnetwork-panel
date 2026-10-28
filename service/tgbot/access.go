@@ -16,11 +16,11 @@ import (
 
 // Who may do what in the bot.
 //
-// The owner (setting tgBotOwner) can do everything, and is the only one who
-// can edit the other administrators, from the Admins screen. Everybody else
-// has one of three roles:
+// The owner (setting tgBotOwner) can do everything. Full administrators are
+// trusted partners and can also manage other administrators, but cannot edit
+// the owner's administrator entry. Everybody else has one of three roles:
 //
-//   - full access: every section of the bot, except editing administrators;
+//   - full access: every section of the bot, including administrator management;
 //   - group-limited: the clients of one group only (see scope.go);
 //   - custom: only the sections the owner switched on.
 //
@@ -320,9 +320,9 @@ func (b *bot) reloadAccess() error {
 // Marks callbackSection can return instead of a section.
 const (
 	secNone  = ""         // anybody
-	secOwner = "#owner"   // the owner only
+	secOwner = "#owner"   // trusted administration: owner or full administrator
 	secDeny  = "#unknown" // not a button of a section: administrators with full access only
-	secBoss  = "#boss"    // the owner's tools: the owner, or a full administrator when there is no owner
+	secBoss  = "#boss"    // management tools: owner or full administrator
 )
 
 // kindSection maps the object kinds of the bot (kindList) to their sections.
@@ -474,7 +474,7 @@ func (b *bot) allowedBy(sec string) bool {
 	case secNone:
 		return true
 	case secOwner:
-		return b.owner
+		return b.canManageAdmins()
 	case secBoss:
 		return b.canManageAdmins()
 	case secDeny:

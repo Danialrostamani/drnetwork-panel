@@ -405,12 +405,12 @@ func TestOwnerHasEverythingAndIsNotLimitedByLines(t *testing.T) {
 	}
 }
 
-func TestOnlyTheOwnerCanEditAdmins(t *testing.T) {
+func TestRestrictedAdminsCannotEditAdmins(t *testing.T) {
 	e := newAccessEnv(t)
 	adminsBefore, scopesBefore, permsBefore := accessSettings(t)
 	buttons := []string{"a:e:55", "a:t:55:logs", "a:p:55:full", "a:g:55", "a:gv:55", "a:sg:55:0", "a:sg:55:#new", "a:sgq:55:0", "a:sgq:55:#new", "a:rm:55", "a:rmy:55", "a:add", "a:e:77", "a:p:77:none", "a:rmy:42", "a:t:42:logs",
 		"a:q:55", "a:qa:55:50", "a:qt:55", "a:qr:55", "a:qry:55", "a:qc:55", "a:qcy:55"}
-	for _, who := range []int64{fullAdmin, salesAdmin, clientsOnly, noSections, 999} {
+	for _, who := range []int64{salesAdmin, clientsOnly, noSections, 999} {
 		for _, data := range buttons {
 			n := len(e.got())
 			e.press(who, data)
@@ -435,18 +435,16 @@ func TestOnlyTheOwnerCanEditAdmins(t *testing.T) {
 		t.Fatal("a non-owner added an admin")
 	}
 
-	// A full administrator still sees the list, read-only.
+	// A trusted full administrator sees the editing controls.
 	n := len(e.got())
 	e.press(fullAdmin, "a:ls")
 	msgs := e.since(n)
 	text, kb := lastText(msgs, "editMessageText"), keyboardOf(msgs)
-	if !strings.Contains(text, "55") || !strings.Contains(text, "Only the bot owner") {
+	if !strings.Contains(text, "55") || !hasData(kb, "a:add") || !hasData(kb, "a:e:55") {
 		t.Fatalf("the admins screen for a full admin:\n%s", text)
 	}
-	for _, data := range callbackData(kb) {
-		if strings.HasPrefix(data, "a:") {
-			t.Errorf("a non-owner is offered %s", data)
-		}
+	if hasData(kb, "a:e:1000") {
+		t.Error("the owner's administrator entry is editable")
 	}
 }
 
