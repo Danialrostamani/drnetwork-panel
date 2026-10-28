@@ -47,6 +47,7 @@ func schema() []table {
 		{"node_outages", &model.NodeOutage{}, copyRows[model.NodeOutage]},
 		{"node_traffic", &model.NodeTraffic{}, copyRows[model.NodeTraffic]},
 		{"client_usages", &model.ClientUsage{}, copyRows[model.ClientUsage]},
+		{"client_days", &model.ClientDay{}, copyRows[model.ClientDay]},
 		{"site_stats", &model.SiteStat{}, copyRows[model.SiteStat]},
 	}
 }

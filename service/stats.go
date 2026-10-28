@@ -139,11 +139,15 @@ func (s *StatsService) saveStats(st *core.SessionTracker, enableTraffic bool, bu
 		if t.down > 0 {
 			update["down"] = gorm.Expr("down + ?", t.down)
 		}
+		dayCounters(update, now, max(t.up, 0)+max(t.down, 0))
 		err = tx.Model(model.Client{}).Where("name = ?", name).Updates(update).Error
 		if err != nil {
 			return err
 		}
 		if err = addClientUsage(tx, name, 0, t.up, t.down); err != nil {
+			return err
+		}
+		if err = addClientDay(tx, name, now, t.up, t.down); err != nil {
 			return err
 		}
 	}
@@ -598,6 +602,7 @@ func (s *StatsService) DelOldStats(days int) error {
 	oldTime := time.Now().AddDate(0, 0, -(days)).Unix()
 	db := database.GetDB()
 	_ = DelStaleClientUsage()
+	_ = delOldClientDays(db, time.Now())
 	if err := delOldSiteStats(db, oldTime); err != nil {
 		return err
 	}

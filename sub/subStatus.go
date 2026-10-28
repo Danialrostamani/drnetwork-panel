@@ -33,6 +33,17 @@ type pageStatus struct {
 	Inbounds []service.ClientLocation `json:"inbounds,omitempty"`
 	Servers  []service.ServerHealth   `json:"servers,omitempty"`
 	Devices  *pageDevices             `json:"devices,omitempty"`
+	Days     []service.DayUsage       `json:"days,omitempty"`
+	Daily    *pageDaily               `json:"daily,omitempty"`
+}
+
+// pageDaily is the client's allowance for one day and what of it went today.
+type pageDaily struct {
+	Volume int64 `json:"volume,omitempty"`
+	Time   int64 `json:"time,omitempty"`
+	Used   int64 `json:"used"`
+	Online int64 `json:"online"`
+	Locked bool  `json:"locked"`
 }
 
 type pageDevices struct {
@@ -111,6 +122,20 @@ func buildStatus(client model.Client, now time.Time) pageStatus {
 	}
 	if used, limit := service.ClientDevices(client); limit > 0 {
 		out.Devices = &pageDevices{Used: used, Limit: limit}
+	}
+	days := service.ClientDays(client.Id, 30, now)
+	for _, d := range days {
+		if d.Up+d.Down > 0 {
+			out.Days = days
+			break
+		}
+	}
+	if client.DailyVolume > 0 || client.DailyTime > 0 {
+		d := &pageDaily{Volume: client.DailyVolume, Time: client.DailyTime, Locked: client.DayLocked}
+		if client.DayKey == service.DayKey(now) {
+			d.Used, d.Online = client.DayUsed, client.DayOnline
+		}
+		out.Daily = d
 	}
 	return out
 }

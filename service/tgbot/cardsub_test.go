@@ -8,6 +8,7 @@ import (
 
 	"github.com/Danialrostamani/drnetwork-panel/database"
 	"github.com/Danialrostamani/drnetwork-panel/database/model"
+	"github.com/Danialrostamani/drnetwork-panel/service"
 )
 
 // setSetting changes one panel setting in this test's own database.
@@ -190,7 +191,11 @@ func TestClientCardVolumeAndLocations(t *testing.T) {
 		"  • FR🇫🇷 — 30.50 GiB\n",
 		"  • 🇩🇪 Germany — 2.50 GiB",
 	)
-	mustNotContain(t, text, "No location", "FR-2", "⬇️ 30.00 GiB")
+	mustNotContain(t, text, "No location", "FR-2", "⬇️ 30.00 GiB", "Daily limit")
+	c.DailyVolume, c.DailyTime, c.DayUsed, c.DayOnline, c.DayKey, c.DayLocked = gib, 2*3600, gib/2, 5400, service.DayKey(time.Now()), true
+	mustContain(t, e.b.clientDetail(c, false, time.Now()),
+		"🗓 <b>Daily limit (today)</b>: 512.00 MiB / 1.00 GiB  ·  ⏱ 1 h 30 min / 2 h 0 min",
+		"⏸ Today's limit is used up")
 	if strings.Index(text, "FR🇫🇷") > strings.Index(text, "Germany") {
 		t.Errorf("servers not in the client's order:\n%s", text)
 	}

@@ -49,10 +49,6 @@
 <script lang="ts">
 import DatePicker from 'vue3-persian-datetime-picker'
 import { i18n, locale } from '@/locales'
-import 'moment/locale/ru'
-import 'moment/locale/vi'
-import 'moment/locale/zh-cn'
-import 'moment/locale/zh-tw'
 
 // The picker hands its own view-model to the cancel slot; closing the picker is
 // all this component needs from it.
