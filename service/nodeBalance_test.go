@@ -313,3 +313,28 @@ func TestSmartSustainedOverloadDoesNotEvictEveryone(t *testing.T) {
 	}
 
 }
+
+func TestSmartBusyResetsAfterOutage(t *testing.T) {
+	resetSmart(t)
+	now := time.Now().Unix()
+	st := NodeStatus{State: "online", CheckedAt: now, CpuCount: 4, Cpu: 99, Mem: NodeMem{Total: 100, Current: 10}}
+	observeSmartNodes(map[uint]NodeStatus{1: st})
+	st.CheckedAt = now + 10
+	observeSmartNodes(map[uint]NodeStatus{1: st})
+	smartSamples.Lock()
+	busy := smartSamples.values[1].BusySince
+	smartSamples.Unlock()
+	if busy == 0 {
+		t.Fatal("overload not observed")
+	}
+	st.State, st.CheckedAt = "offline", now+20
+	observeSmartNodes(map[uint]NodeStatus{1: st})
+	st.State, st.CheckedAt, st.Cpu = "online", now+30, 99
+	observeSmartNodes(map[uint]NodeStatus{1: st})
+	smartSamples.Lock()
+	busy = smartSamples.values[1].BusySince
+	smartSamples.Unlock()
+	if busy != now+30 {
+		t.Fatalf("busy timer survived outage: %d", busy)
+	}
+}

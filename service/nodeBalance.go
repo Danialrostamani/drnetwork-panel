@@ -70,7 +70,13 @@ func observeSmartNodes(fresh map[uint]NodeStatus) {
 			}
 			s.DownChecks++
 			s.HealthySince, s.HealthyChecks = 0, 0
+			// A down node is not "busy"; a stale timestamp would let sustained-load
+			// migration fire instantly once the node recovers.
+			s.BusySince = 0
 		} else {
+			if gap {
+				s.BusySince = 0
+			}
 			if s.HealthySince == 0 || gap {
 				s.HealthySince = st.CheckedAt
 				s.HealthyChecks = 0
