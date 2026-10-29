@@ -50,6 +50,8 @@ private subscription tokens and non-node/manual links are preserved.
 - Sustained overload for at least two minutes can move a deterministic roughly
   10% cohort per minute, only when that user fetches a profile and another normal
   node is eligible. A ten-minute per-assignment cooldown prevents repeated moves.
+  The two-minute timer restarts after an outage or a probe gap (>120 s), so a
+  recovered node is not treated as already overloaded (v52.4.1).
 - **Drain** stops new assignments without evicting existing ones or closing sockets.
   It does not forcibly migrate existing users. Settings show hardware, eligibility,
   relative capacity/free score and counts of assigned enabled accounts.
