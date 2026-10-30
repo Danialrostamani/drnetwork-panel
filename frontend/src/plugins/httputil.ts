@@ -1,9 +1,7 @@
 import api from './api'
 import { i18n } from '@/locales'
-import router from '@/router'
 import { push } from 'notivue'
 import { clearAuthenticated } from './auth'
-import Data from '@/store/modules/data'
 import axios, { type AxiosRequestConfig } from 'axios'
 
 // The envelope every endpoint answers with. What rides in `obj` depends on the
@@ -73,6 +71,15 @@ export const logout = async () => {
     // the store populated would show the next account the previous one's data
     // for a moment.
     clearAuthenticated()
+    // router and the data store are loaded here, not at the top of the file:
+    // both of them import this module, so a static import would close a cycle
+    // (httputil -> router -> Login.vue -> httputil, and httputil -> data store
+    // -> httputil). By the time anyone logs out, every module is already
+    // evaluated, so the dynamic import resolves from cache.
+    const [{ default: Data }, { default: router }] = await Promise.all([
+      import('@/store/modules/data'),
+      import('@/router'),
+    ])
     Data().$reset()
     router.push('/login')
   }
