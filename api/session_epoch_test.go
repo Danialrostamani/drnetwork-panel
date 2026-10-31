@@ -119,9 +119,13 @@ func TestCredentialChangeEndsOtherSessions(t *testing.T) {
 		t.Fatalf("change password: %d %+v", code, m)
 	}
 
+	epoch, found, err := sessionUsers.SessionEpoch("admin")
+	if err != nil || !found || epoch < 1 {
+		t.Fatalf("session version after the password change: %d found=%v err=%v, want at least 1", epoch, found, err)
+	}
 	for name, c := range map[string]*panelClient{"copied cookie": stolen, "other browser": other} {
 		if code, _ := c.get("settings"); code != http.StatusUnauthorized {
-			t.Errorf("%s: status %d after the password change, want 401", name, code)
+			t.Errorf("%s: status %d after the password change (account at session version %d), want 401", name, code, epoch)
 		}
 	}
 	if code, _ := a.get("settings"); code != http.StatusOK {
