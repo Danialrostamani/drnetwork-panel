@@ -16,11 +16,11 @@ import (
 
 // Who may do what in the bot.
 //
-// The owner (setting tgBotOwner) can do everything, and is the only one who
-// can edit the other administrators, from the Admins screen. Everybody else
-// has one of three roles:
+// The owner (setting tgBotOwner) can do everything. Full administrators are
+// trusted partners and can also manage other administrators, but cannot edit
+// the owner's administrator entry. Everybody else has one of three roles:
 //
-//   - full access: every section of the bot, except editing administrators;
+//   - full access: every section of the bot, including administrator management;
 //   - group-limited: the clients of one group only (see scope.go);
 //   - custom: only the sections the owner switched on.
 //
@@ -320,9 +320,9 @@ func (b *bot) reloadAccess() error {
 // Marks callbackSection can return instead of a section.
 const (
 	secNone  = ""         // anybody
-	secOwner = "#owner"   // the owner only
+	secOwner = "#owner"   // trusted administration: owner or full administrator
 	secDeny  = "#unknown" // not a button of a section: administrators with full access only
-	secBoss  = "#boss"    // the owner's tools: the owner, or a full administrator when there is no owner
+	secBoss  = "#boss"    // management tools: owner or full administrator
 )
 
 // kindSection maps the object kinds of the bot (kindList) to their sections.
@@ -474,7 +474,7 @@ func (b *bot) allowedBy(sec string) bool {
 	case secNone:
 		return true
 	case secOwner:
-		return b.owner
+		return b.canManageAdmins()
 	case secBoss:
 		return b.canManageAdmins()
 	case secDeny:
@@ -497,7 +497,7 @@ func (b *bot) allowed(parts []string) bool {
 	if len(parts) >= 2 && parts[0] == "m" && (parts[1] == "prest" || parts[1] == "prestY") && b.canManageAdmins() {
 		return true
 	}
-	if !b.cfg.Panel && len(parts) >= 3 && parts[0] == "o" && parts[1] == "nd" && nodeEditVerbs[parts[2]] {
+	if !b.cfg.Panel && !(b.cfg.Private && b.canManageAdmins()) && len(parts) >= 3 && parts[0] == "o" && parts[1] == "nd" && nodeEditVerbs[parts[2]] {
 		return false
 	}
 	return b.allowedBy(callbackSection(parts))
@@ -515,7 +515,7 @@ func (b *bot) allowedCommand(cmd string) bool {
 // the prompt the bot is waiting on. Rights can change between the question and
 // the answer.
 func (b *bot) pendingAllowed(p *pending) bool {
-	if !b.cfg.Panel && strings.HasPrefix(p.kind, "obj.") && p.key == "nd" {
+	if !b.cfg.Panel && !(b.cfg.Private && b.canManageAdmins()) && strings.HasPrefix(p.kind, "obj.") && p.key == "nd" {
 		return false
 	}
 	if b.scope != "" {
@@ -575,7 +575,7 @@ func (b *bot) commandsFor(id int64) []commandInfo {
 		}
 		out = append(out, c)
 	}
-	return append(out, alertsCommand, idCommand)
+	return append(out, idCommand)
 }
 
 func (b *bot) commandPayload(list []commandInfo) []map[string]string {

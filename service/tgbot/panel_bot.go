@@ -2,7 +2,9 @@ package tgbot
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
 	"time"
 
@@ -308,4 +310,69 @@ func PanelSettle(id int64) (model.BotSettlement, error) {
 		return model.BotSettlement{}, err
 	}
 	return settle(id)
+}
+
+// PanelGrantPartner grants a trusted person global bot administration while
+// retaining their shop, sales and quota. It never changes the configured owner.
+func PanelGrantPartner(cs *service.ConfigService, actor, host string, id int64) error {
+	return panelEditAccess(cs, actor, host, func(d *accessDoc) error {
+		if d.owner <= 0 {
+			return errors.New("save the bot owner Telegram ID first")
+		}
+		if id <= 0 {
+			return errBadID
+		}
+		if d.isOwner(id) {
+			return errIsOwner
+		}
+		if adminMeta(id).Suspended {
+			return errors.New("activate this administrator before granting full access")
+		}
+		if group := d.roleOf(id).group; group != "" {
+			raw, err := (&service.SettingService{}).GetTgBotShop()
+			if err != nil {
+				return err
+			}
+			var shop map[string]json.RawMessage
+			if err = json.Unmarshal([]byte(raw), &shop); err != nil {
+				return err
+			}
+			if shop == nil {
+				shop = map[string]json.RawMessage{}
+			}
+			desks := map[string]map[string]json.RawMessage{}
+			if v := shop["desks"]; len(v) > 0 {
+				if err = json.Unmarshal(v, &desks); err != nil {
+					return err
+				}
+			}
+			if desks == nil {
+				desks = map[string]map[string]json.RawMessage{}
+			}
+			key := strconv.FormatInt(id, 10)
+			desk := desks[key]
+			if desk == nil {
+				desk = map[string]json.RawMessage{}
+			}
+			// The enforced scope is the seller's actual sales group before promotion.
+			desk["salesGroup"], _ = json.Marshal(group)
+			desks[key] = desk
+			shop["desks"], err = json.Marshal(desks)
+			if err != nil {
+				return err
+			}
+			data, err := json.Marshal(shop)
+			if err != nil {
+				return err
+			}
+			text := string(data)
+			d.shop = &text
+		}
+		if !d.member(id) {
+			if err := d.add(id); err != nil {
+				return err
+			}
+		}
+		return d.setRole(id, role{})
+	})
 }

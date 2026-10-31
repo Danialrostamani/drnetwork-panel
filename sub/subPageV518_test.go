@@ -46,38 +46,23 @@ func TestTheLinkChecksTheVpn(t *testing.T) {
 	}
 }
 
-// A report must be JSON, and goes nowhere without a bot.
-func TestTheLinkTakesReports(t *testing.T) {
+// Old cached pages cannot post reports to the bot, even with valid JSON.
+func TestWebReportsNeverPostToBot(t *testing.T) {
 	r := pageServer(t)
-	post := func(body, kind string) int {
+	for _, body := range []string{`{"text":"down"}`, `{"text":""}`, "text=hi"} {
 		req := httptest.NewRequest(http.MethodPost, "/sub/alice?format=report", strings.NewReader(body))
-		req.Header.Set("Content-Type", kind)
+		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
-		return w.Code
-	}
-	if c := post("text=hi", "application/x-www-form-urlencoded"); c != 415 {
-		t.Fatalf("form: %d", c)
-	}
-	if c := post(`{"text":"  "}`, "application/json"); c != 400 {
-		t.Fatalf("empty: %d", c)
-	}
-	if c := post(`{"text":"down"}`, "application/json"); c != 503 {
-		t.Fatalf("no bot: %d", c)
-	}
-	if !reportAllowed("bob", "1.1.1.1", fixedNow) || reportAllowed("bob", "1.1.1.1", fixedNow.Add(reportGap/2)) || !reportAllowed("bob", "1.1.1.1", fixedNow.Add(reportGap)) {
-		t.Fatal("one report per client per gap")
-	}
-	for i, name := range []string{"c1", "c2", "c3", "c4"} {
-		if ok := reportAllowed(name, "2.2.2.2", fixedNow); ok != (i < reportPerIP) {
-			t.Fatalf("report %d from one address: %v", i, ok)
+		if w.Code != http.StatusGone || !strings.Contains(w.Body.String(), "web_reports_use_support_direct") {
+			t.Fatalf("old report accepted: %d %s", w.Code, w.Body.String())
 		}
 	}
 	if err := (&service.SettingService{}).Save(database.GetDB(), json.RawMessage(`{"subPageConf":"{\"hideReport\":true}"}`)); err != nil {
 		t.Fatal(err)
 	}
-	if c := post(`{"text":"down"}`, "application/json"); c != 404 {
-		t.Fatalf("hidden report: %d", c)
+	if w := fetch(r, http.MethodPost, "/sub/alice?format=report", "*/*"); w.Code != 404 {
+		t.Fatalf("hidden report: %d", w.Code)
 	}
 }
 

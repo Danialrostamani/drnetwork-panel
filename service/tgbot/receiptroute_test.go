@@ -24,6 +24,11 @@ func approveButtons(msgs []sent, o model.BotOrder, chats ...int64) map[int64]boo
 // The owner picks, per seller, who gets the seller's receipts to approve.
 func TestReceiptRouting(t *testing.T) {
 	b, got := ownerBot(t, shopConfig{PayCard: "6037", Plans: []shopPlan{{ID: "1", Name: "Gold", Days: 30, GB: 10, Price: "100"}}})
+	// This tests delegation to an ordinary, section-limited approver.
+	// Trusted full partners can handle every order independently of routing.
+	cfg := b.cfg
+	cfg.Perms = map[int64]sectionSet{helper: {"clients": true}}
+	useAccess(b, cfg)
 	ctx := context.Background()
 	b.handle(ctx, callbackFrom(boss, "q:cas:5001:77"))
 	route := func(to int64) {

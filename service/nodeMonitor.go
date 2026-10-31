@@ -2,6 +2,7 @@ package service
 
 import (
 	"encoding/json"
+	"math"
 	"sort"
 	"strings"
 	"sync"
@@ -682,6 +683,7 @@ func (s *NodeService) applyProbes(nodes []*model.Node, fresh map[uint]NodeStatus
 		fresh[n.Id] = st
 	}
 
+	observeSmartNodes(fresh)
 	nodeStatusMu.Lock()
 	var next map[uint]NodeStatus
 	if replace {
@@ -878,20 +880,27 @@ type nodeLinkRule struct {
 // proportion), then the remaining nodes in this order as backup.
 type SubNodeRoute struct {
 	Enable  bool                `json:"enable"`
+	Smart   bool                `json:"smart,omitempty"`
 	Entries []SubNodeRouteEntry `json:"entries"`
 }
 
 // SubNodeRouteEntry is one node in that list. Weight 0 means backup only.
 type SubNodeRouteEntry struct {
-	Id     uint `json:"id"`
-	Weight int  `json:"weight"`
+	Id            uint    `json:"id"`
+	Weight        int     `json:"weight"`
+	Capacity      float64 `json:"capacity,omitempty"`
+	BandwidthMbps int     `json:"bandwidthMbps,omitempty"`
+	MaxUsers      int     `json:"maxUsers,omitempty"`
+	Drain         bool    `json:"drain,omitempty"`
 }
 
 type nodeRoutePlan struct {
-	enable bool
-	names  []string
-	weight map[string]int
-	total  int
+	enable     bool
+	names      []string
+	weight     map[string]int
+	total      int
+	smart      bool
+	candidates map[string]smartNode
 }
 
 // nodeLoadScore ranks a node for the load ordering: by CPU in steps of ten
@@ -933,7 +942,7 @@ func currentNodeLinkRules() map[string]nodeLinkRule {
 		return nodeLinkRulesCache
 	}
 	var nodes []model.Node
-	if err := database.GetDB().Select("id", "name", "access").Find(&nodes).Error; err != nil {
+	if err := database.GetDB().Select("id", "name", "access", "enable").Find(&nodes).Error; err != nil {
 		logger.Warning("nodes: load link rules: ", err)
 		return nodeLinkRulesCache
 	}
@@ -945,6 +954,11 @@ func currentNodeLinkRules() map[string]nodeLinkRule {
 	rules := map[string]nodeLinkRule{}
 	for _, n := range nodes {
 		st := nodeStatuses[n.Id]
+		if plan.smart {
+			if e, ok := plan.candidates[n.Name]; ok {
+				plan.candidates[n.Name] = measureSmartNode(e, n, st, time.Now().Unix())
+			}
+		}
 		r := nodeLinkRule{hidden: st.Hidden != "", access: n.Access}
 		if byLoad && !plan.enable {
 			r.load = nodeLoadScore(st)
@@ -971,7 +985,7 @@ func parseNodeRoutePlan(raw string, nodes []model.Node) nodeRoutePlan {
 	for _, n := range nodes {
 		byID[n.Id] = n.Name
 	}
-	plan := nodeRoutePlan{enable: true, weight: map[string]int{}}
+	plan := nodeRoutePlan{enable: true, smart: cfg.Smart, weight: map[string]int{}, candidates: map[string]smartNode{}}
 	seen := map[string]bool{}
 	for _, e := range cfg.Entries {
 		name := byID[e.Id]
@@ -988,6 +1002,7 @@ func parseNodeRoutePlan(raw string, nodes []model.Node) nodeRoutePlan {
 		}
 		plan.names = append(plan.names, name)
 		plan.weight[name] = w
+		plan.candidates[name] = smartNode{ID: e.Id, Entry: e}
 		plan.total += w
 	}
 	if len(plan.names) == 0 {
@@ -1048,6 +1063,9 @@ func validateSubNodeRoute(raw string) error {
 			return common.NewError("invalid node route: duplicate node")
 		}
 		seen[e.Id] = true
+		if e.Capacity < 0 || e.Capacity > 10000 || math.IsNaN(e.Capacity) || math.IsInf(e.Capacity, 0) || e.BandwidthMbps < 0 || e.BandwidthMbps > 1000000 || e.MaxUsers < 0 || e.MaxUsers > 1000000 {
+			return common.NewError("invalid node capacity, bandwidth or user limit")
+		}
 		if e.Weight < 0 || e.Weight > 10000 {
 			return common.NewError("invalid node route: weight must be 0 to 10000")
 		}
@@ -1116,7 +1134,11 @@ func FilterNodeLinks(client *model.Client) json.RawMessage {
 		}
 		kept = append(kept, link)
 	}
-	if plan.enable {
+	if plan.smart {
+		if orderBySmartRoute(kept, linkNode, client.Id, plan) {
+			changed = true
+		}
+	} else if plan.enable {
 		if orderByRoute(kept, linkNode, client.Id, plan) {
 			changed = true
 		}

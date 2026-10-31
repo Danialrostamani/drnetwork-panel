@@ -3,6 +3,7 @@ package tgbot
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strconv"
 	"strings"
 
@@ -35,6 +36,8 @@ type shopConfig struct {
 
 // shopDesk is one administrator's plans and payment details.
 type shopDesk struct {
+	// SalesGroup owns this desk's sales; it never limits administrative access.
+	SalesGroup string       `json:"salesGroup,omitempty"`
 	PayCard    string       `json:"payCard,omitempty"`
 	PayWallet  string       `json:"payWallet,omitempty"`
 	PayHint    string       `json:"payHint,omitempty"`
@@ -157,7 +160,7 @@ func (b *bot) customerAdminID(customerID int64) int64 {
 		g := strings.TrimSpace(stored.Group)
 		if g != "" {
 			for _, id := range a.order {
-				if strings.EqualFold(strings.TrimSpace(a.roleOf(id).group), g) && usable(id) {
+				if strings.EqualFold(b.sellerGroup(id), g) && usable(id) {
 					return id
 				}
 			}
@@ -171,7 +174,7 @@ func (b *bot) customerAdminID(customerID int64) int64 {
 
 func (b *bot) loadShop() shopConfig {
 	s := b.loadShopRaw()
-	if b.self <= 0 {
+	if (b.globalShop && b.canManageAdmins()) || b.self <= 0 {
 		return s
 	}
 	if b.isAdmin(b.self) && !b.owner {
@@ -184,15 +187,18 @@ func (b *bot) loadShop() shopConfig {
 }
 
 func (b *bot) saveShop(s shopConfig) error {
+	if b.globalShop && !b.canManageAdmins() {
+		return errNotOwner
+	}
 	cur := b.loadShopRaw()
-	if b.self > 0 && b.isAdmin(b.self) && !b.owner {
+	if b.self > 0 && b.isAdmin(b.self) && !b.owner && !b.globalShop {
 		if cur.Desks == nil {
 			cur.Desks = map[string]shopDesk{}
 		}
 		key := strconv.FormatInt(b.self, 10)
 		d := deskFrom(s)
 		// The bot does not edit these; the panel does.
-		d.Support, d.Channel = cur.Desks[key].Support, cur.Desks[key].Channel
+		d.Support, d.Channel, d.SalesGroup = cur.Desks[key].Support, cur.Desks[key].Channel, cur.Desks[key].SalesGroup
 		cur.Desks[key] = d
 		s = cur
 	} else {
@@ -203,6 +209,46 @@ func (b *bot) saveShop(s shopConfig) error {
 		return err
 	}
 	return (&service.SettingService{}).SetTgBotShop(string(raw))
+}
+
+// setSalesGroup changes business ownership only. It does not write the access
+// scopes or permissions. A full partner can set their own group from Telegram.
+func (b *bot) setSalesGroup(group string) error {
+	if b.owner || b.globalShop || !b.canManageAdmins() {
+		return errNotOwner
+	}
+	group = strings.TrimSpace(group)
+	if group == "-" {
+		group = ""
+	}
+	if group != "" && !scopeGroupUsable(group) {
+		return errBadGroup
+	}
+	if b.configService == nil {
+		return errors.New("the panel is not ready to save settings")
+	}
+	s := b.loadShopRaw()
+	if s.Desks == nil {
+		s.Desks = map[string]shopDesk{}
+	}
+	key := strconv.FormatInt(b.self, 10)
+	d := s.Desks[key]
+	d.SalesGroup = group
+	s.Desks[key] = d
+	raw, err := json.Marshal(s)
+	if err != nil {
+		return err
+	}
+	values, err := json.Marshal(map[string]string{"tgBotShop": string(raw)})
+	if err != nil {
+		return err
+	}
+	actor := b.actor()
+	if b.deskBy > 0 {
+		actor = service.TelegramActor + ":" + strconv.FormatInt(b.deskBy, 10)
+	}
+	_, err = b.configService.Save("settings", "", values, "", actor, b.host())
+	return err
 }
 
 func (s shopConfig) plan(id string) *shopPlan {

@@ -187,7 +187,8 @@ type botConfig struct {
 	Notify   bool
 	Skin     string
 	// Panel keeps the panel's management sections in the bot.
-	Panel bool
+	Panel   bool
+	Private bool
 
 	Report       string
 	ReportBackup bool
@@ -197,7 +198,7 @@ type botConfig struct {
 // may do what is not among them: accessKey covers it, and a change there is
 // applied to the running bot.
 func (c botConfig) fingerprint() string {
-	return fmt.Sprint(c.Enable, "|", c.Token, "|", c.Proxy, "|", c.Outbound, "|", c.Lang, "|", c.Skin, "|", c.Notify, "|", c.Panel, "|", c.Report, "|", c.ReportBackup)
+	return fmt.Sprint(c.Enable, "|", c.Token, "|", c.Proxy, "|", c.Outbound, "|", c.Lang, "|", c.Skin, "|", c.Notify, "|", c.Panel, "|", c.Private, "|", c.Report, "|", c.ReportBackup)
 }
 
 // accessKey identifies the settings that say who may do what. fmt prints maps
@@ -327,6 +328,7 @@ func loadConfig() (botConfig, error) {
 		Lang:     lang,
 		Notify:   s.Notify,
 		Panel:    s.Panel,
+		Private:  s.Private,
 		Skin:     normSkin(s.Skin),
 
 		Report:       strings.TrimSpace(s.Report),
@@ -366,6 +368,9 @@ type bot struct {
 	// owner editing this administrator's shop on their behalf.
 	paused bool
 	deskBy int64
+	// globalShop is a temporary, authorized management view. It changes the
+	// shop/report context, never the acting Telegram identity or owner flag.
+	globalShop bool
 }
 
 func newBot(cfg botConfig) *bot {
@@ -758,6 +763,16 @@ func (b *bot) upload(ctx context.Context, method, field string, chatID int64, fi
 // about their own clients.
 func (b *bot) broadcast(ctx context.Context, text string, sections ...string) {
 	for _, id := range b.access().with(sections...) {
+		permitted := false
+		for _, sec := range sections {
+			if b.as(id).can(sec) {
+				permitted = true
+				break
+			}
+		}
+		if !permitted {
+			continue
+		}
 		b.send(ctx, id, text)
 	}
 }

@@ -43,7 +43,7 @@
               v-model="key"
               hide-details
               :label="$t('admin.key')"
-              :items="['', 'inbounds', 'outbounds', 'clients', 'route', 'tls', 'experimental']"
+              :items="['', 'inbounds', 'outbounds', 'clients', 'orders', 'route', 'tls', 'experimental']"
               @update:model-value="loadData"
             />
           </v-col>

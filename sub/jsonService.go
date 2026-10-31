@@ -57,12 +57,21 @@ func (j *JsonService) GetJson(subId string, format string) (*string, []string, e
 		return nil, nil, err
 	}
 
-	outbounds, outTags, err := j.namedOutbounds(client, inDatas, defaultOutboundTags...)
+	outbounds, outTags, nodeTags, err := j.namedOutboundsDetailed(client, inDatas, false, defaultOutboundTags...)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	j.addDefaultOutbounds(outbounds, outTags)
+	if service.SmartRoutingEnabled() && len(nodeTags) > 0 {
+		primary := service.SmartPrimaryNode(client.Id)
+		if primary == "" {
+			return nil, nil, fmt.Errorf("no healthy assigned node; wait for fresh node probes or choose a manual location")
+		}
+		if err := addSmartOutbounds(outbounds, outTags, nodeTags, primary, service.SmartBackupNodes()); err != nil {
+			return nil, nil, err
+		}
+	}
 
 	err = json.Unmarshal([]byte(defaultJson), &jsonConfig)
 	if err != nil {
@@ -98,9 +107,14 @@ func (j *JsonService) namedOutbounds(client *model.Client, inbounds []*model.Inb
 // namedOutboundsFor is namedOutbounds; forClash keeps the XHTTP settings of
 // external links, which only the Clash (Mihomo) export can express.
 func (j *JsonService) namedOutboundsFor(client *model.Client, inbounds []*model.Inbound, forClash bool, reserved ...string) (*[]map[string]interface{}, *[]string, error) {
+	out, tags, _, err := j.namedOutboundsDetailed(client, inbounds, forClash, reserved...)
+	return out, tags, err
+}
+
+func (j *JsonService) namedOutboundsDetailed(client *model.Client, inbounds []*model.Inbound, forClash bool, reserved ...string) (*[]map[string]interface{}, *[]string, map[string]string, error) {
 	outbounds, _, infos, err := j.getOutbounds(client, inbounds)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	n := newNamer(client)
 	n.reserve(reserved...)
@@ -109,7 +123,13 @@ func (j *JsonService) namedOutboundsFor(client *model.Client, inbounds []*model.
 	*outbounds = append(*outbounds, extOutbounds...)
 	infos = append(infos, extInfos...)
 	tags := n.renameOutbounds(*outbounds, infos)
-	return outbounds, &tags, nil
+	nodeTags := map[string]string{}
+	for i, info := range infos {
+		if info != nil && info.node != "" && i < len(tags) {
+			nodeTags[tags[i]] = info.node
+		}
+	}
+	return outbounds, &tags, nodeTags, nil
 }
 
 // uniqueOutboundTag keeps a name as the operator wrote it, falling back to a

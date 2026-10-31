@@ -105,6 +105,31 @@
     </v-card>
   </v-dialog>
 
+  <v-row class="mb-2">
+    <v-col
+      cols="12"
+      md="8"
+    >
+      <v-text-field
+        v-model="search"
+        :label="$t('botAccess.search')"
+        prepend-inner-icon="mdi-magnify"
+        clearable
+        hide-details
+      />
+    </v-col>
+    <v-col
+      cols="12"
+      md="4"
+    >
+      <v-select
+        v-model="roleFilter"
+        :items="roleItems"
+        :label="$t('botAccess.roleFilter')"
+        hide-details
+      />
+    </v-col>
+  </v-row>
   <v-alert
     type="info"
     variant="tonal"
@@ -153,7 +178,7 @@
     variant="accordion"
   >
     <v-expansion-panel
-      v-for="a in admins"
+      v-for="a in visibleAdmins"
       :key="a.id"
       :value="a.id"
       rounded="lg"
@@ -170,12 +195,12 @@
             {{ $t('botAdmins.role.' + a.role) }}
           </v-chip>
           <v-chip
-            v-if="a.group"
+            v-if="a.group || a.salesGroup"
             size="small"
             variant="outlined"
             prepend-icon="mdi-folder-account"
           >
-            {{ a.group }}
+            {{ a.group || a.salesGroup }}
           </v-chip>
           <v-chip
             v-if="a.suspended"
@@ -329,7 +354,7 @@
                   </v-btn>
                 </div>
                 <div
-                  v-if="a.role == 'group'"
+                  v-if="a.group || a.salesGroup"
                   class="text-caption mt-2"
                 >
                   {{ $t('botAdmins.groupClients', { n: a.clients }) }}
@@ -518,6 +543,18 @@
                   {{ $t('botAdmins.deskHint') }}
                 </div>
                 <template v-if="hasDesk(a.id)">
+                  <v-combobox
+                    :model-value="a.role == 'group' ? a.group : deskOf(a.id).salesGroup"
+                    :items="groups"
+                    :label="$t('botAdmins.salesGroup')"
+                    :hint="$t('botAdmins.salesGroupHint')"
+                    persistent-hint
+                    clearable
+                    density="compact"
+                    class="mb-3"
+                    :disabled="a.role == 'group'"
+                    @update:model-value="(v: string | null) => patchShopDesk(a.id, { salesGroup: v ?? '' })"
+                  />
                   <div class="d-flex flex-wrap ga-2 mb-2">
                     <v-text-field
                       :model-value="deskOf(a.id).payCard"
@@ -663,7 +700,7 @@
 import HttpUtils from '@/plugins/httputil'
 import { i18n } from '@/locales'
 import { push } from 'notivue'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useBotSettings } from '@/plugins/botSettings'
 
 // Everything about the bot's administrators in one place: who they are, what
@@ -676,6 +713,7 @@ interface BotAdmin {
   name: string
   role: Role
   group: string
+  salesGroup?: string
   sections: string[]
   clients: number
   customers: number
@@ -707,7 +745,7 @@ interface Form {
   ratePerGB: string
 }
 
-const { deskOf, hasDesk, patchShopDesk, patchShopDeskPlan, addShopDeskPlan, removeShopDeskPlan, removeShopDesk, refreshAccess } = useBotSettings()
+const { settings, deskOf, hasDesk, patchShopDesk, patchShopDeskPlan, addShopDeskPlan, removeShopDeskPlan, removeShopDesk, refreshAccess } = useBotSettings()
 
 const t = (key: string, args: Record<string, unknown> = {}) => i18n.global.t(key, args)
 const locale = computed(() => String(i18n.global.locale.value))
@@ -729,7 +767,17 @@ const autoMove = ref(true)
 const addDialog = ref(false)
 const addForm = ref({ id: '', full: false, group: '' })
 
-const sellers = computed(() => admins.value.filter(a => a.role != 'owner'))
+const search = ref('')
+const roleFilter = ref('all')
+const roleItems = computed(() => [
+ { title: t('botAccess.allRoles'), value: 'all' },
+ ...['owner', 'full', 'group', 'sections', 'locked'].map(role => ({ title: t('botAdmins.role.' + role), value: role })),
+])
+const sellers = computed(() => admins.value.filter(a => a.role !== 'owner'))
+const visibleAdmins = computed(() => admins.value.filter(a =>
+  (roleFilter.value === 'all' || a.role === roleFilter.value) &&
+  `${a.id} ${a.name} ${a.group} ${a.salesGroup ?? ''}`.toLocaleLowerCase().includes((search.value ?? '').trim().toLocaleLowerCase()),
+))
 
 const formFrom = (a: BotAdmin): Form => ({
   role: a.role == 'group' || a.role == 'sections' ? a.role : (a.role == 'locked' ? 'sections' : 'full'),
@@ -787,6 +835,7 @@ const load = async () => {
 }
 
 onMounted(load)
+watch(() => `${settings.value.tgBotAdmins}|${settings.value.tgBotScopes}|${settings.value.tgBotPerms}`, load)
 
 // after reloads the list, and the access settings the page holds.
 const after = async (ok: boolean, text: string) => {

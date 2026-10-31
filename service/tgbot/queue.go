@@ -20,6 +20,9 @@ func hasUsedTrial(tgID int64) bool {
 }
 
 func (b *bot) orderAdminFilter(adminID int64) (owner bool, id int64) {
+	if b.globalShop && b.canManageAdmins() {
+		return true, 0
+	}
 	a := b.access()
 	if b.owner || (adminID != 0 && a.isOwner(adminID)) {
 		return true, adminID
@@ -139,7 +142,7 @@ func (b *bot) salesReportScreen() (string, [][]button) {
 	}
 	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()).Unix()
 	lines := []string{b.tr("📊 <b>گزارش فروش</b>", "📊 <b>Sales report</b>")}
-	if owner && adminID == b.access().owner {
+	if owner && (adminID == 0 || adminID == b.access().owner) {
 		// Owner looking at the whole shop: one block per limited admin plus totals.
 		lines = append(lines, b.salesBlock(0, true, start))
 		for _, id := range b.access().order {

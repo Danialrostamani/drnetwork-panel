@@ -66,7 +66,7 @@ func (a *ApiService) getData(c *gin.Context) (interface{}, error) {
 		logger.Warning("unable to read maintenance setting:", mErr)
 	}
 	data["maintenance"] = maintenance
-	data["nodesStatus"] = a.NodeService.GetStatuses()
+	data["nodesStatus"] = a.NodeService.GetBalanceStatuses()
 	data["ipCounts"] = service.GetIPCounts()
 	data["clusterIpActive"] = service.ClusterIPActive()
 	data["clientTraffic"] = clientTraffic

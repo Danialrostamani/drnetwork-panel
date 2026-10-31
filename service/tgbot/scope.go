@@ -75,6 +75,7 @@ func scopedCallbackAllowed(parts []string) bool {
 func (b *bot) as(id int64) *bot {
 	sb := *b
 	sb.scope, sb.sections, sb.owner, sb.self = "", sectionSet{}, false, id
+	sb.globalShop = false
 	a := b.access()
 	if a.isMember(id) {
 		r := a.roleOf(id)

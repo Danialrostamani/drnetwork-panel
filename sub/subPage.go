@@ -74,7 +74,8 @@ func (s *SubHandler) pageConfig(client *model.Client) map[string]any {
 	}
 	set("panelName", conf.Name)
 	set("panelNameEn", conf.NameEn)
-	set("supportLink", extra.Support, conf.Support)
+	// Web support is configured centrally, independently of bot/seller routing.
+	set("supportLink", conf.Support, "https://t.me/DrNetWorkSingBox?direct")
 	set("channelLink", extra.Channel, conf.Channel)
 	if _, own := out["supportLink"]; own {
 		// The renewal request goes to this support, not the built-in one.
@@ -105,7 +106,7 @@ func (s *SubHandler) pageConfig(client *model.Client) map[string]any {
 		"hideLive": conf.HideLive, "hidePlans": conf.HidePlans, "hideTips": conf.HideTips,
 		"hideVpn": conf.HideVpn, "hideSites": conf.HideSites,
 		"hideServers": conf.HideServers || conf.HideLive,
-		"report":      !conf.HideReport && extra.Bot != "",
+		"report":      !conf.HideReport,
 		"connectBot":  !conf.NoBot && extra.Bot != "",
 	}
 	return out

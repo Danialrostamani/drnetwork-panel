@@ -84,7 +84,7 @@ const flag = (key: string, def = false) => computed({
 
 export type ShopPlan = { id: string, name: string, days: number, gb: number, price: string }
 export type ShopRef = { id: string, word: string, group: string, admin: string }
-export type ShopDesk = { payCard: string, payWallet: string, payHint: string, plans: ShopPlan[], support: string, channel: string }
+export type ShopDesk = { salesGroup: string, payCard: string, payWallet: string, payHint: string, plans: ShopPlan[], support: string, channel: string }
 export type Shop = {
   welcomeFa: string
   guideFa: string
@@ -98,7 +98,7 @@ export type Shop = {
   desks: Record<string, ShopDesk>
 }
 
-export const emptyDesk = (): ShopDesk => ({ payCard: '', payWallet: '', payHint: '', plans: [], support: '', channel: '' })
+export const emptyDesk = (): ShopDesk => ({ salesGroup: '', payCard: '', payWallet: '', payHint: '', plans: [], support: '', channel: '' })
 const emptyShop = (): Shop => ({
   welcomeFa: '', guideFa: '', payCard: '', payWallet: '', payHint: '',
   trialGB: 0, trialHours: 0, plans: [], refs: [], desks: {},
@@ -115,8 +115,9 @@ const parsePlans = (plans: unknown): ShopPlan[] => {
   }))
 }
 
-type RawDesk = { payCard?: string, payWallet?: string, payHint?: string, plans?: unknown, support?: string, channel?: string }
+type RawDesk = { salesGroup?: string, payCard?: string, payWallet?: string, payHint?: string, plans?: unknown, support?: string, channel?: string }
 const parseDesk = (o: RawDesk | undefined): ShopDesk => ({
+  salesGroup: String(o?.salesGroup || ''),
   payCard: String(o?.payCard || ''),
   payWallet: String(o?.payWallet || ''),
   payHint: String(o?.payHint || ''),
@@ -168,10 +169,12 @@ export const shopJSON = (raw: string, s: Shop): string => {
   const curDesks = cur.desks && typeof cur.desks === 'object' ? cur.desks as Record<string, Record<string, unknown>> : {}
   const desks: Record<string, Record<string, unknown>> = {}
   for (const [id, d] of Object.entries(s.desks)) {
-    const { support, channel, ...rest } = d
+    const { support, channel, salesGroup, ...rest } = d
     const merged: Record<string, unknown> = { ...(curDesks[id] || {}), ...rest }
     delete merged.support
     delete merged.channel
+    delete merged.salesGroup
+    if (salesGroup.trim()) merged.salesGroup = salesGroup.trim()
     if (support.trim()) merged.support = support.trim()
     if (channel.trim()) merged.channel = channel.trim()
     desks[id] = merged

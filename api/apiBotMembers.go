@@ -156,6 +156,8 @@ func (a *ApiService) BotAdminAction(c *gin.Context, what, actor string) {
 	case "move":
 		n, merr := tgbot.PanelMoveAdminClients(&a.ConfigService, actor, host, id)
 		jsonObj(c, gin.H{"moved": n}, merr)
+	case "partner":
+		jsonMsg(c, "", tgbot.PanelGrantPartner(&a.ConfigService, actor, host, id))
 	case "add":
 		group, aerr := tgbot.PanelAddAdmin(c.Request.Context(), &a.ConfigService, actor, host, id, c.Request.FormValue("full") == "true", c.Request.FormValue("group"))
 		jsonObj(c, gin.H{"group": group}, aerr)

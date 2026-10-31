@@ -2,11 +2,9 @@ package tgbot
 
 import "strings"
 
-// The bot can leave the panel's own management to the web panel: with the
-// "panel management in the bot" setting off (the default), its sections are
-// gone from the menus and refused when asked for, and the bot keeps the
-// clients, the shop, the owner panel, the stats, the backups, the core and
-// the nodes' monitoring.
+// Private mode reserves global management for the owner and full partners.
+// Sellers retain their explicitly permitted client tools and their own shop.
+// Outside private mode the legacy panel-management switch applies.
 
 // panelSections are the sections that are the panel's own management.
 var panelSections = map[string]bool{
@@ -20,6 +18,13 @@ var nodeEditVerbs = map[string]bool{"j": true, "e": true, "n": true, "nt": true,
 // panelOff tells that a section is hidden because the bot leaves the panel's
 // management to the web panel.
 func (b *bot) panelOff(section string) bool {
+	if b.cfg.Private {
+		if b.canManageAdmins() {
+			return false
+		}
+		// Sellers keep only explicitly permitted client tools and their own shop.
+		return section != "clients"
+	}
 	return !b.cfg.Panel && panelSections[section]
 }
 
@@ -30,7 +35,7 @@ func (b *bot) keepAllowed(kb [][]button) [][]button {
 	for _, row := range kb {
 		var kept []button
 		for _, btn := range row {
-			if btn.Data == "x:ls" && !b.cfg.Panel {
+			if btn.Data == "x:ls" && (b.cfg.Private && b.panelOff("stats") || !b.cfg.Private && !b.cfg.Panel) {
 				continue
 			}
 			if btn.URL != "" || b.allowed(strings.Split(btn.Data, ":")) {
@@ -47,7 +52,7 @@ func (b *bot) keepAllowed(kb [][]button) [][]button {
 // panelHelp leaves out of the help the commands and sections the bot does
 // not offer while the panel's management is left to the web panel.
 func (b *bot) panelHelp(help string) string {
-	if b.cfg.Panel {
+	if b.cfg.Panel && !b.cfg.Private || b.cfg.Private && b.canManageAdmins() {
 		return help
 	}
 	help = strings.NewReplacer(
@@ -58,7 +63,7 @@ func (b *bot) panelHelp(help string) string {
 	out := lines[:0]
 	for _, l := range lines {
 		cmd, _ := parseCommand(l)
-		if sec, ok := commandSections[cmd]; ok && strings.HasPrefix(l, "/") && panelSections[sec] {
+		if sec, ok := commandSections[cmd]; ok && strings.HasPrefix(l, "/") && b.panelOff(sec) {
 			continue
 		}
 		out = append(out, l)

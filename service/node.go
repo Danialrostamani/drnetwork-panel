@@ -33,12 +33,13 @@ type NodeMem struct {
 // NodeStatus is what the last probe found on a node, and what the master
 // derives from the probes before it.
 type NodeStatus struct {
-	State   string  `json:"state"`
-	Latency int64   `json:"latency"`
-	Cpu     float64 `json:"cpu"`
-	Mem     NodeMem `json:"mem"`
-	Disk    NodeMem `json:"disk"`
-	Swap    NodeMem `json:"swap"`
+	Balance *NodeBalanceStatus `json:"balance,omitempty"`
+	State   string             `json:"state"`
+	Latency int64              `json:"latency"`
+	Cpu     float64            `json:"cpu"`
+	Mem     NodeMem            `json:"mem"`
+	Disk    NodeMem            `json:"disk"`
+	Swap    NodeMem            `json:"swap"`
 	// AppFull is the release, such as 32 (1.6.3-drnetwork.31 before DrNetwork
 	// had version numbers of its own); older nodes only report AppVersion.
 	AppVersion  string   `json:"appVersion"`
@@ -424,11 +425,20 @@ func (s *NodeService) ProbeNow(ids []uint) (map[uint]NodeStatus, error) {
 // GetStatuses is the last status of every probed node.
 func (s *NodeService) GetStatuses() map[uint]NodeStatus {
 	nodeStatusMu.RLock()
-	defer nodeStatusMu.RUnlock()
 	out := make(map[uint]NodeStatus, len(nodeStatuses))
 	for id, st := range nodeStatuses {
 		out[id] = st
 	}
+	nodeStatusMu.RUnlock()
+	return out
+}
+
+// GetBalanceStatuses decorates an operator-facing snapshot. Keep GetStatuses
+// database-free: background reconciliation also uses it before deciding whether
+// it needs to touch the database at all.
+func (s *NodeService) GetBalanceStatuses() map[uint]NodeStatus {
+	out := s.GetStatuses()
+	decorateSmartStatuses(out)
 	return out
 }
 

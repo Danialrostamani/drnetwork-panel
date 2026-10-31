@@ -14,13 +14,16 @@ import (
 	"github.com/Danialrostamani/drnetwork-panel/service"
 )
 
-// The owner's Admins screen: add and remove administrators and decide what
-// each may do. Everybody else only sees the list.
+// The trusted administration screen: the owner and full partners add or
+// remove administrators and decide what each may do. Custom roles only read
+// the list when their Admins section permits it.
 //
 // The screen edits the same three settings the web panel does (tgBotAdmins,
 // tgBotScopes, tgBotPerms) through the panel's own settings save, so the change
 // is recorded in the history like any other, the web panel shows it, and it is
 // applied to the running bot at once.
+
+var accessEditMu sync.Mutex
 
 var (
 	errBadID        = errors.New("bad telegram id")
@@ -29,18 +32,15 @@ var (
 	errNoSuchAdmin  = errors.New("no such administrator")
 	errBadGroup     = errors.New("bad group name")
 	errGroupLimited = errors.New("group-limited administrator")
-	errNotOwner     = errors.New("only the owner can edit administrators")
+	errNotOwner     = errors.New("only the owner or a full administrator can edit administrators")
 )
 
-// canManageAdmins is the owner, or a full administrator when no owner is set
-// yet — so the bot holder can add and edit admins from Telegram without first
-// filling Bot owner in the web panel.
+// canManageAdmins grants the trusted partner role, not merely a custom role
+// with every section ticked. Sales-group ownership never grants this right.
 func (b *bot) canManageAdmins() bool {
-	if b.owner {
-		return true
-	}
 	a := b.access()
-	return a.owner == 0 && b.self > 0 && !b.restricted() && !b.paused && a.isMember(b.self)
+	return b.self > 0 && !b.paused && a.isMember(b.self) &&
+		a.roleOf(b.self).full() && (a.isOwner(b.self) || !adminMeta(b.self).Suspended)
 }
 
 // accessErrText explains the errors of this file; it is "" for any other.
@@ -59,7 +59,7 @@ func (b *bot) accessErrText(err error) string {
 	case errors.Is(err, errGroupLimited):
 		return b.tr("این ادمین به یک گروه محدود است؛ از پیش‌تنظیم‌ها استفاده کنید.", "This admin is limited to a group; use the presets.")
 	case errors.Is(err, errNotOwner):
-		return b.tr("فقط مالک ربات می‌تواند مدیران را ویرایش کند.", "Only the bot owner can edit admins.")
+		return b.tr("فقط مالک یا ادمین کامل می‌تواند مدیران را ویرایش کند.", "Only the owner or a full admin can edit admins.")
 	}
 	return ""
 }
@@ -73,6 +73,7 @@ type accessDoc struct {
 	admins []int64
 	scopes map[int64]string
 	perms  map[int64]sectionSet
+	shop   *string // optional shop update committed with the role change
 }
 
 // docFromConfig takes the roles the configuration gives out. Going through
@@ -190,14 +191,19 @@ func (d *accessDoc) settings() (map[string]string, error) {
 	if d.owner != 0 {
 		out["tgBotOwner"] = strconv.FormatInt(d.owner, 10)
 	}
+	if d.shop != nil {
+		out["tgBotShop"] = *d.shop
+	}
 	return out, nil
 }
 
 // editAccess changes who may do what: it applies mutate to the access settings
 // as they are now, saves them, and makes the running bot use the result at
-// once. Only the owner's screens call it, and it checks that again against the
-// settings it has just read.
+// once. The trusted management screens call it, and authority is checked
+// again against the settings it has just read.
 func (b *bot) editAccess(mutate func(d *accessDoc) error) error {
+	accessEditMu.Lock()
+	defer accessEditMu.Unlock()
 	if b.acc == nil || b.configService == nil {
 		return errors.New("the panel is not ready to save settings")
 	}
@@ -210,7 +216,11 @@ func (b *bot) editAccess(mutate func(d *accessDoc) error) error {
 	if !b.canManageAdmins() {
 		return errNotOwner
 	}
-	if cfg.Owner != 0 && cfg.Owner != b.self {
+	// Recheck the freshly loaded settings, not just the per-update snapshot:
+	// access may have been revoked while a prompt or edit was in flight.
+	freshAccess := cfg.access()
+	if !freshAccess.isMember(b.self) || !freshAccess.roleOf(b.self).full() ||
+		(!freshAccess.isOwner(b.self) && adminMeta(b.self).Suspended) {
 		return errNotOwner
 	}
 	d := docFromConfig(cfg)
@@ -381,7 +391,7 @@ func (b *bot) adminsScreen(ctx context.Context) (string, [][]button) {
 	case a.owner == 0:
 		lines = append(lines, "", b.tr("ℹ️ برای ویرایش ادمین‌ها از داخل ربات، شناسه تلگرام مالک را در پنل وب وارد کنید (تنظیمات ← ربات تلگرام ← مالک ربات).", "ℹ️ To edit admins from this bot, set the owner's Telegram ID in the web panel (Settings → Telegram bot → Bot owner)."))
 	case !b.canManageAdmins():
-		lines = append(lines, "", b.tr("ℹ️ فقط مالک ربات می‌تواند ادمین‌ها را ویرایش کند.", "ℹ️ Only the bot owner can edit admins."))
+		lines = append(lines, "", b.tr("ℹ️ فقط مالک یا ادمین کامل می‌تواند ادمین‌ها را ویرایش کند.", "ℹ️ Only the owner or a full admin can edit admins."))
 	}
 
 	var kb [][]button

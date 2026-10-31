@@ -545,12 +545,6 @@ ul.checks li::before{content:"✓";position:absolute;inset-inline-start:0;top:1p
       <button id="statusChip" class="chip tone-green" type="button" hidden aria-expanded="false"><span class="chip-top"><i class="dot" aria-hidden="true"></i><b id="statusText"></b></span><span class="chip-more"><span class="chip-details" id="chipDetails"></span></span></button>
       <button id="themeBtn" class="iconbtn" type="button" data-i18n-title="theme.title" data-i18n-aria="theme.title" title="تغییر تم" aria-label="تغییر تم"></button>
       <button id="langBtn" class="iconbtn tiny" type="button" title="Language" aria-label="Language">EN</button>
-      <a id="supportBtn" class="iconbtn" hidden target="_blank" rel="noopener" title="پشتیبانی" aria-label="پشتیبانی" data-i18n-title="contact.support" data-i18n-aria="contact.support">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-      </a>
-      <button id="refreshBtn" class="iconbtn" hidden type="button" title="به‌روزرسانی" aria-label="به‌روزرسانی" data-i18n-title="act.refresh" data-i18n-aria="act.refresh">
-        <svg id="refreshIco" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
-      </button>
     </div>
   </header>
 
@@ -793,9 +787,10 @@ ul.checks li::before{content:"✓";position:absolute;inset-inline-start:0;top:1p
 
     <article class="card block" id="reportCard" data-pane="support" hidden>
       <div class="card-head"><h2 data-i18n="rep.title">گزارش مشکل</h2></div>
-      <p class="muted small" style="margin:2px 0 10px" data-i18n="rep.lead">مشکل را بنویسید؛ نتیجه‌ی تست‌های همین صفحه هم خودکار برای پشتیبانی فرستاده می‌شود.</p>
+      <p class="muted small" style="margin:2px 0 10px" data-i18n="rep.lead">مشکل را بنویسید؛ متن گزارش و نتیجهٔ تست‌ها کپی می‌شود. در دایرکت پشتیبانی آن را جای‌گذاری و ارسال کنید.</p>
       <textarea id="repText" class="reptext" rows="3" maxlength="600" data-i18n-ph="rep.ph" placeholder="مثلا: از دیشب اینستاگرام باز نمی‌شود"></textarea>
-      <button class="btn" id="repBtn" type="button" data-i18n="rep.send">ارسال گزارش به پشتیبانی</button>
+      <textarea id="repPrepared" class="reptext" rows="5" readonly hidden aria-label="گزارش آماده برای کپی" data-i18n-aria="rep.prepared"></textarea>
+      <button class="btn" id="repBtn" type="button" data-i18n="rep.send">کپی گزارش و باز کردن دایرکت</button>
     </article>
 
     <div class="actionrow block" id="mainActions" data-pane="support">
@@ -886,8 +881,8 @@ const CONFIG = {
   pushEndpoint: "",             // مثال: "/api/push/subscribe"
   vapidPublicKey: "",
 
-  // تازه‌سازی خودکار با درخواست سبک HEAD (ثانیه، 0 = خاموش)
-  autoRefreshSec: 60,
+  // دریافت سبک شمارندهٔ زنده، هر ثانیه و فقط تا وقتی صفحه دیده می‌شود
+  autoRefreshSec: 1,
 
   // فقط سه لینک دانلود اپ Sing-Box (نسخه‌ها را می‌توانید به‌روز کنید)
   downloads: {
@@ -1232,10 +1227,10 @@ const I18N = {
     "sites.title": "دسترسی به سرویس‌ها", "sites.start": "شروع تست", "sites.running": "در حال تست…",
     "sites.lead": "بررسی می‌کند سرویس‌های پرکاربرد از همین دستگاه باز می‌شوند یا نه، و با چه سرعتی.",
     "sites.sum": "{ok} از {all} سرویس در دسترس است", "sites.fail": "باز نشد",
-    "rep.title": "گزارش مشکل", "rep.lead": "مشکل را بنویسید؛ نتیجه‌ی تست‌های همین صفحه هم خودکار برای پشتیبانی فرستاده می‌شود.",
-    "rep.ph": "مثلا: از دیشب اینستاگرام باز نمی‌شود", "rep.send": "ارسال گزارش به پشتیبانی", "rep.sending": "در حال ارسال…",
-    "rep.ok": "گزارش برای پشتیبانی فرستاده شد", "rep.wait": "گزارش قبلی همین تازگی فرستاده شد؛ چند دقیقه دیگر دوباره امتحان کنید.",
-    "rep.fail": "ارسال گزارش ممکن نشد", "rep.vpn": "VPN", "rep.sites": "تست سرویس‌ها", "rep.device": "دستگاه",
+    "rep.prepared": "گزارش آماده برای کپی", "rep.title": "گزارش مشکل", "rep.lead": "مشکل را بنویسید؛ متن گزارش و نتیجهٔ تست‌ها کپی می‌شود. در دایرکت پشتیبانی آن را جای‌گذاری و ارسال کنید.",
+    "rep.ph": "مثلا: از دیشب اینستاگرام باز نمی‌شود", "rep.send": "کپی گزارش و باز کردن دایرکت", "rep.sending": "در حال ارسال…",
+    "rep.ok": "گزارش کپی شد؛ آن را در دایرکت پشتیبانی جای‌گذاری و ارسال کنید", "rep.wait": "گزارش قبلی همین تازگی فرستاده شد؛ چند دقیقه دیگر دوباره امتحان کنید.",
+    "rep.fail": "کپی خودکار ممکن نشد؛ متن گزارش را دستی کپی و در دایرکت ارسال کنید", "rep.vpn": "VPN", "rep.sites": "تست سرویس‌ها", "rep.device": "دستگاه",
     "tab.status": "وضعیت", "tab.connect": "اتصال", "tab.tests": "تست‌ها", "tab.support": "پشتیبانی",
   },
   en: {
@@ -1448,10 +1443,10 @@ const I18N = {
     "sites.title": "Service reachability", "sites.start": "Start test", "sites.running": "Testing…",
     "sites.lead": "Checks whether popular services open from this device, and how fast.",
     "sites.sum": "{ok} of {all} services reachable", "sites.fail": "Failed",
-    "rep.title": "Report a problem", "rep.lead": "Describe the problem; the results of this page\u2019s tests are sent to support too.",
-    "rep.ph": "e.g. Instagram hasn\u2019t opened since last night", "rep.send": "Send report to support", "rep.sending": "Sending…",
-    "rep.ok": "Report sent to support", "rep.wait": "A report was sent just now; try again in a few minutes.",
-    "rep.fail": "Couldn\u2019t send the report", "rep.vpn": "VPN", "rep.sites": "Service test", "rep.device": "Device",
+    "rep.prepared": "Prepared report to copy", "rep.title": "Report a problem", "rep.lead": "Describe the problem. The report and test results will be copied; paste and send them in the support direct chat.",
+    "rep.ph": "e.g. Instagram hasn\u2019t opened since last night", "rep.send": "Copy report & open support direct", "rep.sending": "Sending…",
+    "rep.ok": "Report copied; paste and send it in the support direct chat", "rep.wait": "A report was sent just now; try again in a few minutes.",
+    "rep.fail": "Copy the report manually, then paste and send it in the support chat", "rep.vpn": "VPN", "rep.sites": "Service test", "rep.device": "Device",
     "tab.status": "Status", "tab.connect": "Connect", "tab.tests": "Tests", "tab.support": "Support",
   },
 };
@@ -1601,6 +1596,7 @@ function closeQr() {
 /* ── وضعیت ── */
 function computeStatus(info) {
   if (!info) return { label: t("st.unknown"), tone: "orange" };
+  if (info.enabled === false) return { label: t("end.disabled"), tone: "red" };
   const now = Date.now();
   const expMs = normalizeExpire(info.expire);
   const used = (info.upload || 0) + (info.download || 0);
@@ -1614,9 +1610,13 @@ function computeStatus(info) {
 }
 
 /* ── رندر ── */
-function renderDash() {
-  syncQrVisibility();
-  requestAnimationFrame(renderQrBox);   // تنها رندرکننده‌ی QR کارت لینک اشتراک
+function renderDash(liveOnly) {
+  const updateNumber = function (el, value, fmt) {
+    if (!liveOnly) { animateNum(el, value, fmt); return; }
+    if (el._raf) { cancelAnimationFrame(el._raf); el._raf = null; }
+    el.textContent = fmt ? fmt(value) : FA0.format(value);
+  };
+  if (!liveOnly) { syncQrVisibility(); requestAnimationFrame(renderQrBox); }   // تنها رندرکننده‌ی QR کارت لینک اشتراک
   const info = state.info;
   const title = state.title || "";
   document.title = (title ? title + " | " : "") + brandName();
@@ -1626,9 +1626,10 @@ function renderDash() {
 
   const st = computeStatus(info);
   const chip = $("#statusChip");
-  chip.className = "chip tone-" + st.tone;
+  const expanded = liveOnly && chip.classList.contains("open");
+  chip.className = "chip tone-" + st.tone + (expanded ? " open" : "");
   chip.hidden = false;
-  chip.setAttribute("aria-expanded", "false");
+  if (!liveOnly) chip.setAttribute("aria-expanded", "false");
   $("#statusText").textContent = st.label;
 
   $("#demoBanner").hidden = !state.demo;
@@ -1642,9 +1643,9 @@ function renderDash() {
   if (info) {
     if (total > 0) {
       const remain = Math.max(0, total - used);
-      animateNum($("#totalVal"), total, formatBytes);
-      animateNum($("#usedVal"), used, formatBytes);
-      animateNum($("#remainVal"), remain, formatBytes);
+      updateNumber($("#totalVal"), total, formatBytes);
+      updateNumber($("#usedVal"), used, formatBytes);
+      updateNumber($("#remainVal"), remain, formatBytes);
       $("#remainLabel").textContent = t("card.used", { used: formatBytes(used), total: formatBytes(total), remain: formatBytes(remain) });
       const fill = $("#barFill");
       fill.style.width = pct + "%";
@@ -1653,7 +1654,7 @@ function renderDash() {
       $("#usedTxt").textContent = FA0.format(Math.round(pct)) + pctSign;
     } else {
       $("#totalVal").textContent = t("card.unlimited");
-      animateNum($("#usedVal"), used, formatBytes);
+      updateNumber($("#usedVal"), used, formatBytes);
       $("#remainVal").textContent = t("card.unlimited");
       $("#remainLabel").textContent = t("card.noLimit");
       const fill = $("#barFill");
@@ -1676,7 +1677,7 @@ function renderDash() {
   const expMs = info ? normalizeExpire(info.expire) : null;
   if (expMs) {
     const daysLeft = Math.ceil((expMs - Date.now()) / 864e5);
-    animateNum($("#daysVal"), Math.max(0, daysLeft));
+    updateNumber($("#daysVal"), Math.max(0, daysLeft));
     $("#daysUnit").textContent = t("card.days");
     $("#daysLabel").textContent = daysLeft <= 0 ? t("card.expired") : t("card.daysLeft");
     const d = new Date(expMs);
@@ -1713,17 +1714,19 @@ function renderDash() {
   }
 
   if (info) {
-    animateNum($("#dlVal"), info.download || 0, formatBytes);
-    animateNum($("#ulVal"), info.upload || 0, formatBytes);
+    updateNumber($("#dlVal"), info.download || 0, formatBytes);
+    updateNumber($("#ulVal"), info.upload || 0, formatBytes);
   } else {
     $("#dlVal").textContent = "—";
     $("#ulVal").textContent = "—";
   }
 
   renderHero(st);
-  renderChannelTop();
-  renderApps();
-  renderExtras();
+  if (!liveOnly) {
+    renderChannelTop();
+    renderApps();
+    renderExtras();
+  }
   renderCountdown();
   checkAlerts();
   if (!state.offline) saveLastInfo();
@@ -1762,7 +1765,6 @@ function showSetup(prefill) {
   $("#skeleton").hidden = true;
   $("#dash").hidden = true;
   $("#setup").hidden = false;
-  $("#refreshBtn").hidden = true;
   $("#statusChip").hidden = true;
   $("#profileTitle").hidden = true;
   document.title = brandName();
@@ -1774,7 +1776,6 @@ function showDash() {
   $("#skeleton").hidden = true;
   $("#setup").hidden = true;
   $("#dash").hidden = false;
-  $("#refreshBtn").hidden = false;
 }
 
 function resolveSubUrl(raw) {
@@ -1802,7 +1803,6 @@ async function load(url, opts) {
   }
   const go = $("#goBtn");
   go.disabled = true;
-  $("#refreshIco").classList.add("spin");
   try {
     const res = await fetch(url, { method: "HEAD", cache: "no-store", redirect: "follow" });
     if (!res.ok) {
@@ -1848,7 +1848,6 @@ async function load(url, opts) {
     );
   } finally {
     go.disabled = false;
-    $("#refreshIco").classList.remove("spin");
   }
 }
 
@@ -1856,6 +1855,7 @@ async function load(url, opts) {
 // endedReasonOf از روی هدر اشتراک می‌گوید زمان یا حجم تمام شده؛ "" یعنی هنوز فعال است.
 function endedReasonOf(info) {
   if (!info) return "";
+  if (info.enabled === false) return "disabled";
   const total = info.total > 0 ? info.total : 0;
   const used = (info.upload || 0) + (info.download || 0);
   const exp = normalizeExpire(info.expire);
@@ -1892,7 +1892,6 @@ function showEndedOnly(reason) {
   $("#skeleton").hidden = true;
   $("#setup").hidden = true;
   $("#dash").hidden = true;
-  $("#refreshBtn").hidden = true;
   renderEnded(reason);
 }
 function serverEnded() {
@@ -2331,7 +2330,7 @@ function renderCountdown() {
   const two = function (v) { return FA0.format(v).length < 2 ? "۰" + FA0.format(v) : FA0.format(v); };
   el.textContent = t("count.left", { d: FA0.format(days), t: two(h) + ":" + two(mi) });
 }
-setInterval(function () { if (state.info && !state.demo) renderCountdown(); }, 30000);
+setInterval(function () { if (state.info && !state.demo) renderCountdown(); }, 1000);
 
 /* ── v37: هشدار حجم/اعتبار (بنر + اعلان یک‌بارهٔ مرورگر) ── */
 function alertFlags() {
@@ -2680,28 +2679,62 @@ function renderReferral() {
 }
 
 /* ── تازه‌سازی سبک / PWA ── */
+let refreshBusy = false, refreshAbort = null, refreshFailures = 0, refreshGeneration = 0;
+function refreshAllowed() {
+  return !document.hidden && navigator.onLine && state.url && !state.demo &&
+    (!$("#dash").hidden || !$("#endedCard").hidden);
+}
+function stopAutoRefresh() {
+  refreshGeneration++;
+  clearTimeout(refreshTimer); refreshTimer = null;
+  if (refreshAbort) refreshAbort.abort();
+}
 async function refreshFast() {
-  if (!state.url || state.demo || state.offline) return;
+  if (!refreshAllowed() || refreshBusy) return;
+  refreshBusy = true;
+  const url = state.url, generation = refreshGeneration;
+  const ctl = new AbortController(); refreshAbort = ctl;
+  const timeout = setTimeout(function () { ctl.abort(); }, 8000);
   try {
-    const res = await fetch(state.url, { method: "HEAD", cache: "no-store" });
-    if (!res.ok) return;
-    const info = parseUserInfo(res.headers.get("subscription-userinfo"));
-    if (!info) return;
+    const target = new URL(url, location.href);
+    const own = target.origin === location.origin;
+    if (own) target.searchParams.set("format", "live");
+    const res = await fetch(own ? target.href : url, { method: own ? "GET" : "HEAD", cache: "no-store", signal: ctl.signal });
+    if (!res.ok) throw new Error("live " + res.status);
+    const data = own ? await res.json() : parseUserInfo(res.headers.get("subscription-userinfo"));
+    if (!data || (own && !data.ok)) throw new Error("invalid live snapshot");
+    if (url !== state.url || generation !== refreshGeneration || !refreshAllowed()) return;
+    const info = { upload: data.upload || 0, download: data.download || 0, total: data.total || 0, expire: data.expire || 0 };
+    if (own) info.enabled = data.enabled;
+    const changed = JSON.stringify(state.info) !== JSON.stringify(info);
     state.info = info;
     state.headerMissing = false;
     state.serverDate = res.headers.get("date") || state.serverDate;
     state.lastFetch = Date.now();
+    refreshFailures = 0;
+    if (state.offline) setOffline(false);
     dailyTrack(info);
-    renderDash();
-  } catch (e) {}
+    const full = $("#dash").hidden;
+    if (changed || full) renderDash(!full); else renderCountdown();
+    if (full) showDash();
+  } catch (e) {
+    if (generation === refreshGeneration) { refreshFailures = Math.min(5, refreshFailures + 1); setOffline(true); }
+  } finally {
+    clearTimeout(timeout);
+    if (refreshAbort === ctl) refreshAbort = null;
+    refreshBusy = false;
+  }
 }
 function startAutoRefresh() {
-  if (refreshTimer) clearInterval(refreshTimer);
-  if (!CONFIG.autoRefreshSec || CONFIG.autoRefreshSec <= 0) return;
-  refreshTimer = setInterval(function () {
-    if (document.hidden) return;
-    if (!$("#dash").hidden && state.url && !state.demo) refreshFast();
-  }, CONFIG.autoRefreshSec * 1000);
+  stopAutoRefresh();
+  if (document.hidden || !navigator.onLine) return;
+  const generation = refreshGeneration;
+  const tick = async function () {
+    await refreshFast();
+    if (generation !== refreshGeneration || document.hidden || !navigator.onLine) return;
+    refreshTimer = setTimeout(tick, Math.min(30000, 1000 * Math.pow(2, refreshFailures)));
+  };
+  tick();
 }
 let deferredInstall = null;
 async function initPwa() {
@@ -3080,33 +3113,35 @@ function renderTests() {
   syncTabs();
 }
 
-/* ── v51.8: گزارش مشکل به پشتیبانی (از راه ربات) ── */
+/* ── گزارش محلی؛ ارسال توسط کاربر در دایرکت پشتیبانی، نه ربات ── */
 function reportText() {
   const lines = [];
   const own = (($("#repText") || {}).value || "").trim();
   if (own) lines.push(own, "");
+  if (state.title) lines.push((LANG === "fa" ? "اشتراک: " : "Subscription: ") + state.title);
   if (state.vpnRes) lines.push(t("rep.vpn") + ": " + state.vpnRes.main + (state.vpnRes.sub ? " — " + state.vpnRes.sub : ""));
   if (state.sitesRes) lines.push(t("rep.sites") + ": " + state.sitesRes.filter(Boolean).map(function (x) { return x.name + " " + (x.ms == null ? "✗" : x.ms + "ms"); }).join(", "));
   lines.push(t("rep.device") + ": " + t("os." + detectOS()) + " · " + String(navigator.userAgent || "").slice(0, 160));
   return lines.join("\n");
 }
 async function sendReport() {
-  const btn = $("#repBtn");
-  if (!state.url || state.demo || (btn && btn.disabled)) return;
-  if (btn) { btn.disabled = true; btn.textContent = t("rep.sending"); }
-  let code = 0;
-  try {
-    const res = await fetch(state.url + (state.url.indexOf("?") >= 0 ? "&" : "?") + "format=report", {
-      method: "POST", cache: "no-store",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: reportText() }),
-    });
-    code = res.status;
-  } catch (e) { code = 0; }
-  if (code === 200) { toast(t("rep.ok"), "ok"); const ta = $("#repText"); if (ta) ta.value = ""; }
-  else if (code === 429) toast(t("rep.wait"), "info");
-  else toast(t("rep.fail"), "err");
-  if (btn) { btn.disabled = false; btn.textContent = t("rep.send"); }
+  if (!state.url || state.demo || !CONFIG.supportLink) return;
+  const text = reportText();
+  const preview = $("#repPrepared");
+  if (preview) { preview.value = text; preview.hidden = false; }
+  let copyPromise;
+  try { copyPromise = navigator.clipboard.writeText(text); } catch (ignore) {}
+  // Open synchronously in the user's click, before clipboard permissions await.
+  const link = document.createElement("a");
+  link.href = CONFIG.supportLink; link.target = "_blank"; link.rel = "noopener noreferrer";
+  document.body.appendChild(link); link.click(); link.remove();
+  let copied = false;
+  try { if (!copyPromise) throw new Error("clipboard unavailable"); await copyPromise; copied = true; }
+  catch (e) {
+    const ta = preview;
+    if (ta) { ta.focus(); ta.select(); try { copied = document.execCommand("copy"); } catch (ignore) {} }
+  }
+  toast(t(copied ? "rep.ok" : "rep.fail"), copied ? "ok" : "info");
 }
 
 /* ── v51.8: زبانه‌های پایین صفحه در موبایل ── */
@@ -3178,9 +3213,6 @@ function init() {
     $("#channelHandle").textContent = CONFIG.channelLink.replace(/^https?:\/\//, "");
   }
   if (CONFIG.supportLink) {
-    const sb = $("#supportBtn");
-    sb.href = CONFIG.supportLink;
-    sb.hidden = false;
     const sc = $("#supportCard");
     sc.href = CONFIG.supportLink;
     sc.hidden = false;
@@ -3192,10 +3224,6 @@ function init() {
     if (r.error) { showError(r.error, false); return; }
     clearError();
     load(r.url);
-  });
-  $("#refreshBtn").addEventListener("click", () => {
-    if (state.demo) { loadDemo(); toast(t("toast.refreshed"), "ok"); return; }
-    if (state.url) load(state.url, { fromRefresh: true });
   });
   wireV20Events();
   wireV518();
@@ -3252,11 +3280,12 @@ function wireV20Events() {
   const mainActions = $("#mainActions");
   syncMainActions();   // ردیف دکمه‌های پایین اگر دکمه‌ی نمایانی نداشت، پنهان بماند
   document.addEventListener("visibilitychange", function () {
-    if (!document.hidden && state.url && !state.demo && !$("#dash").hidden) refreshFast();
+    if (document.hidden) stopAutoRefresh(); else startAutoRefresh();
   });
   // v37: آفلاین/آنلاین — چیپ نشان می‌دهد و با برگشتن اینترنت خودش تازه می‌شود
   wireAlerts();
   window.addEventListener("offline", function () {
+    stopAutoRefresh();
     setOffline(true);
     if (state.url && !state.demo) toast(t("toast.offline"), "info");
   });
@@ -3267,8 +3296,11 @@ function wireV20Events() {
   }
   window.addEventListener("online", function () {
     setOffline(false);
-    if (state.url && !state.demo) { toast(t("toast.backOnline"), "ok"); refreshFast(); }
+    if (state.url && !state.demo) toast(t("toast.backOnline"), "ok");
+    startAutoRefresh();
   });
+  window.addEventListener("pagehide", stopAutoRefresh);
+  window.addEventListener("pageshow", startAutoRefresh);
   if (!navigator.onLine) setOffline(true);
   if (CONFIG.pushEndpoint) {
     const row = $("#mainActions");

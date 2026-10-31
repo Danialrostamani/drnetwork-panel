@@ -7,13 +7,76 @@
 [![Downloads](https://img.shields.io/github/downloads/Danialrostamani/drnetwork-panel/total.svg)](https://github.com/Danialrostamani/drnetwork-panel/releases)
 [![License](https://img.shields.io/badge/license-GPL%20V3-blue.svg?longCache=true)](https://www.gnu.org/licenses/gpl-3.0.en.html)
 
-> Independent, full-source DrNetwork distribution. Backend and frontend are stored in this repository; no GitHub fork or submodule is required. The panel is developed and released from this repository alone: nothing is imported from the official S-UI repositories, and installs, updates and the Docker image come only from this repository's releases.
+> Independent, full-source DrNetwork distribution. Backend and frontend are stored in this repository; no GitHub fork or submodule is required. The panel is developed and released from this repository alone: selected upstream fixes are reviewed and integrated into the local source, while installs, updates and the Docker image come only from this repository's releases.
 
 > **Disclaimer:** This project is only for personal learning and communication, please do not use it for illegal purposes, please do not use it in a production environment
 
 **If you think this project is helpful to you, you may wish to give a**:star2:
 
 **Want to contribute?** See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, coding conventions, testing, and the pull request process.
+
+## Stable hardware-aware balancing (v52.4)
+
+Enable **Settings → Subscription → node assignment → Hardware-aware stable balancing**.
+The option is off by default: upgrading does not change an existing percentage policy.
+Only listed managed nodes that already serve the client participate; access rules,
+private subscription tokens and non-node/manual links are preserved.
+
+- CPU cores and RAM are read from node probes. The automatic baseline is
+  `min(cores, RAM GiB / 2)` (minimum 0.25 units; missing hardware uses a conservative
+  one-core baseline). This is a heuristic, not a CPU-model benchmark. An optional
+  **capacity override** replaces it. The existing share becomes a relative capacity
+  multiplier, not an exact percentage, in smart mode; zero is emergency-only.
+- Enter **measured network capacity in Mbps**, not advertised NIC/port speed.
+  Empty means unknown and is omitted from scoring. Client up/down rates use the
+  busier direction, not their sum (full duplex). An optional online admission
+  threshold is sampled, not a hard live connection limit.
+- New assignments use hardware capacity × multiplier × free headroom × remaining
+  monthly quota × recovery ramp. CPU, memory and network rates use a time-based
+  one-minute EWMA. This is server-side capacity, not ISP-specific user latency.
+- Weighted rendezvous hashing spreads primary and backup choices. The primary is
+  stored in the database (and backups), survives panel restart and is not re-picked
+  because a load reading or multiplier changes. Allocation happens on first
+  subscription generation, not at account creation. Assigned accounts are not
+  the same as active connections.
+- New users avoid disabled, draining, busy, exhausted, stale (>120 s) or unconfirmed
+  nodes. At least two healthy probes are required. One failed probe stops new
+  assignments but allows an existing choice a short grace (at most 30 s); a second
+  failed probe removes that grace. Full traffic caps apply even if manual link
+  hiding is disabled. Access permissions always limit the available set.
+- Confirmed failure redistributes affected users among eligible nodes instead of
+  concentrating them on the first list entry. Recovered nodes ramp new admissions
+  over five minutes; users that moved away are not automatically called back.
+- Sustained overload for at least two minutes can move a deterministic roughly
+  10% cohort per minute, only when that user fetches a profile and another normal
+  node is eligible. A ten-minute per-assignment cooldown prevents repeated moves.
+  The two-minute timer restarts after an outage or a probe gap (>120 s), so a
+  recovered node is not treated as already overloaded (v52.4.1).
+- **Drain** stops new assignments without evicting existing ones or closing sockets.
+  It does not forcibly migrate existing users. Settings show hardware, eligibility,
+  relative capacity/free score and counts of assigned enabled accounts.
+
+### What Sing-box actually receives
+
+In smart mode, `proxy` defaults to `auto`. That `urltest` contains only compatible
+outbounds on the assigned node, so a globally low-ping node cannot silently defeat
+the capacity distribution. A separate `backup` choice tests the first eligible
+per-user backup node; other locations and local/manual links remain selectable.
+Generated group tags are collision-safe. If no eligible assignment or compatible
+assigned-node protocol exists, profile generation fails clearly instead of emitting
+an unintended direct connection or an invalid empty automatic group.
+
+**Stock Sing-box has no weighted, strict-priority failover group.** Backup is a
+separate user choice, not an instant automatic primary→backup switch. Panel health
+failover/rebalancing takes effect only after the client refreshes the JSON profile;
+this does not move open connections without interruption. Existing cached/manual
+selector choices or a custom template routing `final` elsewhere may override the
+new default. Use the generated JSON profile and select `proxy → auto`; refresh
+profiles after enabling this mode. URI-only subscriptions cannot enforce groups.
+
+Back up the database/settings before upgrading. The new assignment table is included
+in backups and removed for deleted clients. No deployment to your server, real
+traffic benchmark or ISP-path measurement is implied by unit/browser tests.
 
 ## Quick Overview
 | Features                               |      Enable?       |
@@ -256,9 +319,17 @@ A node is another DrNetwork panel that the master monitors and keeps in sync. Op
 
 Update the nodes together with the master: an older node shows less (no NIC traffic, disk, host or per-client figures).
 
+## Live subscription page (v52.3)
+
+The browser page on a subscription link updates account usage every second while visible, without a page reload. The old direct-message and refresh buttons have been removed from its header; support remains in its dedicated section. Polling pauses when the page is hidden/offline or left, resumes on return, avoids overlapping requests and backs off on errors. A failed update marks the displayed data offline until the connection recovers. Reset/renewal, enable/disable, volume and expiry changes are reflected without forcing counters to increase. Live updates do not restart numeric animations or regenerate QR codes every second.
+
+The lightweight `?format=live` response contains account counters only, with `Cache-Control: no-store`. Local undrained core traffic and traffic awaiting a failed database commit are included under the accounting lock, without draining counters or writing statistics. Remote-node usage still follows the node collection interval: one-second page updates do not imply one-second remote-node sampling. Cached historical/status reports keep their existing lower-frequency schedule.
+
+Configure **Settings → Subscription → Status page: look and sections → Web support direct-message URL**. The default is `https://t.me/DrNetWorkSingBox?direct`. This setting takes priority over seller/bot support routing on the web page; seller channel, shop and renewal behavior remain separate. Reports are prepared and copied locally, then the support direct opens. The user must paste and send the message in Telegram; the website never claims to have sent it. A selectable report preview is available if clipboard access fails. No subscription token or URL is automatically included in the report. The old `POST ?format=report` endpoint returns 410 rather than forwarding reports from cached pages to the bot. Channel direct messages must be enabled in Telegram for the target channel; setting a URL cannot enable that Telegram feature.
+
 ## Telegram bot
 
-DrNetwork includes an optional Telegram bot for administrators. Everything about it is on one panel page, **Telegram bot**, with five tabs: *Dashboard* (bot status, pending orders, sales, sales by seller), *Sellers & admins* (add or remove a seller, their role or group, volume limit, terms, settlement and own shop), *Customers* (edit a customer's note, bound configs, introducer, seller and blocking; reset their test account so they can take a new one; delete a customer, with or without their configs), *Shop* and *Bot settings*. In the bot, the admin menu is grouped: 🏠 Server status, 👥 Clients, 🛍 Sales (orders, sales report, edit shop, customer view), 📊 Stats, 🔧 Technical, 🧰 Upkeep, 🔐 Admin access and 👑 Owner panel; the bottom keyboard keeps four buttons (Clients, Sales, Stats, Admin menu).
+DrNetwork includes an optional Telegram bot for administrators. Everything about it is on one panel page, **Telegram bot**, with six tabs: *Dashboard* (bot status, pending orders, sales, sales by seller), *Orders*, *Sellers & admins* (add or remove a seller, their role or group, volume limit, terms, settlement and own shop), *Customers* (edit a customer's note, bound configs, introducer, seller and blocking; reset their test account so they can take a new one; delete a customer, with or without their configs), *Shop* and *Bot settings*. In the bot, the admin menu is grouped: 🏠 Server status, 👥 Clients, 🛍 Sales (orders, sales report, edit shop, customer view), 📊 Stats, 🔧 Technical, 🧰 Upkeep, 🔐 Admin access and 👑 Owner panel; the bottom keyboard keeps four buttons (Clients, Sales, Stats, Admin menu).
 
 1. Create a bot with [@BotFather](https://t.me/BotFather) and paste its token.
 2. Send `/id` to your bot, add the number it returns to **Admin Telegram IDs** and, if you are the one who manages the other admins, put the same number in **Bot owner Telegram ID** (see below).
@@ -282,9 +353,17 @@ Destructive actions (delete, reset, restart) ask for confirmation. Admin credent
 
 **Group-limited admins.** To give someone only their own clients, open **Telegram bot → Sellers & admins** and choose *Seller (group)* for them, or press *Own group for every admin* (the setting behind it holds one `TelegramID=Group name` line per admin). That admin then sees and manages only the clients of that group (matched ignoring case): list, search, online, create (always into their group - there is no group step), enable/disable, reset, delete, volume, expiry, IP limit, bind, subscription, bulk edit and cleanup inside the group. They cannot move a client to another group, and have no inbounds, outbounds, nodes, settings, logs, stats, backup, restart or admin list. Client alerts (volume/expiry) go only to the admin of that client's group; node, core and report alerts and the scheduled backup go to the full admins. A line alone is enough to make someone a limited admin (they do not need to be in **Admin Telegram IDs**), admins without a line keep full access, and a line that cannot be used (no `=`, no group, the reserved `@cluster` group) locks that ID out instead of leaving it unlimited. Changes apply within seconds.
 
-**Owner and admin management.** Put your own numeric Telegram ID in **Telegram bot → Bot settings → Bot owner Telegram ID**. The owner has every right and is the only one who can change the other admins, straight from the bot: **🔐 Admin access** (or the panel's *Sellers & admins* tab) lists everyone with their role, and tapping an admin opens ✏️ their card, where the owner switches sections on and off (Home, Clients, Inbounds, Outbounds, Endpoints, Services, TLS, Nodes, Routing, Settings, Stats, Logs, Core, Backup, Admins), applies a preset (full access, clients only, no access), limits the admin to one client group, or removes them. **➕ Add admin** takes a numeric ID (the person sends `/id` to the bot to read theirs) and a new admin starts with no access until sections are switched on. Nobody can edit the owner, and other admins - even with every section - cannot edit admins; the *Admins* section only lets them read the list. The owner is not built in: until the ID is set, nobody can edit admins from the bot. Think before handing out *Backup*: the file is the whole database, including panel credentials and tokens. What an admin may use shapes everything they get: the buttons and slash commands they see, and the alerts they receive (node alerts go to admins with *Nodes*, core alerts to *Home* or *Core*, client volume/expiry alerts to *Clients* or the client's group, the scheduled report is split between *Home* and *Stats*, the scheduled backup goes to *Backup*).
+**Owner and admin management.** Put your own numeric Telegram ID in **Telegram bot → Bot settings → Bot owner Telegram ID**. The owner has every right and, together with full administrators (trusted partners), can change the other admins straight from the bot: **🔐 Admin access** (or the panel's *Sellers & admins* tab) lists everyone with their role, and tapping an admin opens ✏️ their card, where the owner switches sections on and off (Home, Clients, Inbounds, Outbounds, Endpoints, Services, TLS, Nodes, Routing, Settings, Stats, Logs, Core, Backup, Admins), applies a preset (full access, clients only, no access), limits the admin to one client group, or removes them. **➕ Add admin** takes a numeric ID (the person sends `/id` to the bot to read theirs) and a new admin starts with no access until sections are switched on. The owner's administrator entry cannot be edited. Full administrators may edit other admins; a custom section checklist, even with every section selected, does not gain this authority. If no owner is configured, a full administrator's first access edit claims ownership; once set, ordinary partner edits do not change the owner. Think before handing out *Backup*: the file is the whole database, including panel credentials and tokens. What an admin may use shapes everything they get: the buttons and slash commands they see, and the alerts they receive (node alerts go to admins with *Nodes*, core alerts to *Home* or *Core*, client volume/expiry alerts to *Clients* or the client's group, the scheduled report is split between *Home* and *Stats*, the scheduled backup goes to *Backup*).
 
 The roles are stored in three settings, so the web panel edits the same data as the bot: **Admin Telegram IDs** (who), **Admin group limits** (`ID=Group`, above) and **Admin section limits** (`12345678=clients,stats`; a line with nothing after the `=` means no access, unknown section names are ignored, and a group line wins over a sections line). An ID with neither line keeps full access, and a line that cannot be read leaves that ID with no access instead of widening it. Changes made in either place reach the running bot within seconds, without a restart.
+
+**Private administration (v52.2, enabled by default).** In **Telegram bot → Bot settings → Owner & trusted partners**, save your own numeric Telegram ID first. Then enter a trusted person's numeric Telegram ID in the dedicated partner box and press **Grant full access**. The grant is immediate, confirmed explicitly, and audited; the person must start the bot to receive its messages. Owner and full partners get every bot tool even if the old panel-management switch was off. Other administrators retain only their permitted client tools and own shop; global commands, callbacks, wizards, technical alerts and scheduled reports/backups are blocked for them. Existing detailed section permissions are preserved, but non-client sections take effect only if private administration is disabled. Review existing full admins: they remain trusted full partners. Suspended accounts must be reactivated explicitly before being granted access. The Telegram ID does **not** create a web-panel login: web sign-in remains separate.
+
+Promoting a group-limited seller with the partner box removes the access restriction but preserves their former group as their personal sales group and retains existing shop details. This saves the ACL and shop atomically, without moving existing clients or changing the owner. Full partners have management authority equivalent to the owner, except that the configured owner's protected administrator entry cannot be altered through admin management.
+
+**Engine and upstream maintenance (v52.2).** Uses sing-box **1.14.4** and Go **1.27.3**, with released alireza0/s-ui **v1.6.6** as the upstream audit baseline. Integrated scope-based protocol lifecycles and hot-reload managers, QUIC session cleanup, idle user-session registry cleanup, retry-safe traffic-stat merging/batch writes, external VLESS XHTTP preservation for Clash/Mihomo, and WireGuard private-key parse errors. Existing local session-kick, quota, traffic-tracker and external-subscription cache/security behavior is retained; safe TLS/Reality boolean handling and AnyTLS defaults were already present. This is a targeted maintenance port, not a wholesale replacement of DrNetwork or every upstream feature. Back up the database and configuration and validate on a staging node before updating production; automated tests do not substitute for a live Telegram/network deployment test.
+
+**Full partners and personal sales groups.** A full administrator is a trusted business partner: they may use global management (including other admins and quotas), while keeping their own shop, prices, card number and sales. In **Telegram bot → Sellers & admins → their own shop**, set **Personal sales group**, then save the page; or use **Edit shop → Personal sales group** in Telegram. Purchases and trials from that shop go into this group, without creating an access scope or hiding other clients. A scoped seller always uses their enforced group, regardless of any desk setting. Invalid personal groups stop delivery rather than falling back to a different group. Empty keeps the existing plan/introducer behavior. Changing a sales group does not move existing clients. **Global shop / All orders / All sales** in the management panel are separate from **My shop**. Full partners retain their own acting Telegram ID in management history. Telegram approval/rejection decisions also record the actual acting admin separately from the seller who owns the sale. Full partners may handle orders regardless of receipt routing or owner-only approval rules; those rules still constrain ordinary sellers and delegated custom approvers. Their personal sales allowance remains enforced for shop delivery, but does not block global client-administration operations. Review existing full administrators before installing: this role now includes administrator and quota management, including its own quota. It is not a security boundary for an untrusted seller. The legacy **Own group for every admin** operation still assigns restrictive access scopes; use the personal sales-group editor instead when full access must remain intact.
 
 **Volume limits.** The owner can cap how much traffic an admin's clients may use: **👮 Admins → ✏️ the admin → 📦 Volume limit**. Start from a ready amount, top up with **➕ 10 / 50 / 100 / 500 GB**, or type the total in GB (`500`, `2.5`; `+100` or `-50` change the current total). Nothing is deducted when a client is created or given volume: the admin's total goes down as their clients really use traffic. A traffic reset gives nothing back, and neither does deleting a client - what it used stays counted, and a new link counts only from its own first byte. A client counts for an admin when they created it through the bot while the limit is on, or when it is in the group of an admin limited to a group; clients an admin created before their limit existed are found in the history, and what any client used before it counted is never charged. When nothing is left the admin keeps managing their clients (disable, extend, lower a volume, delete) but cannot create a client or give one more volume; the clients that exist are not cut off. Unlimited volume and auto reset are allowed and counted by what they use. The owner is never limited, neither is an admin without a limit; **♾ Remove limit** lifts one (so does removing the admin), and a limit set later starts from nothing; **🔄 Reset used** counts from zero again. A limited admin sees what is left in their menu, on the home screen and above the client list; the owner sees it next to each admin in **👮 Admins** and on the limit screen, with what was used. Every change of a limit is written to the history under `quota`, and the limits, with what was used, are in the database, so backups carry them.
 

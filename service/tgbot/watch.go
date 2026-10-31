@@ -116,10 +116,10 @@ func (b *bot) sendReport(ctx context.Context) {
 	for _, id := range a.order {
 		// Everybody gets the parts of the report their sections cover.
 		var parts []string
-		if a.allows(id, "home") {
+		if b.as(id).can("home") {
 			parts = append(parts, status)
 		}
-		if a.allows(id, "stats") {
+		if b.as(id).can("stats") {
 			parts = append(parts, traffic)
 		}
 		if len(parts) > 0 {
@@ -130,6 +130,9 @@ func (b *bot) sendReport(ctx context.Context) {
 		// The database holds every group's clients: only for administrators
 		// with the Backup section.
 		for _, id := range a.with("backup") {
+			if !b.as(id).can("backup") {
+				continue
+			}
 			b.sendBackup(ctx, id)
 		}
 	}

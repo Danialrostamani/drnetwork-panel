@@ -369,7 +369,10 @@ func (b *bot) givesVolume(act string, payload interface{}) (bool, error) {
 // while there is volume left: creating a client costs nothing, it is the
 // traffic that counts.
 func (b *bot) quotaGate(act string, payload interface{}) error {
-	if b.owner || b.self <= 0 {
+	// Trusted partners must still be able to administer the whole service
+	// when their personal sales allowance is exhausted. Shop delivery uses
+	// saleQuota separately and still charges the actual seller.
+	if b.owner || b.self <= 0 || b.canManageAdmins() {
 		return nil
 	}
 	q, ok, err := b.quotaOf(b.self)

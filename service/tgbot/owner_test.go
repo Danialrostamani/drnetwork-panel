@@ -51,13 +51,13 @@ func lastTo(t *testing.T, msgs []sent, chat int64) string {
 
 func answers(msgs []sent) []string { return texts(msgs, "answerCallbackQuery") }
 
-func TestOnlyTheOwnerReachesTheOwnerPanel(t *testing.T) {
+func TestOwnerAndFullPartnersReachTheManagementPanel(t *testing.T) {
 	b, got := ownerBot(t, shopConfig{})
 	ctx := context.Background()
 	if !hasData(b.as(boss).mainMenu(), "q:home") {
 		t.Fatal("the owner's menu has no owner panel")
 	}
-	for _, id := range []int64{seller, helper} {
+	for _, id := range []int64{seller} {
 		if hasData(b.as(id).mainMenu(), "q:home") {
 			t.Fatalf("admin %d sees the owner panel", id)
 		}
@@ -76,6 +76,13 @@ func TestOnlyTheOwnerReachesTheOwnerPanel(t *testing.T) {
 	b.handle(ctx, callbackFrom(boss, "q:home"))
 	if !strings.Contains(lastEdit(t, got), "Owner panel") {
 		t.Fatalf("owner got %q", lastEdit(t, got))
+	}
+	if !hasData(b.as(helper).mainMenu(), "q:home") {
+		t.Fatal("the full partner's menu has no management panel")
+	}
+	b.handle(ctx, callbackFrom(helper, "q:home"))
+	if !strings.Contains(lastEdit(t, got), "Owner panel") {
+		t.Fatalf("full partner got %q", lastEdit(t, got))
 	}
 	// Without an owner, a full administrator runs the shop.
 	useAccess(b, botConfig{Admins: []int64{helper}})
@@ -504,8 +511,12 @@ func TestPanelUpdateFromTheBot(t *testing.T) {
 		t.Fatalf("started = %q", started)
 	}
 	b.handle(ctx, callbackFrom(helper, "q:upgo:v49.7"))
-	if started != "v49.6 by telegram:1000" {
-		t.Fatal("a non-owner started an update")
+	if started != "v49.7 by telegram:88" {
+		t.Fatalf("a full partner could not start an attributed update: %q", started)
+	}
+	b.handle(ctx, callbackFrom(seller, "q:upgo:v49.8"))
+	if started != "v49.7 by telegram:88" {
+		t.Fatal("a restricted seller started an update")
 	}
 }
 

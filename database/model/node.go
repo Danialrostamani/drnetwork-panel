@@ -208,3 +208,12 @@ type SiteStat struct {
 	Up       int64  `json:"up"`
 	Down     int64  `json:"down"`
 }
+
+// NodeAssignment is the persistent capacity-mode choice. It is not an active
+// connection count. Fetching a subscription never migrates a live socket.
+type NodeAssignment struct {
+	ClientId  uint   `json:"clientId" gorm:"primaryKey;autoIncrement:false"`
+	NodeId    uint   `json:"nodeId" gorm:"index;not null"`
+	UpdatedAt int64  `json:"updatedAt"`
+	Reason    string `json:"reason"`
+}

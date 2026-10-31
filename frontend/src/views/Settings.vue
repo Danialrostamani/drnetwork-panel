@@ -502,8 +502,8 @@
               <v-switch
                 :model-value="subNodeRoute.enable"
                 color="primary"
-                :label="$t('setting.subNodeRoute')"
-                :hint="$t('setting.subNodeRouteHint')"
+                :label="$t(subNodeRoute.smart ? 'setting.balanceRouteTitle' : 'setting.subNodeRoute')"
+                :hint="$t(subNodeRoute.smart ? 'setting.balanceRouteHint' : 'setting.subNodeRouteHint')"
                 persistent-hint
                 @update:model-value="setRouteEnabled"
               />
@@ -512,53 +512,143 @@
               v-if="subNodeRoute.enable"
               cols="12"
             >
-              <div
+              <v-switch
+                :model-value="subNodeRoute.smart"
+                color="primary"
+                :label="$t('setting.balanceSmart')"
+                :hint="$t('setting.balanceSmartHint')"
+                persistent-hint
+                class="mb-4"
+                @update:model-value="setSmartRoute"
+              />
+              <v-alert
+                v-if="subNodeRoute.smart"
+                type="info"
+                variant="tonal"
+                class="mb-4"
+              >
+                {{ $t('setting.balanceSingboxHint') }}
+              </v-alert>
+              <v-card
                 v-for="(row, idx) in subNodeRoute.entries"
                 :key="row.id"
-                class="d-flex align-center ga-2 mb-2"
+                variant="outlined"
+                class="pa-3 mb-3 node-balance-card"
               >
-                <v-btn
-                  icon="mdi-arrow-up"
-                  variant="text"
-                  size="small"
-                  :disabled="idx === 0"
-                  :aria-label="$t('setting.subNodeRouteMoveUp')"
-                  @click="moveRouteEntry(idx, -1)"
-                />
-                <v-btn
-                  icon="mdi-arrow-down"
-                  variant="text"
-                  size="small"
-                  :disabled="idx === subNodeRoute.entries.length - 1"
-                  :aria-label="$t('setting.subNodeRouteMoveDown')"
-                  @click="moveRouteEntry(idx, 1)"
-                />
-                <div class="flex-grow-1">
-                  {{ routeNodeName(row.id) }}
-                  <span class="text-medium-emphasis ml-2">{{ routeShareLabel(row) }}</span>
+                <div class="d-flex align-center flex-wrap ga-2">
+                  <v-btn
+                    v-if="!subNodeRoute.smart"
+                    icon="mdi-arrow-up"
+                    variant="text"
+                    size="small"
+                    :disabled="idx === 0 || subNodeRoute.smart"
+                    :aria-label="$t('setting.subNodeRouteMoveUp')"
+                    @click="moveRouteEntry(idx, -1)"
+                  />
+                  <v-btn
+                    v-if="!subNodeRoute.smart"
+                    icon="mdi-arrow-down"
+                    variant="text"
+                    size="small"
+                    :disabled="idx === subNodeRoute.entries.length - 1 || subNodeRoute.smart"
+                    :aria-label="$t('setting.subNodeRouteMoveDown')"
+                    @click="moveRouteEntry(idx, 1)"
+                  />
+                  <div class="flex-grow-1">
+                    {{ routeNodeName(row.id) }}
+                    <span
+                      v-if="!subNodeRoute.smart || !row.weight"
+                      class="text-medium-emphasis ml-2"
+                    >{{ routeShareLabel(row) }}</span>
+                  </div>
+                  <v-text-field
+                    :model-value="row.weight"
+                    type="number"
+                    min="0"
+                    :max="subNodeRoute.smart ? 10000 : 100"
+                    :suffix="subNodeRoute.smart ? '×' : '%'"
+                    hide-details
+                    density="compact"
+                    style="max-width: 13rem; min-width: 10rem"
+                    :label="$t(subNodeRoute.smart ? 'setting.balanceWeight' : 'setting.subNodeRouteWeight')"
+                    @update:model-value="(v: string) => setRouteWeight(idx, v)"
+                  />
+                  <v-btn
+                    icon="mdi-close"
+                    variant="text"
+                    size="small"
+                    :aria-label="$t('setting.subNodeRouteRemove')"
+                    @click="removeRouteEntry(idx)"
+                  />
                 </div>
-                <v-text-field
-                  :model-value="row.weight"
-                  type="number"
-                  min="0"
-                  max="100"
-                  suffix="%"
-                  hide-details
-                  density="compact"
-                  style="max-width: 8rem"
-                  :label="$t('setting.subNodeRouteWeight')"
-                  @update:model-value="(v: string) => setRouteWeight(idx, v)"
-                />
-                <v-btn
-                  icon="mdi-close"
-                  variant="text"
-                  size="small"
-                  :aria-label="$t('setting.subNodeRouteRemove')"
-                  @click="removeRouteEntry(idx)"
-                />
-              </div>
+                <template v-if="subNodeRoute.smart">
+                  <p class="text-body-2 mt-3 mb-1">
+                    {{ routeHardware(row.id) }}
+                  </p>
+                  <p class="text-body-2 text-medium-emphasis mb-3">
+                    {{ routeBalance(row.id) }}
+                  </p>
+                  <v-row dense>
+                    <v-col
+                      cols="12"
+                      sm="4"
+                    >
+                      <v-text-field
+                        :model-value="row.capacity || ''"
+                        type="number"
+                        min="0"
+                        max="10000"
+                        step="0.25"
+                        :label="$t('setting.balanceCapacity')"
+                        :hint="$t('setting.balanceCapacityHint')"
+                        persistent-hint
+                        @update:model-value="(v: string) => setRouteCapacity(idx, 'capacity', v)"
+                      />
+                    </v-col>
+                    <v-col
+                      cols="12"
+                      sm="4"
+                    >
+                      <v-text-field
+                        :model-value="row.bandwidthMbps || ''"
+                        type="number"
+                        min="0"
+                        max="1000000"
+                        suffix="Mbps"
+                        :label="$t('setting.balanceBandwidth')"
+                        :hint="$t('setting.balanceBandwidthHint')"
+                        persistent-hint
+                        @update:model-value="(v: string) => setRouteCapacity(idx, 'bandwidthMbps', v)"
+                      />
+                    </v-col>
+                    <v-col
+                      cols="12"
+                      sm="4"
+                    >
+                      <v-text-field
+                        :model-value="row.maxUsers || ''"
+                        type="number"
+                        min="0"
+                        max="1000000"
+                        :label="$t('setting.balanceMaxUsers')"
+                        :hint="$t('setting.balanceMaxUsersHint')"
+                        persistent-hint
+                        @update:model-value="(v: string) => setRouteCapacity(idx, 'maxUsers', v)"
+                      />
+                    </v-col>
+                  </v-row>
+                  <v-switch
+                    :model-value="!!row.drain"
+                    color="warning"
+                    :label="$t('setting.balanceDrain')"
+                    :hint="$t('setting.balanceDrainHint')"
+                    persistent-hint
+                    @update:model-value="(v: boolean | null) => setRouteCapacity(idx, 'drain', !!v)"
+                  />
+                </template>
+              </v-card>
               <div
-                v-if="subNodeRoute.entries.length > 0"
+                v-if="subNodeRoute.entries.length > 0 && !subNodeRoute.smart"
                 class="d-flex align-center flex-wrap ga-2 mb-3"
               >
                 <span :class="routeShareSum === 100 ? 'text-success' : 'text-warning'">
@@ -750,6 +840,7 @@ import { Ref, computed, inject, onMounted, ref, watch } from 'vue'
 import HttpUtils from '@/plugins/httputil'
 import { FindDiff } from '@/plugins/utils'
 import { splitShares, sumShares } from '@/plugins/routeShares'
+import { parseNodeRoute, serializeNodeRoute, normalizeRouteEntry, type NodeRoute, type NodeRouteEntry } from '@/plugins/nodeRoute'
 import { parseSubPageConf, subPageConfJSON, subPageFlagKeys, subPageNoticeKinds, type SubPageConf, type SubPageNotice, type SubPageSite } from '@/plugins/subPageConf'
 import SubJsonExtVue from '@/components/SubJsonExt.vue'
 import SubClashExtVue from '@/components/SubClashExt.vue'
@@ -922,39 +1013,33 @@ const subLoadOrder = computed({
   set: (v:boolean) => { settings.value.subLoadOrder = v ? "true" : "false" }
 })
 
-type NodeRouteEntry = { id: number, weight: number }
-type NodeRoute = { enable: boolean, entries: NodeRouteEntry[] }
-
-const parseNodeRoute = (raw: string): NodeRoute => {
-  try {
-    const o = JSON.parse(raw || '{}')
-    const entries = Array.isArray(o.entries) ? o.entries : []
-    return {
-      enable: !!o.enable,
-      entries: entries
-        .map((e: { id?: number, weight?: number }) => ({
-          id: Number(e?.id),
-          weight: Math.max(0, Math.min(10000, Math.trunc(Number(e?.weight) || 0))),
-        }))
-        .filter((e: NodeRouteEntry) => e.id > 0),
-    }
-  } catch {
-    return { enable: false, entries: [] }
-  }
-}
-
 const subNodeRoute = computed({
   get: () => parseNodeRoute(settings.value.subNodeRoute || '{}'),
-  set: (v: NodeRoute) => {
-    settings.value.subNodeRoute = JSON.stringify({
-      enable: v.enable,
-      entries: v.entries.map(e => ({
-        id: e.id,
-        weight: Math.max(0, Math.min(10000, Math.trunc(Number(e.weight) || 0))),
-      })),
-    })
-  },
+  set: (v: NodeRoute) => { settings.value.subNodeRoute = serializeNodeRoute(v) },
 })
+const setSmartRoute = (v: boolean | null) => {
+  subNodeRoute.value = { ...subNodeRoute.value, smart: !!v }
+}
+const setRouteCapacity = (idx: number, field: 'capacity' | 'bandwidthMbps' | 'maxUsers' | 'drain', value: unknown) => {
+  const cur = subNodeRoute.value
+  const entries = cur.entries.map((e, i) => i === idx ? normalizeRouteEntry({ ...e, [field]: value }) : e)
+  subNodeRoute.value = { ...cur, entries }
+}
+const routeHardware = (id: number) => {
+  const st = Data().nodesStatus[id]
+  if (!st) return i18n.global.t('setting.balanceUnknown')
+  const cores = st.cpuCount ?? 0
+  const ram = ((st.mem?.total ?? 0) / 1073741824).toFixed(1)
+  return i18n.global.t('setting.balanceHardware', { cores, ram })
+}
+const routeBalance = (id: number) => {
+  const b = Data().nodesStatus[id]?.balance
+  if (!b) return i18n.global.t('setting.balancePending')
+  return i18n.global.t('setting.balanceStatus', {
+    state: i18n.global.t('setting.balanceStates.' + b.state), assigned: b.assigned,
+    capacity: b.capacity.toFixed(1), free: b.free.toFixed(1),
+  })
+}
 
 const setRouteEnabled = (v: boolean | null) => {
   const cur = subNodeRoute.value
@@ -965,7 +1050,7 @@ const setRouteEnabled = (v: boolean | null) => {
       .map(n => ({ id: n.id, weight: 0 }))
     entries = splitShares(entries.map(e => ({ ...e, weight: 1 })))
   }
-  subNodeRoute.value = { enable: !!v, entries }
+  subNodeRoute.value = { ...cur, enable: !!v, entries }
 }
 
 const routeShareSum = computed(() => sumShares(subNodeRoute.value.entries))
@@ -996,6 +1081,7 @@ const routeNodeName = (id: number) => {
 
 const routeShareLabel = (row: NodeRouteEntry) => {
   const total = subNodeRoute.value.entries.reduce((s, e) => s + Math.max(0, Number(e.weight) || 0), 0)
+  if (subNodeRoute.value.smart && row.weight > 0) return i18n.global.t('setting.balanceFactor', { factor: row.weight })
   if (!row.weight || total <= 0) return i18n.global.t('setting.subNodeRouteBackup')
   const pct = Math.round((row.weight / total) * 100)
   return i18n.global.t('setting.subNodeRouteShare', { pct })
@@ -1040,7 +1126,7 @@ const subPageConf = computed((): SubPageConf => parseSubPageConf(settings.value.
 const subPageTextFields = ['name', 'nameEn', 'logo', 'accent', 'support', 'channel'] as const
 const subPagePlaceholder: Record<string, string> = {
   name: 'وضعیت اشتراک', nameEn: 'Subscription status', logo: 'https://example.com/logo.png',
-  accent: '#0C96B2', support: 'https://t.me/support', channel: 'https://t.me/channel',
+  accent: '#0C96B2', support: 'https://t.me/DrNetWorkSingBox?direct', channel: 'https://t.me/channel',
 }
 // The notice and site lists are edited here, blank rows and all; the setting
 // gets them without the blank ones.
@@ -1101,3 +1187,10 @@ const stateChange = computed(() => {
   return !FindDiff.deepCompare(settings.value,oldSettings.value)
 })
 </script>
+
+<style scoped>
+.node-balance-card :deep(.v-messages) {
+  font-size: 14px;
+  line-height: 1.5;
+}
+</style>

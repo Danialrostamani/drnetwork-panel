@@ -134,7 +134,7 @@ func TestOwnerSetsAnAdminsVolumeLimit(t *testing.T) {
 }
 
 func TestOwnerResetsAndRemovesALimit(t *testing.T) {
-	e := newAccessEnv(t)
+	e := newMeteredEnv(t)
 	giveQuota(t, fullAdmin, 100)
 	e.runSay(fullAdmin, "/add ali 50 30")
 	e.runSay(fullAdmin, "/add bob 50 30")
@@ -196,12 +196,12 @@ func TestOwnerResetsAndRemovesALimit(t *testing.T) {
 	mustContain(t, string(rows[0].Obj), `"used":`+itoa(35*gib), `"tgId":42`, `"total":`+itoa(100*gib))
 }
 
-func TestOnlyTheOwnerCanEditVolumeLimits(t *testing.T) {
+func TestRestrictedAdminsCannotEditVolumeLimits(t *testing.T) {
 	e := newAccessEnv(t)
 	giveQuota(t, clientsOnly, 10)
 	before := quotaRow(t, clientsOnly)
 	buttons := []string{"a:q:55", "a:qa:55:50", "a:qt:55", "a:qr:55", "a:qry:55", "a:qc:55", "a:qcy:55", "a:q:42", "a:qa:42:50", "a:qa:77:50"}
-	for _, who := range []int64{fullAdmin, salesAdmin, clientsOnly, noSections, 999} {
+	for _, who := range []int64{salesAdmin, clientsOnly, noSections, 999} {
 		for _, data := range buttons {
 			n := len(e.got())
 			e.press(who, data)
@@ -223,11 +223,11 @@ func TestOnlyTheOwnerCanEditVolumeLimits(t *testing.T) {
 	if len(allQuotas()) != 1 {
 		t.Fatalf("somebody but the owner made a limit: %+v", allQuotas())
 	}
-	// An admin cannot raise their own limit by any route.
-	giveQuota(t, fullAdmin, 1)
-	e.runPress(fullAdmin, "a:qa:42:500")
-	e.runSay(fullAdmin, "/add x 5 30")
-	if q := quotaRow(t, fullAdmin); q.Total != 1*gib {
+	// A restricted seller cannot raise their own limit by any route.
+	giveQuota(t, salesAdmin, 1)
+	e.runPress(salesAdmin, "a:qa:77:500")
+	e.runSay(salesAdmin, "/add x 5 30")
+	if q := quotaRow(t, salesAdmin); q.Total != 1*gib {
 		t.Fatalf("their own total moved: %+v", q)
 	}
 }
@@ -336,12 +336,12 @@ func TestVolumeLimitScreenInPersian(t *testing.T) {
 }
 
 // The guards in front of the buttons are not the only ones: whatever calls the
-// edit of a limit, only the owner's copy of the bot gets it done.
-func TestOnlyTheOwnersBotEditsLimitsWhateverCallsIt(t *testing.T) {
+// edit of a limit, a restricted copy of the bot cannot get it done.
+func TestRestrictedBotCannotEditLimitsWhateverCallsIt(t *testing.T) {
 	e := newAccessEnv(t)
 	giveQuota(t, clientsOnly, 10)
 	before := quotaRow(t, clientsOnly)
-	for _, who := range []int64{fullAdmin, salesAdmin, clientsOnly, noSections, 999} {
+	for _, who := range []int64{salesAdmin, clientsOnly, noSections, 999} {
 		nb := e.b.as(who)
 		for name, err := range map[string]error{
 			"add":    nb.quotaAdd(clientsOnly, 5*gib),

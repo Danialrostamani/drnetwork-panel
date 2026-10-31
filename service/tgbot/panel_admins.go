@@ -15,21 +15,22 @@ import (
 	"github.com/Danialrostamani/drnetwork-panel/service"
 )
 
-// The panel's view of the bot's administrators and their groups. A group
-// limits an administrator to its clients; what they sell goes into it. The
-// owner is never limited and keeps seeing everything.
+// The panel's view of administrators. Group is an access scope; SalesGroup
+// is business ownership. Full partners can have a SalesGroup without any
+// access scope. Scoped sellers always sell into their enforced Group.
 
 // PanelAdmin is one bot administrator as the panel shows them.
 type PanelAdmin struct {
-	Id        int64    `json:"id"`
-	Name      string   `json:"name"`
-	Role      string   `json:"role"` // owner, full, sections, group or locked
-	Group     string   `json:"group"`
-	Sections  []string `json:"sections"`
-	Clients   int      `json:"clients"`
-	Customers int      `json:"customers"`
-	Sales     int      `json:"sales"`
-	Revenue   int64    `json:"revenue"`
+	Id         int64    `json:"id"`
+	Name       string   `json:"name"`
+	Role       string   `json:"role"` // owner, full, sections, group or locked
+	Group      string   `json:"group"`
+	SalesGroup string   `json:"salesGroup"`
+	Sections   []string `json:"sections"`
+	Clients    int      `json:"clients"`
+	Customers  int      `json:"customers"`
+	Sales      int      `json:"sales"`
+	Revenue    int64    `json:"revenue"`
 	// Outside counts the clients of their customers, sales and creations that
 	// are not in their group yet.
 	Outside int `json:"outside"`
@@ -81,7 +82,7 @@ func PanelAdmins(ctx context.Context) (PanelAdminsView, error) {
 	sellerOf := b.customerSellers()
 	for _, id := range a.order {
 		r := a.roleOf(id)
-		pa := PanelAdmin{Id: id, Name: names[id], Group: r.group, Sections: []string{}}
+		pa := PanelAdmin{Id: id, Name: names[id], Group: r.group, SalesGroup: b.sellerGroup(id), Sections: []string{}}
 		switch {
 		case a.isOwner(id):
 			pa.Role = "owner"
@@ -96,9 +97,10 @@ func PanelAdmins(ctx context.Context) (PanelAdminsView, error) {
 		default:
 			pa.Role = "full"
 		}
-		if r.group != "" {
+		if pa.SalesGroup != "" {
+			groupSet[strings.ToLower(pa.SalesGroup)] = pa.SalesGroup
 			for _, c := range clients {
-				if sameGroup(c.Group, r.group) {
+				if sameGroup(c.Group, pa.SalesGroup) {
 					pa.Clients++
 				}
 			}
@@ -137,6 +139,8 @@ func panelEditAccess(cs *service.ConfigService, actor, host string, mutate func(
 	if cs == nil {
 		return fmt.Errorf("the panel is not ready to save settings")
 	}
+	accessEditMu.Lock()
+	defer accessEditMu.Unlock()
 	cfg, err := loadConfig()
 	if err != nil {
 		return err

@@ -2,6 +2,7 @@ package tgbot
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -43,20 +44,32 @@ func (b *bot) staffBot() *bot {
 	return b
 }
 
-// sellerGroup is the group a seller other than the owner is limited to, or "".
+// sellerGroup is business ownership, not authorization. A seller's enforced
+// scope always wins; a full admin can own a sales group without being scoped.
 func (b *bot) sellerGroup(id int64) string {
+	group, _ := b.checkedSellerGroup(id)
+	return group
+}
+
+// checkedSellerGroup fails a sale closed when a personal group is malformed,
+// rather than silently delivering it into the default plan's group.
+func (b *bot) checkedSellerGroup(id int64) (string, error) {
 	a := b.access()
 	if id == 0 || !a.isMember(id) || a.isOwner(id) {
-		return ""
+		return "", nil
 	}
-	return a.roleOf(id).group
+	if group := a.roleOf(id).group; group != "" {
+		return group, nil
+	}
+	group := strings.TrimSpace(b.loadShopRaw().Desks[strconv.FormatInt(id, 10)].SalesGroup)
+	if group != "" && !scopeGroupUsable(group) {
+		return "", errBadGroup
+	}
+	return group, nil
 }
 
 func (b *bot) canApprove() bool {
-	if b.access().owner != 0 {
-		return b.owner
-	}
-	return !b.restricted()
+	return b.canManageAdmins()
 }
 
 func (b *bot) notifyStaff(ctx context.Context, text string, kb [][]button) {
@@ -456,6 +469,7 @@ func (b *bot) orderCallback(ctx context.Context, cbID string, chatID, msgID int6
 			b.edit(ctx, chatID, msgID, b.tr("❌ تأیید نشد: ", "❌ Approve failed: ")+esc(err.Error()), nil)
 			return
 		}
+		b.recordOrderDecision(o, "approve")
 		b.answer(ctx, cbID, "")
 		b.edit(ctx, chatID, msgID, b.tr("✅ تأیید شد.", "✅ Approved.")+"\n"+esc(o.Detail), nil)
 		b.notifyCustomerOrder(ctx, o, true)
@@ -463,14 +477,38 @@ func (b *bot) orderCallback(ctx context.Context, cbID string, chatID, msgID int6
 		b.tellOwnerApproval(ctx, o)
 	case "no":
 		o.Status = orderRejected
-		if err := b.saveOrder(o); err == nil && o.WalletPaid && o.Amount > 0 {
+		if err := b.saveOrder(o); err != nil {
+			b.answer(ctx, cbID, b.t("failed", b.errText(err)))
+			return
+		}
+		if o.WalletPaid && o.Amount > 0 {
 			_, _ = walletCredit(o.TgId, o.Amount, walletMemo{kind: walletRefund, order: o.Id, actor: b.self})
 		}
+		b.recordOrderDecision(o, "reject")
 		b.answer(ctx, cbID, "")
 		b.edit(ctx, chatID, msgID, b.tr("❌ رد شد.", "❌ Rejected."), nil)
 		b.notifyCustomerOrder(ctx, o, false)
 	default:
 		b.answer(ctx, cbID, "")
+	}
+}
+
+// The seller owns the sale, while the acting administrator owns the decision.
+// Do not infer the approver from the privileged fulfillment client's history.
+func (b *bot) recordOrderDecision(o *model.BotOrder, action string) {
+	raw, err := json.Marshal(map[string]interface{}{
+		"name": fmt.Sprintf("#%d %s", o.Id, o.Detail), "orderId": o.Id,
+		"sellerId": o.AdminId, "customerId": o.TgId, "clientId": o.ClientId,
+		"status": o.Status,
+	})
+	if err != nil {
+		logger.Warning("telegram bot: encode order decision: ", err)
+		return
+	}
+	if err := database.GetDB().Create(&model.Changes{
+		DateTime: time.Now().Unix(), Actor: b.actor(), Key: "orders", Action: action, Obj: raw,
+	}).Error; err != nil {
+		logger.Warning("telegram bot: record order decision: ", err)
 	}
 }
 
@@ -548,9 +586,13 @@ func (b *bot) approveOrder(o *model.BotOrder) error {
 		if g := s.refGroup(o.Ref); g != "" {
 			group = g
 		}
-		// A seller limited to a group sells into it, or they could not see
-		// what they sold.
-		if g := b.sellerGroup(o.AdminId); g != "" {
+		// Scoped sellers sell only into their scope. Full administrators
+		// may independently choose a group for their personal shop sales.
+		g, err := b.checkedSellerGroup(o.AdminId)
+		if err != nil {
+			return err
+		}
+		if g != "" {
 			group = g
 		}
 		name := staff.uniqueClientName(o.TgId, o.Hint)
