@@ -137,7 +137,7 @@ func TestStartPanelUpdate(t *testing.T) {
 		t.Fatalf("Start = %q, %v", got, err)
 	}
 	logPath := filepath.Join(dir, updateLogName)
-	want := []string{"v9.9", logPath, updateAPIBase + "/repos/" + updateRepo + "/contents/install.sh?ref=v9.9", "zhcn", githubTokenPath}
+	want := []string{"v9.9", logPath, updateRawBase + "/" + updateRepo + "/v9.9/install.sh", "zhcn"}
 	if len(launched) != 1 || !reflect.DeepEqual(launched[0], want) {
 		t.Fatalf("launched %q", launched)
 	}
@@ -254,7 +254,7 @@ func TestUpdateRunner(t *testing.T) {
 		}
 	}
 	bash := filepath.Join(bin, "bash")
-	for _, need := range [][]string{{"bash"}, {"mktemp"}, {"rm"}, {"curl"}} {
+	for _, need := range [][]string{{"bash"}, {"mktemp"}, {"rm"}, {"curl", "wget"}} {
 		found := false
 		for _, tool := range need {
 			if _, err := os.Lstat(filepath.Join(bin, tool)); err == nil {
@@ -267,31 +267,17 @@ func TestUpdateRunner(t *testing.T) {
 	}
 	script := "#!/bin/bash\necho \"args: $*\"\necho \"lang: $SUI_LANG\"\nexit ${FAKE_EXIT:-0}\n"
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/install.sh":
-		case "/private.sh":
-			// A private repository: the API answers with the file only for
-			// the token, and only when asked for the raw content.
-			if r.Header.Get("Authorization") != "Bearer ghp_secret123" || r.Header.Get("Accept") != "application/vnd.github.raw" {
-				http.NotFound(w, r)
-				return
-			}
-		default:
+		if r.URL.Path != "/install.sh" {
 			http.NotFound(w, r)
 			return
 		}
 		_, _ = w.Write([]byte(script))
 	}))
 	defer srv.Close()
-	tokenFile := filepath.Join(t.TempDir(), "github-token")
-	if err := os.WriteFile(tokenFile, []byte("ghp_secret123\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	tokfile := ""
 	run := func(url string, env ...string) string {
 		t.Helper()
 		logPath := filepath.Join(t.TempDir(), updateLogName)
-		cmd := exec.Command(bash, "-c", updateRunner, "s-ui-update", "v9", logPath, url, "fa", tokfile)
+		cmd := exec.Command(bash, "-c", updateRunner, "s-ui-update", "v9", logPath, url, "fa")
 		cmd.Env = append([]string{"PATH=" + bin, "TMPDIR=" + t.TempDir()}, env...)
 		_ = cmd.Run()
 		b, err := os.ReadFile(logPath)
@@ -309,18 +295,5 @@ func TestUpdateRunner(t *testing.T) {
 	}
 	if out = run(srv.URL + "/missing.sh"); !strings.Contains(out, "could not be downloaded") || !strings.HasSuffix(out, "EXIT=1\n") {
 		t.Fatalf("missing script, log:\n%s", out)
-	}
-
-	// The private script needs the saved token, which never shows in the log.
-	if out = run(srv.URL + "/private.sh"); !strings.Contains(out, "could not be downloaded") {
-		t.Fatalf("private script without the token, log:\n%s", out)
-	}
-	tokfile = tokenFile
-	out = run(srv.URL + "/private.sh")
-	if !strings.Contains(out, "args: --unattended --version v9\n") || !strings.HasSuffix(out, "EXIT=0\n") {
-		t.Fatalf("private script with the token, log:\n%s", out)
-	}
-	if strings.Contains(out, "ghp_secret123") {
-		t.Fatalf("the token was written to the log:\n%s", out)
 	}
 }

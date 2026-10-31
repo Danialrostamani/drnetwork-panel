@@ -70,11 +70,6 @@ d en checksum_fail "Checksum does NOT match. The download may be corrupt or tamp
 d en no_checksums "No SHA256SUMS published for this release; skipping checksum verification."
 d en creds_empty "Username and password can not be empty."
 d en creds_failed "Failed to set the admin credentials."
-d en ask_token "Access token (input hidden): "
-d en no_token "This panel's repository is private: an access token is needed. Run the installer in a terminal to type it, or set DRN_TOKEN."
-d en bad_gh_token "That does not look like a GitHub access token."
-d en token_refused "GitHub refused the access token (wrong, expired, or without read access to the repository)."
-d en token_saved "Access token saved for updates."
 d en current_creds "Your current admin credentials:"
 d en cancelled "cancel..."
 d en fresh_random "this is a fresh installation, will generate random login info for security concerns:"
@@ -130,11 +125,6 @@ d fa checksum_fail "مقدار checksum مطابقت ندارد. فایل دان
 d fa no_checksums "برای این نسخه فایل SHA256SUMS منتشر نشده؛ بررسی checksum انجام نشد."
 d fa creds_empty "نام کاربری و رمز عبور نمی‌توانند خالی باشند."
 d fa creds_failed "تنظیم نام کاربری و رمز ادمین ناموفق بود."
-d fa ask_token "توکن دسترسی (نمایش داده نمی‌شود): "
-d fa no_token "مخزن این پنل خصوصی است و توکن دسترسی لازم است. نصب را در ترمینال اجرا کنید تا توکن را وارد کنید، یا DRN_TOKEN را تنظیم کنید."
-d fa bad_gh_token "این شبیه توکن دسترسی گیت‌هاب نیست."
-d fa token_refused "گیت‌هاب توکن را نپذیرفت (اشتباه، منقضی، یا بدون دسترسی خواندن به مخزن)."
-d fa token_saved "توکن دسترسی برای به‌روزرسانی‌ها ذخیره شد."
 d fa current_creds "اطلاعات ورود ادمین فعلی شما:"
 d fa cancelled "لغو شد..."
 d fa fresh_random "این یک نصب تازه است؛ برای امنیت، اطلاعات ورود تصادفی ساخته می شود:"
@@ -646,80 +636,19 @@ prepare_services() {
     fi
 }
 
-
-# The repository is private: every lookup and download goes through the
-# GitHub API with a read-only access token, which works as the installer's
-# password. It comes from DRN_TOKEN, the file an earlier install saved, or a
-# hidden prompt, and is saved root-only for the panel's own updates. It is
-# never put on a command line, where other users could see it.
-gh_repo="Danialrostamani/drnetwork-panel"
-gh_api="https://api.github.com/repos/${gh_repo}"
-gh_token_file="/etc/drnetwork/github-token"
-gh_token=""
-
-load_token() {
-    gh_token="${DRN_TOKEN:-}"
-    if [[ -z "$gh_token" && -r "$gh_token_file" ]]; then
-        IFS= read -r gh_token <"$gh_token_file" || true
+# fetch downloads $1 to $2. --show-progress is wget 1.16+, and older wget
+# (CentOS 7) rejects the whole command over it. -q also hides why a download
+# failed, so on failure curl retries and prints the reason (TLS, DNS, 404).
+# The progress bar is only for a terminal: written to a log (the panel's
+# Update button) it turns into hundreds of lines of dots.
+fetch() {
+    local opts=(-q) bar=(-sS)
+    if [[ -t 2 ]]; then
+        wget --help 2>&1 | grep -q -- '--show-progress' && opts+=(--show-progress)
+        bar=(--progress-bar)
     fi
-    gh_token="${gh_token//[[:space:]]/}"
-    if [[ -z "$gh_token" ]]; then
-        if [[ "$opt_unattended" -eq 1 ]] || ! { : </dev/tty; } 2>/dev/null; then
-            echo -e "${red}$(t no_token)${plain}"
-            exit 1
-        fi
-        read -rsp "$(t ask_token)" gh_token </dev/tty
-        echo
-        gh_token="${gh_token//[[:space:]]/}"
-    fi
-    if [[ ! "$gh_token" =~ ^[A-Za-z0-9_]{20,255}$ ]]; then
-        echo -e "${red}$(t bad_gh_token)${plain}"
-        exit 1
-    fi
-    if ! gh_curl -o /dev/null "$gh_api"; then
-        echo -e "${red}$(t token_refused)${plain}"
-        exit 1
-    fi
-}
-
-save_token() {
-    local old_umask
-    old_umask=$(umask)
-    umask 077
-    mkdir -p "$(dirname "$gh_token_file")"
-    chmod 700 "$(dirname "$gh_token_file")"
-    printf '%s\n' "$gh_token" >"$gh_token_file"
-    chmod 600 "$gh_token_file"
-    umask "$old_umask"
-    echo -e "${green}$(t token_saved)${plain}"
-}
-
-# gh_curl calls the API with the token. curl reads the token's header from a
-# config on a file descriptor (-K, which every curl knows), never from its
-# arguments, which other users of the server can list.
-gh_curl() {
-    curl -fsSL --retry 2 --connect-timeout 20 \
-        -K <(printf 'header = "Authorization: Bearer %s"\n' "$gh_token") \
-        -H "X-GitHub-Api-Version: 2022-11-28" "$@"
-}
-
-# gh_asset downloads the asset named $2 of release $1 to $3. The API answers
-# with a redirect to storage that must not get the token, which curl drops on
-# its own when the redirect leaves the host.
-gh_asset() {
-    local rel url
-    rel=$(gh_curl -H "Accept: application/vnd.github+json" "${gh_api}/releases/tags/$1") || return 1
-    # One field per line, whether GitHub indents its answer or not; an
-    # asset's "url" comes before its "name".
-    url=$(printf '%s\n' "$rel" | tr ',{}' '\n\n\n' | sed -E 's/"[[:space:]]*:[[:space:]]*"/":"/' | awk -v n="\"name\":\"$2\"" '
-        /"url":"https:\/\/api\.github\.com\/repos\/[^"]*\/releases\/assets\/[0-9]+"/ { u = $0 }
-        index($0, n) && u != "" { sub(/.*"url":"/, "", u); sub(/".*/, "", u); print u; exit }')
-    [[ -n "$url" ]] || return 1
-    local bar=(-sS)
-    [[ -t 2 ]] && bar=(--progress-bar)
-    curl -fL "${bar[@]}" --retry 2 --connect-timeout 20 \
-        -K <(printf 'header = "Authorization: Bearer %s"\n' "$gh_token") \
-        -H "Accept: application/octet-stream" -o "$3" "$url"
+    wget "${opts[@]}" -O "$2" "$1" && return 0
+    curl -fL "${bar[@]}" -o "$2" "$1"
 }
 
 # verify_checksum checks the downloaded archive against the SHA256SUMS file the
@@ -765,7 +694,7 @@ install_s-ui() {
     local sums="$workdir/SHA256SUMS"
 
     if [ $# == 0 ]; then
-        last_version=$(gh_curl -H "Accept: application/vnd.github+json" "${gh_api}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+        last_version=$(curl -Ls "https://api.github.com/repos/Danialrostamani/drnetwork-panel/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
         if [[ ! -n "$last_version" ]]; then
             echo -e "${red}$(t fetch_fail)${plain}"
             exit 1
@@ -778,10 +707,11 @@ install_s-ui() {
         printf "$(t begin_install)\n" "${last_version#v}" # the message has its own v
     fi
 
-    # Through the API with the token: release files of a private repository
-    # have no public link. Certificates are always checked: anyone able to
-    # intercept the download would choose the binary that then runs as root.
-    if ! gh_asset "$last_version" "s-ui-linux-$(arch).tar.gz" "$archive"; then
+    # No --no-check-certificate. It was on every download here, which turns the
+    # whole install into an unauthenticated fetch: anyone able to intercept it
+    # chooses the binary that then runs as root.
+    local base="https://github.com/Danialrostamani/drnetwork-panel/releases/download/${last_version}"
+    if ! fetch "${base}/s-ui-linux-$(arch).tar.gz" "$archive"; then
         # Releases ship linux-amd64 only, so on another CPU the download
         # fails for that reason, not because GitHub is unreachable.
         if [[ "$(arch)" != "amd64" ]]; then
@@ -795,7 +725,9 @@ install_s-ui() {
         fi
         exit 1
     fi
-    gh_asset "$last_version" "SHA256SUMS" "$sums" 2>/dev/null || : # older releases have none
+    # Through fetch, which falls back to curl: a failed wget alone used to skip
+    # the checksum check without saying why.
+    fetch "${base}/SHA256SUMS" "$sums" 2>/dev/null || : # older releases have none
     verify_checksum "$archive" "$sums" || exit 1
 
     if [[ -e /usr/local/s-ui/ ]]; then
@@ -831,7 +763,6 @@ install_s-ui() {
         cp -f s-ui/*.service /etc/systemd/system/
     fi
     rm -rf s-ui
-    save_token
 
     config_after_install
     prepare_services
@@ -928,7 +859,6 @@ fi
 
 echo -e "${green}$(t executing)${plain}"
 install_base
-load_token
 if [[ -n "$opt_version" ]]; then
     install_s-ui "$opt_version"
 else

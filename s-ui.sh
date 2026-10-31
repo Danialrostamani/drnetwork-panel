@@ -82,79 +82,21 @@ before_show_menu() {
     show_menu
 }
 
-# The repository is private. Scripts and releases come through the GitHub
-# API with a read-only access token, saved root-only by the installer; it is
-# the password that lets this server install and update the panel.
-gh_repo="Danialrostamani/drnetwork-panel"
-gh_token_file="/etc/drnetwork/github-token"
-
-# read_token prints the saved token, or asks for one when none is saved.
-read_token() {
-    local tok=""
-    if [[ -r "$gh_token_file" ]]; then
-        IFS= read -r tok <"$gh_token_file" || true
-    fi
-    tok="${tok//[[:space:]]/}"
-    if [[ -z "$tok" ]]; then
-        read -rsp "Access token (input hidden): " tok </dev/tty
-        echo >&2
-        tok="${tok//[[:space:]]/}"
-    fi
-    printf '%s' "$tok"
-}
-
-# gh_raw downloads file $1 of the repository's main branch to $2 with token $3.
-# curl reads the token's header from a config on a file descriptor (-K), out
-# of sight of other users listing the server's processes.
-gh_raw() {
-    curl -fsSL --retry 2 --connect-timeout 20 \
-        -K <(printf 'header = "Authorization: Bearer %s"\n' "$3") \
-        -H "Accept: application/vnd.github.raw" -H "X-GitHub-Api-Version: 2022-11-28" \
-        -o "$2" "https://api.github.com/repos/${gh_repo}/contents/$1?ref=main"
-}
-
-# run_installer fetches install.sh with the token and runs it with "$@".
+# run_installer downloads install.sh and runs it with "$@". It goes to a file
+# first: piped straight into bash, a failed download ran an error page, or
+# nothing at all and reported success.
 run_installer() {
-    local tok script rc
-    tok=$(read_token)
-    if [[ -z "$tok" ]]; then
-        LOGE "An access token is needed: the panel's repository is private."
+    local f rc
+    f=$(mktemp "${TMPDIR:-/tmp}/s-ui-install.XXXXXXXX") || return 1
+    if ! curl -fsSL --retry 2 --connect-timeout 20 -o "$f" https://raw.githubusercontent.com/Danialrostamani/drnetwork-panel/main/install.sh; then
+        rm -f "$f"
+        LOGE "The install script could not be downloaded, Please check whether the machine can connect Github"
         return 1
     fi
-    script=$(mktemp "${TMPDIR:-/tmp}/s-ui-install.XXXXXXXX") || return 1
-    if ! gh_raw install.sh "$script" "$tok"; then
-        rm -f "$script"
-        LOGE "The install script could not be downloaded: check the access token (s-ui token) and that this server can reach GitHub."
-        return 1
-    fi
-    DRN_TOKEN="$tok" bash "$script" "$@"
+    bash "$f" "$@"
     rc=$?
-    rm -f "$script"
+    rm -f "$f"
     return $rc
-}
-
-# set_token replaces the saved access token, after GitHub accepts it.
-set_token() {
-    local tok
-    read -rsp "New access token (input hidden): " tok </dev/tty
-    echo
-    tok="${tok//[[:space:]]/}"
-    if [[ ! "$tok" =~ ^[A-Za-z0-9_]{20,255}$ ]]; then
-        LOGE "That does not look like a GitHub access token."
-        return 1
-    fi
-    if ! gh_raw install.sh /dev/null "$tok"; then
-        LOGE "GitHub refused the token (wrong, expired, or without read access to the repository)."
-        return 1
-    fi
-    (
-        umask 077
-        mkdir -p "$(dirname "$gh_token_file")"
-        chmod 700 "$(dirname "$gh_token_file")"
-        printf '%s\n' "$tok" >"$gh_token_file"
-        chmod 600 "$gh_token_file"
-    )
-    LOGI "Access token saved."
 }
 
 install() {
@@ -413,28 +355,21 @@ show_log() {
 }
 
 update_shell() {
-    # Certificate verification stays on: this file is about to be installed as
-    # /usr/bin/s-ui and run as root.
-    local tok tmp
-    tok=$(read_token)
+    local tmp
     tmp=$(mktemp "${TMPDIR:-/tmp}/s-ui-sh.XXXXXXXX") || return 1
-    if ! gh_raw s-ui.sh "$tmp" "$tok" || ! bash -n "$tmp"; then
+    # Into a file first, checked, then put in place: written straight over
+    # /usr/bin/s-ui, a failed download left a broken command behind.
+    # Certificate verification stays on: this runs as root.
+    if ! curl -fsSL --retry 2 --connect-timeout 20 -o "$tmp" https://raw.githubusercontent.com/Danialrostamani/drnetwork-panel/main/s-ui.sh || ! bash -n "$tmp"; then
         rm -f "$tmp"
         echo ""
-        LOGE "Failed to download script, Please check the access token (s-ui token) and whether the machine can connect Github"
+        LOGE "Failed to download script, Please check whether the machine can connect Github"
         before_show_menu
         return
     fi
     install -m 755 "$tmp" /usr/bin/s-ui
     rm -f "$tmp"
-    if [[ $? != 0 ]]; then
-        echo ""
-        LOGE "Failed to download script, Please check whether the machine can connect Github"
-        before_show_menu
-    else
-        chmod +x /usr/bin/s-ui
-        LOGI "Upgrade script succeeded, Please rerun the script" && exit 0
-    fi
+    LOGI "Upgrade script succeeded, Please rerun the script" && exit 0
 }
 
 check_status() {
@@ -999,7 +934,6 @@ show_usage() {
     echo -e "s-ui update       - Update"
     echo -e "s-ui install      - Install"
     echo -e "s-ui uninstall    - Uninstall"
-    echo -e "s-ui token        - Replace the GitHub access token"
     echo -e "s-ui help         - Control Menu Usage"
     echo -e "------------------------------------------"
 }
@@ -1140,9 +1074,6 @@ if [[ $# > 0 ]]; then
         ;;
     "uninstall")
         check_install 0 && uninstall 0
-        ;;
-    "token")
-        set_token
         ;;
     *) show_usage ;;
     esac
