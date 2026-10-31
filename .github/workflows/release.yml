@@ -30,15 +30,15 @@ jobs:
     needs: test
     # A skipped gate is not a failed one, so the build still runs on a tag.
     if: ${{ always() && needs.test.result != 'failure' && needs.test.result != 'cancelled' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Checkout repository (frontend only)
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 1
 
       - name: Setup Node.js
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
@@ -47,7 +47,7 @@ jobs:
       - name: Build frontend
         run: |
           cd frontend
-          npm install
+          npm ci
           npm run build
           cd ..
 
@@ -68,10 +68,16 @@ jobs:
       matrix:
         include:
           - { platform: amd64, arch: amd64, bootlin: x86-64, naive: true }
-    runs-on: ubuntu-latest
+          - { platform: arm64, arch: arm64, bootlin: aarch64, naive: true }
+          - { platform: armv7, arch: arm, goarm: "7", bootlin: armv7-eabihf, naive: true }
+          - { platform: armv6, arch: arm, goarm: "6", bootlin: armv6-eabihf, naive: false }
+          - { platform: armv5, arch: arm, goarm: "5", bootlin: armv5-eabi, naive: false }
+          - { platform: "386", arch: "386", bootlin: x86-i686, naive: true }
+          - { platform: s390x, arch: s390x, bootlin: s390x-z13, naive: false }
+    runs-on: ubuntu-26.04
     steps:
       - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Download frontend dist
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
@@ -80,10 +86,21 @@ jobs:
           path: web/html
 
       - name: Setup Go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           cache: false
           go-version-file: go.mod
+
+      - name: Locate Go module cache
+        id: go-env
+        run: echo "modcache=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Go module cache
+        id: go-mod-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ${{ steps.go-env.outputs.modcache }}
+          key: go-mod-${{ runner.os }}-${{ hashFiles('go.sum') }}
 
       - name: Resolve cronet-go commit
         if: matrix.naive
@@ -117,7 +134,7 @@ jobs:
       - name: Cache Chromium toolchain
         if: matrix.naive
         id: cache-chromium-toolchain
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: |
             ~/cronet-go/naiveproxy/src/third_party/llvm-build/
@@ -189,6 +206,13 @@ jobs:
           echo "go mod download failed after 5 attempts" >&2
           exit 1
 
+      - name: Save Go module cache
+        if: matrix.platform == 'amd64' && steps.go-mod-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ${{ steps.go-env.outputs.modcache }}
+          key: ${{ steps.go-mod-cache.outputs.cache-primary-key }}
+
       - name: Build s-ui
         run: |
           set -e
@@ -226,7 +250,7 @@ jobs:
       needs.build-linux.result == 'success' &&
       ((github.event_name == 'release' && github.event.action == 'published') ||
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')))
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     permissions:
       contents: write
     steps:

@@ -6,9 +6,11 @@
 FROM --platform=$BUILDPLATFORM node:26-alpine@sha256:ef24c5053d50fdc3e4e56eb4e7ddb7861874ab0fdc797046ba897581deb8e868 AS front-builder
 WORKDIR /app
 COPY frontend/ ./
-RUN npm install && npm run build
+RUN npm ci && npm run build
 
-FROM golang:1.26-alpine@sha256:ce864e7223ac17b1775e6fd0b4c0db580c2eb50e7953a427916379e4b92a1628 AS backend-builder
+# go.mod asks for Go 1.27; the official image builds with GOTOOLCHAIN=local,
+# so a 1.26 image cannot build this module at all.
+FROM golang:1.27-alpine AS backend-builder
 WORKDIR /app
 ARG TARGETARCH
 ARG TARGETVARIANT
@@ -35,6 +37,10 @@ RUN CRONET_ARCH="$TARGETARCH" && \
     echo "Downloading $CRONET_URL" && \
     wget -q -O ./libcronet.so "$CRONET_URL" && \
     chmod 755 ./libcronet.so
+
+# Modules in their own layer, so a source-only change keeps them cached.
+COPY go.mod go.sum ./
+RUN go mod download
 
 COPY . .
 COPY --from=front-builder /app/dist/ /app/web/html/
