@@ -336,30 +336,27 @@ func loadConfig() (botConfig, error) {
 	}, nil
 }
 
-type bot struct {
-	cfg           botConfig
-	client        *http.Client
-	loc           *time.Location
-	configService *service.ConfigService
-	pend          *pendingStore
-	menus         *menuState
+// stores is the bot's shared, mutable conversation state. Every field is a
+// pointer (or a sync.Map), so every copy of the bot shares one set of stores.
+type stores struct {
+	pend  *pendingStore
+	menus *menuState
 	// seen throttles customer visit records; desks is the seller whose shop
 	// the owner edits, per chat; drafts are the owner's unsent broadcasts.
 	seen   *customerSeen
 	desks  *sync.Map
 	drafts *sync.Map
+}
 
-	// acc is who may do what. It is live: the supervisor and the owner's edits
-	// replace it while the bot runs, and every copy of the bot shares it.
-	acc *accessState
-
-	// The fields below describe the administrator being served. They are only
-	// ever set on the per-update copy that as returns, never on the bot the
-	// supervisor and the watcher use, which can reach everything.
-	//
-	// scope is the one client group the administrator may see and manage;
-	// sections, when not nil, are the only sections they may use; owner tells
-	// the owner; self is their Telegram ID.
+// identity describes the administrator being served. It is only ever set on
+// the per-update copy that as returns, never on the bot the supervisor and the
+// watcher use, which can reach everything. It is a value, so each copy of the
+// bot carries its own.
+//
+// scope is the one client group the administrator may see and manage;
+// sections, when not nil, are the only sections they may use; owner tells
+// the owner; self is their Telegram ID.
+type identity struct {
 	scope    string
 	sections sectionSet
 	owner    bool
@@ -371,6 +368,25 @@ type bot struct {
 	// globalShop is a temporary, authorized management view. It changes the
 	// shop/report context, never the acting Telegram identity or owner flag.
 	globalShop bool
+}
+
+// bot groups three kinds of state: the wiring (cfg, client, loc,
+// configService), the shared state (stores, acc), and the identity of whoever
+// the current update is served for. The embedded types keep every existing
+// b.pend / b.owner / b.scope reference working while making the boundary
+// between the three explicit.
+type bot struct {
+	cfg           botConfig
+	client        *http.Client
+	loc           *time.Location
+	configService *service.ConfigService
+
+	// acc is who may do what. It is live: the supervisor and the owner's edits
+	// replace it while the bot runs, and every copy of the bot shares it.
+	acc *accessState
+
+	stores
+	identity
 }
 
 func newBot(cfg botConfig) *bot {
@@ -395,12 +411,14 @@ func newBot(cfg botConfig) *bot {
 		cfg:    cfg,
 		client: &http.Client{Timeout: (pollTimeoutSeconds + 20) * time.Second, Transport: transport},
 		loc:    loc,
-		pend:   &pendingStore{},
-		menus:  &menuState{},
 		acc:    newAccessState(cfg.access()),
-		seen:   &customerSeen{},
-		desks:  &sync.Map{},
-		drafts: &sync.Map{},
+		stores: stores{
+			pend:   &pendingStore{},
+			menus:  &menuState{},
+			seen:   &customerSeen{},
+			desks:  &sync.Map{},
+			drafts: &sync.Map{},
+		},
 	}
 }
 
