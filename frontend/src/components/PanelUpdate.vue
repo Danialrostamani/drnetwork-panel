@@ -216,7 +216,7 @@ const manualCommand = computed(() => {
     case 'os':
       return ''
     default:
-      return installBootstrap
+      return installBootstrap()
   }
 })
 

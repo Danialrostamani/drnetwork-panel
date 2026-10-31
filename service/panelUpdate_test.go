@@ -254,7 +254,7 @@ func TestUpdateRunner(t *testing.T) {
 		}
 	}
 	bash := filepath.Join(bin, "bash")
-	for _, need := range [][]string{{"bash"}, {"mktemp"}, {"rm"}, {"curl", "wget"}} {
+	for _, need := range [][]string{{"bash"}, {"mktemp"}, {"rm"}, {"curl"}} {
 		found := false
 		for _, tool := range need {
 			if _, err := os.Lstat(filepath.Join(bin, tool)); err == nil {

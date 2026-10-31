@@ -694,24 +694,13 @@ save_token() {
     echo -e "${green}$(t token_saved)${plain}"
 }
 
-# gh_auth is curl's header argument for the token. From curl 7.55 the header
-# goes in through a file descriptor, so the token is not in curl's arguments,
-# which other users of the server can list; an older curl gets it plainly.
-gh_auth() {
-    local v
-    v=$(curl --version 2>/dev/null | awk 'NR == 1 { print $2 }')
-    if [[ "$(printf '%s\n7.55.0\n' "$v" | sort -V | head -n1)" == "7.55.0" ]]; then
-        printf '%s\n' "@/dev/fd/3"
-    else
-        printf 'Authorization: Bearer %s\n' "$gh_token"
-    fi
-}
-
-# gh_curl calls the API with the token.
+# gh_curl calls the API with the token. curl reads the token's header from a
+# config on a file descriptor (-K, which every curl knows), never from its
+# arguments, which other users of the server can list.
 gh_curl() {
-    curl -fsSL --retry 2 --connect-timeout 20 -H "$(gh_auth)" \
-        -H "X-GitHub-Api-Version: 2022-11-28" "$@" \
-        3< <(printf 'Authorization: Bearer %s\n' "$gh_token")
+    curl -fsSL --retry 2 --connect-timeout 20 \
+        -K <(printf 'header = "Authorization: Bearer %s"\n' "$gh_token") \
+        -H "X-GitHub-Api-Version: 2022-11-28" "$@"
 }
 
 # gh_asset downloads the asset named $2 of release $1 to $3. The API answers
@@ -728,9 +717,9 @@ gh_asset() {
     [[ -n "$url" ]] || return 1
     local bar=(-sS)
     [[ -t 2 ]] && bar=(--progress-bar)
-    curl -fL "${bar[@]}" --retry 2 --connect-timeout 20 -H "$(gh_auth)" \
-        -H "Accept: application/octet-stream" -o "$3" "$url" \
-        3< <(printf 'Authorization: Bearer %s\n' "$gh_token")
+    curl -fL "${bar[@]}" --retry 2 --connect-timeout 20 \
+        -K <(printf 'header = "Authorization: Bearer %s"\n' "$gh_token") \
+        -H "Accept: application/octet-stream" -o "$3" "$url"
 }
 
 # verify_checksum checks the downloaded archive against the SHA256SUMS file the

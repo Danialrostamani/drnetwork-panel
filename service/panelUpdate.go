@@ -210,7 +210,7 @@ func checkUpdateHost() (updateHost, string) {
 		return updateHost{}, "root"
 	}
 	h := updateHost{dir: updateInstallDir}
-	if h.bash, err = exec.LookPath("bash"); err != nil || (!hasCommand("curl") && !hasCommand("wget")) {
+	if h.bash, err = exec.LookPath("bash"); err != nil || !hasCommand("curl") {
 		return updateHost{}, "tools"
 	}
 	if st, err := os.Stat("/run/systemd/system"); err == nil && st.IsDir() && hasCommand("systemd-run") {
@@ -251,17 +251,18 @@ exec >>"$log" 2>&1 </dev/null
 dir=$(mktemp -d "${TMPDIR:-/tmp}/s-ui-update.XXXXXXXX") || { echo "EXIT=1"; exit 1; }
 cd "$dir" || { echo "EXIT=1"; exit 1; }
 rc=1
-# The token is read here, never passed on a command line another user could see.
-auth=""
+# The token is read here and handed to curl in a config on a file descriptor:
+# never on a command line, where other users of the server could list it.
+tok=""
 if [ -n "$tokfile" ] && [ -r "$tokfile" ]; then
 	IFS= read -r tok <"$tokfile" || true
 	tok="${tok//[[:space:]]/}"
-	[ -n "$tok" ] && auth="Authorization: Bearer $tok"
 fi
-accept="Accept: application/vnd.github.raw"
 echo "Downloading $url"
-if { command -v curl >/dev/null 2>&1 && curl -fsSL --retry 2 --connect-timeout 20 -H "$accept" ${auth:+-H "$auth"} -o "$dir/install.sh" "$url"; } ||
-	{ command -v wget >/dev/null 2>&1 && wget -q -T 20 --header="$accept" ${auth:+--header="$auth"} -O "$dir/install.sh" "$url"; }; then
+if command -v curl >/dev/null 2>&1 &&
+	curl -fsSL --retry 2 --connect-timeout 20 -H "Accept: application/vnd.github.raw" \
+		-K <(if [ -n "$tok" ]; then printf 'header = "Authorization: Bearer %s"\n' "$tok"; fi) \
+		-o "$dir/install.sh" "$url"; then
 	SUI_LANG="$lang" bash "$dir/install.sh" --unattended --version "$tag"
 	rc=$?
 else

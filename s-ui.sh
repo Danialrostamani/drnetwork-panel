@@ -104,18 +104,13 @@ read_token() {
 }
 
 # gh_raw downloads file $1 of the repository's main branch to $2 with token $3.
-# From curl 7.55 the token goes in through a file descriptor, out of sight of
-# other users listing the server's processes.
+# curl reads the token's header from a config on a file descriptor (-K), out
+# of sight of other users listing the server's processes.
 gh_raw() {
-    local auth="@/dev/fd/3" v
-    v=$(curl --version 2>/dev/null | awk 'NR == 1 { print $2 }')
-    if [[ "$(printf '%s\n7.55.0\n' "$v" | sort -V | head -n1)" != "7.55.0" ]]; then
-        auth="Authorization: Bearer $3"
-    fi
-    curl -fsSL --retry 2 --connect-timeout 20 -H "$auth" \
+    curl -fsSL --retry 2 --connect-timeout 20 \
+        -K <(printf 'header = "Authorization: Bearer %s"\n' "$3") \
         -H "Accept: application/vnd.github.raw" -H "X-GitHub-Api-Version: 2022-11-28" \
-        -o "$2" "https://api.github.com/repos/${gh_repo}/contents/$1?ref=main" \
-        3< <(printf 'Authorization: Bearer %s\n' "$3")
+        -o "$2" "https://api.github.com/repos/${gh_repo}/contents/$1?ref=main"
 }
 
 # run_installer fetches install.sh with the token and runs it with "$@".
