@@ -550,9 +550,21 @@ func (s *ConfigService) Save(obj string, act string, data json.RawMessage, initU
 		}
 		live.restart = true
 	case "settings":
+		remarkPrefix := s.SettingService.SubRemarkPrefix(tx)
 		err = s.SettingService.Save(tx, data)
 		if err == nil {
 			invalidateNodeLinkRules()
+		}
+		// Stored client links carry the remark prefix, so flipping it has to
+		// rebuild them, the way a TLS edit does. The links to the nodes'
+		// inbounds follow when the nodes are synced (see ApiService.Save).
+		if err == nil && s.SettingService.SubRemarkPrefix(tx) != remarkPrefix {
+			var inbounds []model.Inbound
+			err = tx.Model(model.Inbound{}).Preload("Tls").Where("node_id IS NULL").Find(&inbounds).Error
+			if err == nil {
+				err = s.ClientService.UpdateLinksByInboundChange(tx, &inbounds, hostname, "")
+				objs = append(objs, "clients")
+			}
 		}
 	case "nodes":
 		err = s.NodeService.Save(tx, act, data)

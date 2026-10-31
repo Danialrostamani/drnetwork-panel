@@ -9,6 +9,7 @@ import (
 
 	"github.com/Danialrostamani/drnetwork-panel/database"
 	"github.com/Danialrostamani/drnetwork-panel/database/model"
+	"github.com/Danialrostamani/drnetwork-panel/service"
 	"github.com/Danialrostamani/drnetwork-panel/util"
 )
 
@@ -35,6 +36,16 @@ type namer struct {
 	// nodes are the names of the nodes, read when first needed: only links
 	// of a real node are the panel's to rename.
 	nodes map[string]bool
+}
+
+// nodeRemark is the remark link and node names start with: the client's own,
+// or none when the subRemarkPrefix setting turns the prefix off. The stored
+// links were built the same way, so reading them back uses it too.
+func nodeRemark(c *model.Client) string {
+	if db := database.GetDB(); db != nil && !(&service.SettingService{}).SubRemarkPrefix(db) {
+		return ""
+	}
+	return c.Remark
 }
 
 func newNamer(c *model.Client) *namer {

@@ -119,7 +119,7 @@ func (j *JsonService) namedOutboundsDetailed(client *model.Client, inbounds []*m
 	n := newNamer(client)
 	n.reserve(reserved...)
 	links := service.FilterNodeLinks(client)
-	extOutbounds, _, extInfos := j.LinkService.externalOutbounds(&links, n, client.Remark, forClash)
+	extOutbounds, _, extInfos := j.LinkService.externalOutbounds(&links, n, nodeRemark(client), forClash)
 	*outbounds = append(*outbounds, extOutbounds...)
 	infos = append(infos, extInfos...)
 	tags := n.renameOutbounds(*outbounds, infos)
@@ -175,7 +175,7 @@ func (j *JsonService) getOutbounds(client *model.Client, inbounds []*model.Inbou
 	var outTags []string
 	var infos []*linkInfo
 	takenTags := make(map[string]bool)
-	clientRemark := client.Remark
+	clientRemark := nodeRemark(client)
 
 	err := json.Unmarshal(client.Config, &configs)
 	if err != nil {
@@ -246,7 +246,10 @@ func (j *JsonService) getOutbounds(client *model.Client, inbounds []*model.Inbou
 			return &linkInfo{inbound: inData.Tag, route: strings.TrimSpace(route), protocol: protocol,
 				network: outboundNetwork(out, protocol), server: server, port: portOf(out["server_port"])}
 		}
-		if len(addrs) == 0 {
+		// A realm client finds the server through the realm, so the inbound's
+		// addresses have nothing to override. (S-UI #1317.)
+		_, viaRealm := outbound["realm"]
+		if len(addrs) == 0 || viaRealm {
 			info := infoFor(outbound, "")
 			tag = util.JoinRemark(clientRemark, tag)
 			takenTags[tag] = true

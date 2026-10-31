@@ -52,7 +52,7 @@ func TestNodeReplicaLinksMatchLocal(t *testing.T) {
 			continue
 		}
 		client := &model.Client{Name: "u1", Config: cfg}
-		nl := genNodeReplicaLinks(rep, client, "")
+		nl := genNodeReplicaLinks(rep, client, "", client.Remark)
 		ll := util.LinkGenerator(cfg, &in, "node.example", "", "u1")
 		if len(nl) == 0 || strings.Join(nl, "\n") != strings.Join(ll, "\n") {
 			t.Errorf("%s: node links %v, local links %v", c.name, nl, ll)
@@ -72,17 +72,17 @@ func TestNodeReplicaLinksUseNodeHostForLoopback(t *testing.T) {
 	for _, server := range []string{"127.0.0.1", "localhost", "::1", "0.0.0.0", ""} {
 		out, _ := json.Marshal(map[string]interface{}{"type": "vless", "tag": "v", "server": server, "server_port": 443})
 		replica := &model.Inbound{Type: "vless", Tag: "v", Options: json.RawMessage(`{"listen_port":443}`), OutJson: out, Addrs: json.RawMessage(`[]`)}
-		links := genNodeReplicaLinks(replica, client, nodeLinkHost("https://node.example:2095"))
+		links := genNodeReplicaLinks(replica, client, nodeLinkHost("https://node.example:2095"), client.Remark)
 		if len(links) != 1 || !strings.Contains(links[0], "@node.example:443") {
 			t.Errorf("server %q: links %v", server, links)
 		}
-		if links := genNodeReplicaLinks(replica, client, nodeLinkHost("https://127.0.0.1:2095")); len(links) != 0 {
+		if links := genNodeReplicaLinks(replica, client, nodeLinkHost("https://127.0.0.1:2095"), client.Remark); len(links) != 0 {
 			t.Errorf("server %q with a loopback panel address: links %v", server, links)
 		}
 	}
 	out, _ := json.Marshal(map[string]interface{}{"type": "vless", "tag": "v", "server": "real.example", "server_port": 443})
 	replica := &model.Inbound{Type: "vless", Tag: "v", Options: json.RawMessage(`{"listen_port":443}`), OutJson: out, Addrs: json.RawMessage(`[]`)}
-	if links := genNodeReplicaLinks(replica, client, "node.example"); len(links) != 1 || !strings.Contains(links[0], "@real.example:443") {
+	if links := genNodeReplicaLinks(replica, client, "node.example", client.Remark); len(links) != 1 || !strings.Contains(links[0], "@real.example:443") {
 		t.Errorf("own address replaced: %v", links)
 	}
 }

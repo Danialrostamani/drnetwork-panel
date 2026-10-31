@@ -33,7 +33,7 @@ func (s *SubService) GetSubs(subId string) (*string, []string, error) {
 
 	// Without the links of a node that does not serve this client right now.
 	links := service.FilterNodeLinks(client)
-	linksArray := s.LinkService.GetLinks(&links, "all", clientInfo, newNamer(client), client.Remark)
+	linksArray := s.LinkService.GetLinks(&links, "all", clientInfo, newNamer(client), nodeRemark(client))
 	result := strings.Join(linksArray, "\n")
 
 	headers := s.getClientHeaders(client)

@@ -566,6 +566,7 @@ func clientNameJSON(name string) json.RawMessage {
 }
 
 func (s *ClientService) updateLinksWithFixedInbounds(tx *gorm.DB, clients []*model.Client, hostname string) error {
+	remarkPrefix := (&SettingService{}).SubRemarkPrefix(tx)
 	clientInboundIds := make([][]uint, len(clients))
 	var allIds []uint
 	for i, client := range clients {
@@ -634,7 +635,7 @@ func (s *ClientService) updateLinksWithFixedInbounds(tx *gorm.DB, clients []*mod
 			if !ok {
 				continue
 			}
-			newLinks := util.LinkGenerator(client.Config, inbound, hostname, client.Remark, client.Name)
+			newLinks := util.LinkGenerator(client.Config, inbound, hostname, linkRemark(remarkPrefix, client.Remark), client.Name)
 			for _, newLink := range newLinks {
 				newClientLinks = append(newClientLinks, map[string]string{
 					"remark": inbound.Tag,
@@ -657,7 +658,7 @@ func (s *ClientService) updateLinksWithFixedInbounds(tx *gorm.DB, clients []*mod
 				continue
 			}
 			prefix := nodeLinkPrefix(node.Name)
-			for _, uri := range genNodeReplicaLinks(replica, client, nodeLinkHost(node.BaseUrl)) {
+			for _, uri := range genNodeReplicaLinks(replica, client, nodeLinkHost(node.BaseUrl), linkRemark(remarkPrefix, client.Remark)) {
 				if _, seen := fresh[node.Name]; !seen {
 					freshOrder = append(freshOrder, node.Name)
 				}
@@ -696,6 +697,7 @@ func (s *ClientService) updateLinksWithFixedInbounds(tx *gorm.DB, clients []*mod
 }
 
 func (s *ClientService) UpdateClientsOnInboundAdd(tx *gorm.DB, initIds string, inboundId uint, hostname string) error {
+	remarkPrefix := (&SettingService{}).SubRemarkPrefix(tx)
 	clientIds := strings.Split(initIds, ",")
 	var clients []model.Client
 	err := tx.Model(model.Client{}).Where("id in ?", clientIds).Find(&clients).Error
@@ -719,7 +721,7 @@ func (s *ClientService) UpdateClientsOnInboundAdd(tx *gorm.DB, initIds string, i
 		// Add links
 		var clientLinks, newClientLinks []map[string]string
 		json.Unmarshal(client.Links, &clientLinks)
-		newLinks := util.LinkGenerator(client.Config, &inbound, hostname, client.Remark, client.Name)
+		newLinks := util.LinkGenerator(client.Config, &inbound, hostname, linkRemark(remarkPrefix, client.Remark), client.Name)
 		for _, newLink := range newLinks {
 			newClientLinks = append(newClientLinks, map[string]string{
 				"remark": inbound.Tag,
@@ -797,6 +799,7 @@ func (s *ClientService) UpdateClientsOnInboundDelete(tx *gorm.DB, id uint, tag s
 }
 
 func (s *ClientService) UpdateLinksByInboundChange(tx *gorm.DB, inbounds *[]model.Inbound, hostname string, oldTag string) error {
+	remarkPrefix := (&SettingService{}).SubRemarkPrefix(tx)
 	var err error
 	for _, inbound := range *inbounds {
 		var clientIds []uint
@@ -815,7 +818,7 @@ func (s *ClientService) UpdateLinksByInboundChange(tx *gorm.DB, inbounds *[]mode
 		for _, client := range clients {
 			var clientLinks, newClientLinks []map[string]string
 			json.Unmarshal(client.Links, &clientLinks)
-			newLinks := util.LinkGenerator(client.Config, &inbound, hostname, client.Remark, client.Name)
+			newLinks := util.LinkGenerator(client.Config, &inbound, hostname, linkRemark(remarkPrefix, client.Remark), client.Name)
 			for _, newLink := range newLinks {
 				newClientLinks = append(newClientLinks, map[string]string{
 					"remark": inbound.Tag,

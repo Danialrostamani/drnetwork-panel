@@ -164,6 +164,7 @@ func ServiceRegistry() *service.Registry {
 	ocm.RegisterService(registry)
 	registerOOMKillerService(registry)
 	registerUSBIPServices(registry)
+	hysteria2.RegisterRealmService(registry)
 
 	return registry
 }

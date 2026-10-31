@@ -91,6 +91,7 @@ var defaultValueMap = map[string]string{
 	"subUpdates":         "12",
 	"subEncode":          "true",
 	"subShowInfo":        "false",
+	"subRemarkPrefix":    "true",
 	"subPage":            "true",
 	"subPageConf":        "{}",
 	"subLoadOrder":       "false",
@@ -411,6 +412,28 @@ func (s *SettingService) GetSubUpdates() (int, error) {
 
 func (s *SettingService) GetSubEncode() (bool, error) {
 	return s.getBool("subEncode")
+}
+
+// SubRemarkPrefix reports whether link and node names start with the
+// client's remark. It reads through db so a settings save sees the value it
+// is writing. (S-UI #1322.)
+func (s *SettingService) SubRemarkPrefix(db *gorm.DB) bool {
+	setting := &model.Setting{}
+	value := defaultValueMap["subRemarkPrefix"]
+	if err := db.Model(model.Setting{}).Where("key = ?", "subRemarkPrefix").First(setting).Error; err == nil {
+		value = setting.Value
+	}
+	enabled, err := strconv.ParseBool(value)
+	return err != nil || enabled
+}
+
+// linkRemark is the remark names are prefixed with: the client's own, or none
+// when the subRemarkPrefix setting turns the prefix off.
+func linkRemark(prefix bool, remark string) string {
+	if !prefix {
+		return ""
+	}
+	return remark
 }
 
 func (s *SettingService) GetSubShowInfo() (bool, error) {
