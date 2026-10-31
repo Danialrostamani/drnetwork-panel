@@ -505,11 +505,26 @@ func (m *nodeMonitorState) observe(n *model.Node, st *NodeStatus, prev *NodeStat
 	}
 
 	st.Warnings = nodeWarnings(n, st, masterVersion, now)
-	if masterVersion != "" {
+	if target := nodeUpdateTarget(masterVersion); target != "" {
 		v := nodeVersion(st)
-		st.Outdated = v != "" && versionOlder(v, masterVersion)
+		st.Outdated = v != "" && versionOlder(v, target)
 	}
 }
+
+// nodeUpdateTarget is the version a node is measured against for the Nodes
+// page's update button: the master's own, or the latest release when that is
+// newer. Against the master alone, nodes on the same old release as a master
+// that has not been updated yet were never offered the update.
+func nodeUpdateTarget(masterVersion string) string {
+	target := masterVersion
+	if latest := latestTagFor(); latest != "" && (target == "" || versionOlder(target, latest)) {
+		target = latest
+	}
+	return target
+}
+
+// latestTagFor is cachedLatestTag, a variable so tests need no network.
+var latestTagFor = cachedLatestTag
 
 // settle finishes a status once the round's history is written and summed: it
 // takes the uptime and the traffic summary, and decides whether the node's
