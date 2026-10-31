@@ -485,6 +485,7 @@ export default {
     },
   },
   setting: {
+    balanceMoved: "Spreading users over the nodes (balancing) is now set on the page:",
     tgBot: "Telegram Bot",
     tgBotTabBot: "Bot",
     tgBotTabShop: "Default shop",
@@ -695,6 +696,15 @@ export default {
     nextReset: "Next Reset",
   },
   node: {
+    balance: {
+      title: "Spreading users over the nodes",
+      unsaved: "Not saved",
+      saved: "Balancing saved",
+      modeOff: "Off",
+      modeLeastLoaded: "Least loaded first",
+      modeWeights: "By percentage",
+      modeSmart: "By capacity",
+    },
     orphans: {
       title: "Links of deleted nodes",
       desc: "Some clients still carry links of nodes that no longer exist, so their subscriptions show servers that are gone.",

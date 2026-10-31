@@ -260,6 +260,8 @@
       </div>
     </v-card>
 
+    <NodeBalance />
+
     <v-row
       align="center"
       class="mb-1"
@@ -727,6 +729,7 @@ import NodeBackup from '@/layouts/modals/NodeBackup.vue'
 import NodeCard from '@/components/node/NodeCard.vue'
 import NodeMenu from '@/components/node/NodeMenu.vue'
 import OrphanLinks from '@/components/node/OrphanLinks.vue'
+import NodeBalance from '@/components/node/NodeBalance.vue'
 import { fmtBytes, fmtPercent, fmtSpeed, fmtUptime } from '@/components/node/format'
 import { warningText } from '@/components/node/warnings'
 import { runNodeAction } from '@/components/node/actions'

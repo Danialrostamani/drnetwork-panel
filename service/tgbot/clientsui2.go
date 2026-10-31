@@ -86,9 +86,15 @@ func (b *bot) clientEditScreen(c model.Client) (string, [][]button) {
 	kb := [][]button{
 		{a("👤 نام", "👤 Name", "name"), a("📝 توضیح", "📝 Description", "desc"), a("🗒 یادداشت", "🗒 Remark", "rem")},
 		volRow,
+	}
+	// +10 GB without leaving this screen; unlimited volume has nothing to add to.
+	if c.Volume > 0 {
+		kb = append(kb, []button{{Text: b.tr("➕ ۱۰ گیگ حجم", "➕ 10 GB volume"), Data: "c:e10:" + id}})
+	}
+	kb = append(kb, [][]button{
 		{a("⏳ روز تا انقضا", "⏳ Days left", "days"), a("📅 تاریخ انقضا", "📅 Expiry date", "exp")},
 		{{Text: onOff(c.DelayStart) + " " + b.tr("شروع با اولین مصرف", "Delay start"), Data: "c:dly:" + id}, {Text: onOff(c.AutoReset) + " " + b.tr("ریست خودکار", "Auto reset"), Data: "c:ar:" + id}},
-	}
+	}...)
 	if c.DelayStart || c.AutoReset {
 		kb = append(kb, []button{a("🔁 روزهای ریست", "🔁 Reset days", "rd")})
 	}
@@ -961,7 +967,7 @@ func (b *bot) clientCallbackExt(ctx context.Context, cbID string, chatID, msgID 
 			b.tr("این قالب را ویرایش و بفرستید (متن یا فایل .json). فیلدهای حذف‌شده مقدار پیش‌فرض می‌گیرند؛ اگر inbounds خالی باشد به همه اینباندها وصل می‌شود.", "Edit this template and send it back (text or .json file). Omitted fields use defaults; an empty inbounds list attaches the client to every inbound.")+
 			"\n<pre>"+esc(tpl)+"</pre>", [][]button{b.cancelRow()})
 		return true
-	case "edit", "cfg", "cfga", "cfgp", "xl", "xld", "json", "dly", "ar", "sg":
+	case "edit", "e10", "cfg", "cfga", "cfgp", "xl", "xld", "json", "dly", "ar", "sg":
 	default:
 		return false
 	}
@@ -1005,6 +1011,10 @@ func (b *bot) clientCallbackExt(ctx context.Context, cbID string, chatID, msgID 
 		b.answer(ctx, cbID, "")
 		t, kb := b.clientEditScreen(*client)
 		show(t, kb)
+	case "e10":
+		// The same +10 GB as the card's button, through the same checks
+		// (scope, volume limit), back on the edit screen.
+		mutate(b.addVolume(id, 10*gib), reload(b.clientEditScreen))
 	case "cfg":
 		b.answer(ctx, cbID, "")
 		t, kb := b.clientConfigScreen(*client)
