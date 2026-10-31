@@ -17,7 +17,7 @@ require (
 	github.com/sagernet/sing-box v1.14.4
 	github.com/sagernet/sing-mux v0.3.10-0.20260929204512-caf09fe32475
 	github.com/sagernet/sing-quic v0.7.2-0.20261020082049-7e0a5869a5f4
-	github.com/sagernet/sing-shadowsocks v0.2.9-0.20260929204512-65740e0f0e3e
+	github.com/sagernet/sing-shadowsocks v0.2.9
 	github.com/sagernet/sing-snell v0.0.0-20260904135315-bc5a12ac736f
 	github.com/sagernet/sing-tun v0.9.7-0.20261023115432-040db71fcd33
 	github.com/sagernet/sing-vmess v0.2.9-0.20261019223527-a0c58542bd9d
@@ -223,6 +223,6 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260807164820-c8921c73eeea // indirect
 	google.golang.org/grpc v1.83.2 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
-	lukechampine.com/blake3 v1.3.0 // indirect
+	lukechampine.com/blake3 v1.4.1 // indirect
 	zombiezen.com/go/capnproto2 v2.18.2+incompatible // indirect
 )
