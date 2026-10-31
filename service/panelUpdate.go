@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Danialrostamani/drnetwork-panel/config"
@@ -164,6 +165,39 @@ type updateHost struct {
 
 // updateHostCheck tells how this panel can update itself, or why it cannot.
 // Tests replace it.
+// latestRefreshing keeps cachedLatestTag to one background look-up at a time.
+var latestRefreshing atomic.Bool
+
+// cachedLatestTag is the latest release tag as last read from GitHub, or ""
+// when there is none yet or the last look-up failed. It never waits on the
+// network: a stale or missing entry is refreshed in the background, so the
+// node probes that ask every few seconds are not held up by a slow or
+// unreachable GitHub.
+func cachedLatestTag() string {
+	latestMu.Lock()
+	r := latestCached
+	latestMu.Unlock()
+	ttl := latestReleaseTTL
+	if r.err != nil {
+		ttl = latestFailedTTL
+	}
+	if (r.at.IsZero() || time.Since(r.at) > ttl) && latestRefreshing.CompareAndSwap(false, true) {
+		go func() {
+			defer latestRefreshing.Store(false)
+			defer func() {
+				if r := recover(); r != nil {
+					logger.Error("panel update: latest release look-up panicked: ", r)
+				}
+			}()
+			latestReleaseInfo(false)
+		}()
+	}
+	if r.err != nil {
+		return ""
+	}
+	return r.tag
+}
+
 var updateHostCheck = checkUpdateHost
 
 func checkUpdateHost() (updateHost, string) {

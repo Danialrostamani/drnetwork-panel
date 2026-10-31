@@ -895,7 +895,7 @@ export default {
     update: {
       title: "Update the node's panel",
       button: "Update panels",
-      outdated: "{n} node(s) run an older panel than the master",
+      outdated: "{n} node(s) can be updated to a newer panel",
       available: "A newer panel is available for this node",
       started: "updating to {version}",
       upToDate: "already up to date",
