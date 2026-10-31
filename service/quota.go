@@ -102,14 +102,33 @@ func refreshQuotasLocked(st *core.SessionTracker) {
 }
 
 // RefreshQuotas sets the quotas at once, on a core that was just started. It
-// does not wait for a stats cycle that is still saving: that one hands over
-// the quotas itself when done, and the next one reaches the new core.
+// does not hold up the core's start when the lock is busy: it refreshes as
+// soon as the lock is free instead. It used to give up then, on the reasoning
+// that the holder was a stats cycle that hands the quotas over itself -- but
+// the subscription page's live usage takes the same lock every second per
+// open page and hands nothing over, so a restarted core could run without
+// any quota until the next stats cycle.
 func RefreshQuotas() {
-	if !quotaMu.TryLock() {
+	if quotaMu.TryLock() {
+		defer quotaMu.Unlock()
+		refreshLiveQuotasLocked()
 		return
 	}
+	go refreshQuotasWhenFree()
+}
+
+// refreshLiveQuotasLocked hands the running core its quotas; tests replace it.
+var refreshLiveQuotasLocked = func() { refreshQuotasLocked(liveSessionTracker()) }
+
+func refreshQuotasWhenFree() {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Error("quota: refresh panic: ", r)
+		}
+	}()
+	quotaMu.Lock()
 	defer quotaMu.Unlock()
-	refreshQuotasLocked(liveSessionTracker())
+	refreshLiveQuotasLocked()
 }
 
 // ApplyNodeQuotas takes from the master what each of its clients may use on

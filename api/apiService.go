@@ -427,13 +427,31 @@ func (a *ApiService) ChangePass(c *gin.Context) {
 	newUsername := c.Request.FormValue("newUsername")
 	newPass := c.Request.FormValue("newPass")
 	err := a.UserService.ChangePass(loginUser, oldPass, newUsername, newPass)
-	if err == nil {
-		logger.Info("change user credentials success")
-		jsonMsg(c, "save", nil)
-	} else {
+	if err != nil {
 		logger.Warning("change user credentials failed:", err)
 		jsonMsg(c, "", err)
+		return
 	}
+	logger.Info("change user credentials success")
+	// The change ended every session of the account, this one too, and may
+	// have renamed it: the session still named the old user, so the panel
+	// stayed open while everything that looks the user up -- API tokens,
+	// two-factor login, a second change -- failed with "record not found".
+	if err := a.renewSession(c, newUsername); err != nil {
+		logger.Warning("renew session after credential change: ", err)
+		ClearSession(c)
+	}
+	jsonMsg(c, "save", nil)
+}
+
+// renewSession gives the request a session for user at the account's current
+// session version, with the configured lifetime.
+func (a *ApiService) renewSession(c *gin.Context, user string) error {
+	maxAge, err := a.SettingService.GetSessionMaxAge()
+	if err != nil {
+		logger.Infof("Unable to get session's max age from DB")
+	}
+	return SetLoginUser(c, user, maxAge)
 }
 
 func (a *ApiService) Save(c *gin.Context, loginUser string, fanout bool) {
@@ -623,6 +641,7 @@ func (a *ApiService) AdoptInbounds(c *gin.Context, actor string) {
 	err = a.NodeSyncService.AdoptInbounds(uint(id), tags, actor)
 	if err == nil {
 		go func() {
+			defer service.LogPanic("nodes: post-adopt reconcile")
 			if syncErr := a.NodeSyncService.ReconcileNow(uint(id)); syncErr != nil {
 				logger.Warning("nodes: post-adopt reconcile failed: ", syncErr)
 			}
@@ -680,6 +699,11 @@ func (a *ApiService) SaveTotp(c *gin.Context) {
 	}
 	if err == nil {
 		logger.Info("two-factor login ", c.Request.FormValue("action"), "d for ", user)
+		// Turning it on or off ended the account's other sessions; this
+		// one carries on.
+		if rerr := a.renewSession(c, user); rerr != nil {
+			logger.Warning("renew session after two-factor change: ", rerr)
+		}
 	}
 	jsonMsg(c, "save", err)
 }

@@ -1144,6 +1144,7 @@ func (s *NodeSyncService) MarkAllDirty() {
 }
 
 func (s *NodeSyncService) ReconcileDirtyOnline() {
+	defer LogPanic("nodes: reconcile dirty")
 	var nodes []model.Node
 	if database.GetDB().Select("id").Where("enable = ? AND dirty = ?", true, true).Find(&nodes).Error != nil {
 		return
@@ -1153,6 +1154,7 @@ func (s *NodeSyncService) ReconcileDirtyOnline() {
 		if status, ok := statuses[node.Id]; ok && status.State == "online" {
 			id := node.Id
 			go func() {
+				defer LogPanic("nodes: reconcile")
 				if err := s.Reconcile(id); err != nil {
 					logger.Warning("nodes: reconcile failed: ", err)
 				}
@@ -1164,6 +1166,7 @@ func (s *NodeSyncService) ReconcileDirtyOnline() {
 // ReconcileDirtyOnlineWait syncs the online nodes marked dirty, all at once,
 // and returns when they are done.
 func (s *NodeSyncService) ReconcileDirtyOnlineWait() {
+	defer LogPanic("nodes: reconcile dirty")
 	var nodes []model.Node
 	if database.GetDB().Select("id").Where("enable = ? AND dirty = ?", true, true).Find(&nodes).Error != nil {
 		return
@@ -1174,6 +1177,7 @@ func (s *NodeSyncService) ReconcileDirtyOnlineWait() {
 		if status, ok := statuses[node.Id]; ok && status.State == "online" {
 			wg.Add(1)
 			go func(id uint) {
+				defer LogPanic("nodes: reconcile")
 				defer wg.Done()
 				if err := s.Reconcile(id); err != nil {
 					logger.Warning("nodes: reconcile failed: ", err)

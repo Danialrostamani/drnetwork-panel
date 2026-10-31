@@ -60,6 +60,7 @@ func (s *StatsService) GetClusterSessions(resource, tag string) ([]ClusterSessio
 	for i, n := range nodes {
 		wg.Add(1)
 		go func(i int, n *model.Node) {
+			defer LogPanic("nodes: sessions")
 			defer wg.Done()
 			raw, err := ns.nodeGet(n, nodeHTTPClient(n), "sessions", url.Values{"resource": {"user"}, "tag": {tag}})
 			if err != nil {
@@ -104,6 +105,7 @@ func (s *StatsService) CloseClusterSessions(user string) error {
 	for _, n := range nodes {
 		wg.Add(1)
 		go func(n *model.Node) {
+			defer LogPanic("nodes: close sessions")
 			defer wg.Done()
 			if _, err := syncer.nodePost(n, nodeHTTPClient(n), "closeSessions", url.Values{"u": {user}}); err != nil {
 				mu.Lock()

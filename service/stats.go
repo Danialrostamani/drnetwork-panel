@@ -300,6 +300,7 @@ func (s *StatsService) nodeUserStats(name string, startTime, endTime int64) ([]m
 		}
 		wg.Add(1)
 		go func(slot *answer) {
+			defer LogPanic("nodes: stats")
 			defer wg.Done()
 			client := nodePushClient(&node)
 			client.Timeout = nodeStatsTimeout

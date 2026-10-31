@@ -197,6 +197,8 @@ func (b *bot) salesBlock(adminID int64, owner bool, start int64) string {
 }
 
 func (b *bot) customerCancel(ctx context.Context, chatID int64, from *fromUser, orderID uint) {
+	orderDecisionMu.Lock()
+	defer orderDecisionMu.Unlock()
 	o, err := loadOrder(orderID)
 	if err != nil || o.TgId != from.ID {
 		b.sendMenu(ctx, chatID, b.tr("❌ سفارش پیدا نشد.", "❌ Order not found."), b.customerMenu(from.ID))
