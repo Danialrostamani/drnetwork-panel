@@ -37,6 +37,24 @@ jobs:
         with:
           fetch-depth: 1
 
+      # The panel reads its own version from config/release, not from the tag.
+      # v52.4.2 was tagged with the file still at 52.4.1: every install of it
+      # called itself 52.4.1, so panels kept offering the update they had
+      # just installed. A tag that disagrees with the file stops here, before
+      # anything is built or published.
+      - name: Check the tag matches config/release
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'release'
+        env:
+          TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref_name }}
+        run: |
+          want="$(tr -d '[:space:]' < config/release)"
+          got="${TAG#v}"
+          if [ "$got" != "$want" ]; then
+            echo "::error::tag $TAG does not match config/release ($want). Bump config/release to $got, or tag v$want." >&2
+            exit 1
+          fi
+          echo "tag $TAG matches config/release $want"
+
       - name: Setup Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
