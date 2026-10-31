@@ -504,20 +504,16 @@ export function randomToken(length = 32, fill: (buf: Uint8Array) => Uint8Array =
   return out
 }
 
-// The repository is private: the install script comes through the GitHub API
-// with a read-only access token. The command asks for it without showing it,
-// gives it to curl in a config read from a file descriptor rather than on the
-// command line other users can list, and hands it to the script in DRN_TOKEN
-// so it is typed once. All of it runs in a subshell, so the token does not
-// stay in the operator's shell, and the script is downloaded to a file first:
-// a failed download stops with curl's error instead of running nothing.
-export const installScriptUrl = 'https://api.github.com/repos/Danialrostamani/drnetwork-panel/contents/install.sh'
+// Servers install from the public dist repository: the release archive
+// encrypted with the install password, its checksums and the scripts. The
+// install script asks for the password itself, without showing it. The
+// script is downloaded to a file before it runs, so a failed download stops
+// with curl's error instead of bash running nothing, and the subshell keeps
+// the temporary name out of the operator's shell.
+export const installScriptUrl = 'https://github.com/Danialrostamani/drnetwork-dist/releases/latest/download/install.sh'
 export function installBootstrap(args = ''): string {
   const a = args ? ' ' + args : ''
-  return `(read -rsp 'Access token: ' DRN_TOKEN && echo && export DRN_TOKEN && f=$(mktemp) && ` +
-    `curl -fsSL -K <(printf 'header = "Authorization: Bearer %s"\\n' "$DRN_TOKEN") ` +
-    `-H 'Accept: application/vnd.github.raw' -o "$f" ${installScriptUrl} && ` +
-    `bash "$f"${a}; r=$?; rm -f "$f"; exit $r)`
+  return `(f=$(mktemp) && curl -fsSL -o "$f" ${installScriptUrl} && bash "$f"${a}; r=$?; rm -f "$f"; exit $r)`
 }
 
 // What the install script accepts; anything else must not reach a root shell.

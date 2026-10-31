@@ -15,6 +15,10 @@ permissions:
 
 env:
   NODE_VERSION: "26"
+  # The public repository servers install from. It holds only the release
+  # archive encrypted with the install password, its checksums and the
+  # scripts; the source and the plain archive stay in this private one.
+  DIST_REPO: Danialrostamani/drnetwork-dist
   CRONET_GO_REPO: https://github.com/sagernet/cronet-go.git
   BOOTLIN_BASE_URL: https://toolchains.bootlin.com/downloads/releases/toolchains
   LIBCRONET_BASE_URL: "https://github.com/SagerNet/cronet-go/releases/latest/download"
@@ -230,6 +234,16 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Checkout repository (scripts)
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+          sparse-checkout: |
+            install.sh
+            s-ui.sh
+          sparse-checkout-cone-mode: false
+          path: src
+
       - name: Download build artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
@@ -256,6 +270,45 @@ jobs:
           # install.sh installs whatever tag the latest release has.
           release_name: "drnetwork-panel ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref_name }}"
           file: dist/*
+          file_glob: true
+          prerelease: false
+          overwrite: true
+
+      # Installing asks for the install password and nothing else. Each
+      # archive is encrypted with it (AES-256-CBC, PBKDF2-SHA256, 600000
+      # rounds; install.sh decrypts with the same settings), and a small
+      # password-check file lets the installer reject a wrong password
+      # before downloading anything large. SHA256SUMS lists the plain
+      # archives, which install.sh checks after decrypting.
+      - name: Encrypt for the dist repository
+        env:
+          DRN_INSTALL_PASSWORD: ${{ secrets.DRN_INSTALL_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "$DRN_INSTALL_PASSWORD" ]; then
+            echo "::error::Set the DRN_INSTALL_PASSWORD repository secret: the password servers install with."
+            exit 1
+          fi
+          enc() { openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -md sha256 -salt -pass env:DRN_INSTALL_PASSWORD "$@"; }
+          mkdir pub
+          for f in dist/s-ui-*.tar.gz; do
+            enc -in "$f" -out "pub/$(basename "$f").enc"
+          done
+          printf 'drnetwork-ok\n' | enc -out pub/password-check.enc
+          cp dist/SHA256SUMS pub/SHA256SUMS
+          cp src/install.sh src/s-ui.sh pub/
+          ls -l pub
+
+      - name: Publish to the dist repository
+        uses: svenstaro/upload-release-action@29e53e917877a24fad85510ded594ab3c9ca12de # v2
+        with:
+          # A fine-grained token with Contents read and write on the dist
+          # repository only; GITHUB_TOKEN cannot reach another repository.
+          repo_token: ${{ secrets.DIST_TOKEN }}
+          repo_name: ${{ env.DIST_REPO }}
+          tag: ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref_name }}
+          release_name: "drnetwork-panel ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref_name }}"
+          file: pub/*
           file_glob: true
           prerelease: false
           overwrite: true

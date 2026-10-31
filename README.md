@@ -108,15 +108,11 @@ traffic benchmark or ISP-path measurement is implied by unit/browser tests.
 
 ## Install & Upgrade to Latest Version
 
-The repository is private. Installing and updating need a GitHub **access token** with read access to it, which works as the installer's password:
-
-1. GitHub → Settings → Developer settings → Fine-grained personal access tokens → Generate new token.
-2. Repository access: *Only select repositories* → `drnetwork-panel`. Permissions: *Contents: Read-only* (Metadata read-only is added with it).
-3. Copy the token. The command below asks for it without showing it; the installer saves it root-only in `/etc/drnetwork/github-token` for the panel's own updates. Replace it later with `s-ui token`.
+The source is private. Servers install from the public [drnetwork-dist](https://github.com/Danialrostamani/drnetwork-dist) repository, which holds only the release archive encrypted with the **install password**, its checksums and the scripts. The installer asks for the password without showing it; nothing installs without it. It is saved root-only in `/etc/drnetwork/install-password` for the panel's own updates; change it on a server with `s-ui password`.
 
 ### Linux/macOS
 ```sh
-(read -rsp 'Access token: ' DRN_TOKEN && echo && export DRN_TOKEN && f=$(mktemp) && curl -fsSL -K <(printf 'header = "Authorization: Bearer %s"\n' "$DRN_TOKEN") -H 'Accept: application/vnd.github.raw' -o "$f" https://api.github.com/repos/Danialrostamani/drnetwork-panel/contents/install.sh && bash "$f"; r=$?; rm -f "$f"; exit $r)
+(f=$(mktemp) && curl -fsSL -o "$f" https://github.com/Danialrostamani/drnetwork-dist/releases/latest/download/install.sh && bash "$f"; r=$?; rm -f "$f"; exit $r)
 ```
 
 #### Installer language
@@ -125,7 +121,7 @@ The installer is available in the same six languages as the panel: `en` (default
 
 ```sh
 export SUI_LANG=fa
-(read -rsp 'Access token: ' DRN_TOKEN && echo && export DRN_TOKEN && f=$(mktemp) && curl -fsSL -K <(printf 'header = "Authorization: Bearer %s"\n' "$DRN_TOKEN") -H 'Accept: application/vnd.github.raw' -o "$f" https://api.github.com/repos/Danialrostamani/drnetwork-panel/contents/install.sh && bash "$f"; r=$?; rm -f "$f"; exit $r)
+(f=$(mktemp) && curl -fsSL -o "$f" https://github.com/Danialrostamani/drnetwork-dist/releases/latest/download/install.sh && bash "$f"; r=$?; rm -f "$f"; exit $r)
 ```
 
 ### Alpine Linux
@@ -133,7 +129,7 @@ Alpine uses `apk` and OpenRC instead of `apt`/systemd. The install script detect
 
 ```sh
 apk add bash
-(read -rsp 'Access token: ' DRN_TOKEN && echo && export DRN_TOKEN && f=$(mktemp) && curl -fsSL -K <(printf 'header = "Authorization: Bearer %s"\n' "$DRN_TOKEN") -H 'Accept: application/vnd.github.raw' -o "$f" https://api.github.com/repos/Danialrostamani/drnetwork-panel/contents/install.sh && bash "$f"; r=$?; rm -f "$f"; exit $r)
+(f=$(mktemp) && curl -fsSL -o "$f" https://github.com/Danialrostamani/drnetwork-dist/releases/latest/download/install.sh && bash "$f"; r=$?; rm -f "$f"; exit $r)
 ```
 
 Manage the service with OpenRC: `rc-service s-ui start|stop|restart` and `rc-update add s-ui default`.
@@ -310,7 +306,7 @@ A node is another DrNetwork panel that the master monitors and keeps in sync. Op
 
 - **Add a node** - *New server* gives a one-line command to run as root on a fresh server; it installs the latest release with a random panel port, path and API token for this master, then the wizard waits for the node to answer. *Existing panel* takes the address and an API token made on that panel (**Admins → API token**, or `s-ui token -add <token> -desc master` on its shell). **Add several nodes** takes one `name URL token [path]` per line. For security the master never logs in to your servers over SSH: you run the command yourself.
   ```sh
-  (read -rsp 'Access token: ' DRN_TOKEN && echo && export DRN_TOKEN && f=$(mktemp) && curl -fsSL -K <(printf 'header = "Authorization: Bearer %s"\n' "$DRN_TOKEN") -H 'Accept: application/vnd.github.raw' -o "$f" https://api.github.com/repos/Danialrostamani/drnetwork-panel/contents/install.sh && bash "$f" --node-token <token> --port <port> --path /<path>/; r=$?; rm -f "$f"; exit $r)
+  (f=$(mktemp) && curl -fsSL -o "$f" https://github.com/Danialrostamani/drnetwork-dist/releases/latest/download/install.sh && bash "$f" --node-token <token> --port <port> --path /<path>/; r=$?; rm -f "$f"; exit $r)
   ```
   The installer also takes `--version <version>`, such as `--version 32`.
 - **Overview** - a summary bar (online, down, users online, live speed, today's traffic, warnings), search, status/tag/country filters, sorting, cards or a table, tags, a country flag and a manual order per node.

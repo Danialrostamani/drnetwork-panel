@@ -70,11 +70,11 @@ d en checksum_fail "Checksum does NOT match. The download may be corrupt or tamp
 d en no_checksums "No SHA256SUMS published for this release; skipping checksum verification."
 d en creds_empty "Username and password can not be empty."
 d en creds_failed "Failed to set the admin credentials."
-d en ask_token "Access token (input hidden): "
-d en no_token "This panel's repository is private: an access token is needed. Run the installer in a terminal to type it, or set DRN_TOKEN."
-d en bad_gh_token "That does not look like a GitHub access token."
-d en token_refused "GitHub refused the access token (wrong, expired, or without read access to the repository)."
-d en token_saved "Access token saved for updates."
+d en ask_password "Install password (input hidden): "
+d en no_password "Installing needs the install password. Run the installer in a terminal to type it, or set DRN_PASSWORD."
+d en wrong_password "Wrong install password."
+d en password_saved "Install password saved for updates."
+d en no_sums "This release has no checksums; refusing to install it."
 d en current_creds "Your current admin credentials:"
 d en cancelled "cancel..."
 d en fresh_random "this is a fresh installation, will generate random login info for security concerns:"
@@ -130,11 +130,11 @@ d fa checksum_fail "مقدار checksum مطابقت ندارد. فایل دان
 d fa no_checksums "برای این نسخه فایل SHA256SUMS منتشر نشده؛ بررسی checksum انجام نشد."
 d fa creds_empty "نام کاربری و رمز عبور نمی‌توانند خالی باشند."
 d fa creds_failed "تنظیم نام کاربری و رمز ادمین ناموفق بود."
-d fa ask_token "توکن دسترسی (نمایش داده نمی‌شود): "
-d fa no_token "مخزن این پنل خصوصی است و توکن دسترسی لازم است. نصب را در ترمینال اجرا کنید تا توکن را وارد کنید، یا DRN_TOKEN را تنظیم کنید."
-d fa bad_gh_token "این شبیه توکن دسترسی گیت‌هاب نیست."
-d fa token_refused "گیت‌هاب توکن را نپذیرفت (اشتباه، منقضی، یا بدون دسترسی خواندن به مخزن)."
-d fa token_saved "توکن دسترسی برای به‌روزرسانی‌ها ذخیره شد."
+d fa ask_password "رمز نصب (نمایش داده نمی‌شود): "
+d fa no_password "نصب به رمز نصب نیاز دارد. نصب را در ترمینال اجرا کنید تا رمز را وارد کنید، یا DRN_PASSWORD را تنظیم کنید."
+d fa wrong_password "رمز نصب اشتباه است."
+d fa password_saved "رمز نصب برای به‌روزرسانی‌ها ذخیره شد."
+d fa no_sums "این نسخه فایل checksum ندارد؛ نصب انجام نمی‌شود."
 d fa current_creds "اطلاعات ورود ادمین فعلی شما:"
 d fa cancelled "لغو شد..."
 d fa fresh_random "این یک نصب تازه است؛ برای امنیت، اطلاعات ورود تصادفی ساخته می شود:"
@@ -442,30 +442,30 @@ install_base() {
     # An unattended update (the panel's Update button) leaves the system's
     # packages alone when the tools are there: a package manager update can
     # take minutes, or wait on a lock another update holds.
-    if [[ "$opt_unattended" -eq 1 ]] && command -v wget >/dev/null 2>&1 && command -v curl >/dev/null 2>&1 && command -v tar >/dev/null 2>&1; then
+    if [[ "$opt_unattended" -eq 1 ]] && command -v wget >/dev/null 2>&1 && command -v curl >/dev/null 2>&1 && command -v tar >/dev/null 2>&1 && command -v openssl >/dev/null 2>&1; then
         echo -e "${green}$(t base_present)${plain}"
         return 0
     fi
     echo -e "${yellow}$(t installing_base)${plain}"
     case "${release}" in
     centos | almalinux | rocky | oracle)
-        yum -y update && yum install -y -q wget curl tar
+        yum -y update && yum install -y -q wget curl tar openssl
         ;;
     fedora)
-        dnf -y update && dnf install -y -q wget curl tar
+        dnf -y update && dnf install -y -q wget curl tar openssl
         ;;
     arch | manjaro | parch)
-        pacman -Syu && pacman -Syu --noconfirm wget curl tar
+        pacman -Syu && pacman -Syu --noconfirm wget curl tar openssl
         ;;
     opensuse-tumbleweed)
-        zypper refresh && zypper -q install -y wget curl tar
+        zypper refresh && zypper -q install -y wget curl tar openssl
         ;;
     alpine)
         # Alpine uses apk and OpenRC; bash is needed for the s-ui menu script.
-        apk update && apk add --no-cache wget curl tar bash openrc
+        apk update && apk add --no-cache wget curl tar bash openrc openssl
         ;;
     *)
-        apt-get update && apt-get install -y -q wget curl tar
+        apt-get update && apt-get install -y -q wget curl tar openssl
         ;;
     esac
 }
@@ -647,79 +647,75 @@ prepare_services() {
 }
 
 
-# The repository is private: every lookup and download goes through the
-# GitHub API with a read-only access token, which works as the installer's
-# password. It comes from DRN_TOKEN, the file an earlier install saved, or a
-# hidden prompt, and is saved root-only for the panel's own updates. It is
-# never put on a command line, where other users could see it.
-gh_repo="Danialrostamani/drnetwork-panel"
-gh_api="https://api.github.com/repos/${gh_repo}"
-gh_token_file="/etc/drnetwork/github-token"
-gh_token=""
+# The source is private. Servers install from a public repository that holds
+# only the release archive encrypted with the install password, its
+# checksums and the scripts: anyone can download it, nobody can use it
+# without the password. The password comes from DRN_PASSWORD, the file an
+# earlier install saved, or a hidden prompt, and is checked against the
+# release's small password-check file before anything large is downloaded.
+# It is saved root-only for the panel's own updates, and never put on a
+# command line, where other users of the server could see it.
+dist_repo="Danialrostamani/drnetwork-dist"
+dist_url="https://github.com/${dist_repo}/releases"
+pw_file="/etc/drnetwork/install-password"
+install_pw=""
 
-load_token() {
-    gh_token="${DRN_TOKEN:-}"
-    if [[ -z "$gh_token" && -r "$gh_token_file" ]]; then
-        IFS= read -r gh_token <"$gh_token_file" || true
+# latest_tag prints the tag of the latest release, from where GitHub
+# redirects /releases/latest: no API call, so no API rate limit.
+latest_tag() {
+    local u
+    u=$(curl -fsSLI -o /dev/null -w '%{url_effective}' "${dist_url}/latest") || return 1
+    u="${u%/}"
+    u="${u##*/}"
+    [[ "$u" =~ ^[A-Za-z0-9._-]+$ && "$u" != "latest" && "$u" != "releases" ]] || return 1
+    printf '%s' "$u"
+}
+
+# decrypt decrypts $1 to $2 with the install password, which openssl reads
+# from a file descriptor. The settings match the release workflow's.
+decrypt() {
+    openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -md sha256 \
+        -in "$1" -out "$2" -pass fd:3 3< <(printf '%s\n' "$install_pw") 2>/dev/null
+}
+
+# load_password finds the install password and checks it against release
+# $1's password-check file, in directory $2. A terminal gets three tries.
+load_password() {
+    local check="$2/password-check.enc" out="$2/password-check" tries=0
+    if ! curl -fsSL --retry 2 --connect-timeout 20 -o "$check" "${dist_url}/download/$1/password-check.enc"; then
+        printf "${red}$(t download_ver_fail)${plain}\n" "$1"
+        exit 1
     fi
-    gh_token="${gh_token//[[:space:]]/}"
-    if [[ -z "$gh_token" ]]; then
-        if [[ "$opt_unattended" -eq 1 ]] || ! { : </dev/tty; } 2>/dev/null; then
-            echo -e "${red}$(t no_token)${plain}"
+    install_pw="${DRN_PASSWORD:-}"
+    if [[ -z "$install_pw" && -r "$pw_file" ]]; then
+        IFS= read -r install_pw <"$pw_file" || true
+    fi
+    while :; do
+        if [[ -n "$install_pw" ]] && decrypt "$check" "$out" && [[ "$(cat "$out")" == "drnetwork-ok" ]]; then
+            rm -f "$out" "$check"
+            return 0
+        fi
+        rm -f "$out"
+        [[ -n "$install_pw" ]] && echo -e "${red}$(t wrong_password)${plain}"
+        if [[ "$opt_unattended" -eq 1 || $tries -ge 3 ]] || ! { : </dev/tty; } 2>/dev/null; then
+            [[ -z "$install_pw" ]] && echo -e "${red}$(t no_password)${plain}"
             exit 1
         fi
-        read -rsp "$(t ask_token)" gh_token </dev/tty
+        tries=$((tries + 1))
+        IFS= read -rsp "$(t ask_password)" install_pw </dev/tty
         echo
-        gh_token="${gh_token//[[:space:]]/}"
-    fi
-    if [[ ! "$gh_token" =~ ^[A-Za-z0-9_]{20,255}$ ]]; then
-        echo -e "${red}$(t bad_gh_token)${plain}"
-        exit 1
-    fi
-    if ! gh_curl -o /dev/null "$gh_api"; then
-        echo -e "${red}$(t token_refused)${plain}"
-        exit 1
-    fi
+    done
 }
 
-save_token() {
-    local old_umask
-    old_umask=$(umask)
-    umask 077
-    mkdir -p "$(dirname "$gh_token_file")"
-    chmod 700 "$(dirname "$gh_token_file")"
-    printf '%s\n' "$gh_token" >"$gh_token_file"
-    chmod 600 "$gh_token_file"
-    umask "$old_umask"
-    echo -e "${green}$(t token_saved)${plain}"
-}
-
-# gh_curl calls the API with the token. curl reads the token's header from a
-# config on a file descriptor (-K, which every curl knows), never from its
-# arguments, which other users of the server can list.
-gh_curl() {
-    curl -fsSL --retry 2 --connect-timeout 20 \
-        -K <(printf 'header = "Authorization: Bearer %s"\n' "$gh_token") \
-        -H "X-GitHub-Api-Version: 2022-11-28" "$@"
-}
-
-# gh_asset downloads the asset named $2 of release $1 to $3. The API answers
-# with a redirect to storage that must not get the token, which curl drops on
-# its own when the redirect leaves the host.
-gh_asset() {
-    local rel url
-    rel=$(gh_curl -H "Accept: application/vnd.github+json" "${gh_api}/releases/tags/$1") || return 1
-    # One field per line, whether GitHub indents its answer or not; an
-    # asset's "url" comes before its "name".
-    url=$(printf '%s\n' "$rel" | tr ',{}' '\n\n\n' | sed -E 's/"[[:space:]]*:[[:space:]]*"/":"/' | awk -v n="\"name\":\"$2\"" '
-        /"url":"https:\/\/api\.github\.com\/repos\/[^"]*\/releases\/assets\/[0-9]+"/ { u = $0 }
-        index($0, n) && u != "" { sub(/.*"url":"/, "", u); sub(/".*/, "", u); print u; exit }')
-    [[ -n "$url" ]] || return 1
-    local bar=(-sS)
-    [[ -t 2 ]] && bar=(--progress-bar)
-    curl -fL "${bar[@]}" --retry 2 --connect-timeout 20 \
-        -K <(printf 'header = "Authorization: Bearer %s"\n' "$gh_token") \
-        -H "Accept: application/octet-stream" -o "$3" "$url"
+save_password() {
+    (
+        umask 077
+        mkdir -p "$(dirname "$pw_file")"
+        chmod 700 "$(dirname "$pw_file")"
+        printf '%s\n' "$install_pw" >"$pw_file"
+        chmod 600 "$pw_file"
+    )
+    echo -e "${green}$(t password_saved)${plain}"
 }
 
 # verify_checksum checks the downloaded archive against the SHA256SUMS file the
@@ -765,23 +761,28 @@ install_s-ui() {
     local sums="$workdir/SHA256SUMS"
 
     if [ $# == 0 ]; then
-        last_version=$(gh_curl -H "Accept: application/vnd.github+json" "${gh_api}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+        last_version=$(latest_tag)
         if [[ ! -n "$last_version" ]]; then
             echo -e "${red}$(t fetch_fail)${plain}"
             exit 1
         fi
         printf "${green}$(t got_version)${plain}\n" "${last_version}"
     else
-        # A bare number such as 32 is the release tagged v32.
+        # A bare number such as 1.0 is the release tagged v1.0.
         last_version=$1
         [[ "$last_version" == [0-9]* ]] && last_version="v${last_version}"
         printf "$(t begin_install)\n" "${last_version#v}" # the message has its own v
     fi
 
-    # Through the API with the token: release files of a private repository
-    # have no public link. Certificates are always checked: anyone able to
-    # intercept the download would choose the binary that then runs as root.
-    if ! gh_asset "$last_version" "s-ui-linux-$(arch).tar.gz" "$archive"; then
+    load_password "$last_version" "$workdir"
+
+    # Certificates are always checked: anyone able to intercept the download
+    # would choose what then runs as root. The checksums are required: they
+    # are what tells a correctly decrypted archive from any other.
+    local bar=(-sS)
+    [[ -t 2 ]] && bar=(--progress-bar)
+    if ! curl -fL "${bar[@]}" --retry 2 --connect-timeout 20 -o "$archive.enc" \
+        "${dist_url}/download/${last_version}/s-ui-linux-$(arch).tar.gz.enc"; then
         # Releases ship linux-amd64 only, so on another CPU the download
         # fails for that reason, not because GitHub is unreachable.
         if [[ "$(arch)" != "amd64" ]]; then
@@ -795,7 +796,15 @@ install_s-ui() {
         fi
         exit 1
     fi
-    gh_asset "$last_version" "SHA256SUMS" "$sums" 2>/dev/null || : # older releases have none
+    if ! curl -fsSL --retry 2 --connect-timeout 20 -o "$sums" "${dist_url}/download/${last_version}/SHA256SUMS" || [[ ! -s "$sums" ]]; then
+        echo -e "${red}$(t no_sums)${plain}"
+        exit 1
+    fi
+    if ! decrypt "$archive.enc" "$archive"; then
+        echo -e "${red}$(t wrong_password)${plain}"
+        exit 1
+    fi
+    rm -f "$archive.enc"
     verify_checksum "$archive" "$sums" || exit 1
 
     if [[ -e /usr/local/s-ui/ ]]; then
@@ -831,7 +840,7 @@ install_s-ui() {
         cp -f s-ui/*.service /etc/systemd/system/
     fi
     rm -rf s-ui
-    save_token
+    save_password
 
     config_after_install
     prepare_services
@@ -928,7 +937,6 @@ fi
 
 echo -e "${green}$(t executing)${plain}"
 install_base
-load_token
 if [[ -n "$opt_version" ]]; then
     install_s-ui "$opt_version"
 else

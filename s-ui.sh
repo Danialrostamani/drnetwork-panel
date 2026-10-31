@@ -82,79 +82,66 @@ before_show_menu() {
     show_menu
 }
 
-# The repository is private. Scripts and releases come through the GitHub
-# API with a read-only access token, saved root-only by the installer; it is
-# the password that lets this server install and update the panel.
-gh_repo="Danialrostamani/drnetwork-panel"
-gh_token_file="/etc/drnetwork/github-token"
+# The source is private. Servers install from the public dist repository,
+# which holds only the release archive encrypted with the install password,
+# its checksums and the scripts. install.sh asks for the password, or reads
+# the one an earlier install saved root-only.
+dist_url="https://github.com/Danialrostamani/drnetwork-dist/releases"
+pw_file="/etc/drnetwork/install-password"
 
-# read_token prints the saved token, or asks for one when none is saved.
-read_token() {
-    local tok=""
-    if [[ -r "$gh_token_file" ]]; then
-        IFS= read -r tok <"$gh_token_file" || true
-    fi
-    tok="${tok//[[:space:]]/}"
-    if [[ -z "$tok" ]]; then
-        read -rsp "Access token (input hidden): " tok </dev/tty
-        echo >&2
-        tok="${tok//[[:space:]]/}"
-    fi
-    printf '%s' "$tok"
+# dist_get downloads file $1 of the latest release to $2.
+dist_get() {
+    curl -fsSL --retry 2 --connect-timeout 20 -o "$2" "${dist_url}/latest/download/$1"
 }
 
-# gh_raw downloads file $1 of the repository's main branch to $2 with token $3.
-# curl reads the token's header from a config on a file descriptor (-K), out
-# of sight of other users listing the server's processes.
-gh_raw() {
-    curl -fsSL --retry 2 --connect-timeout 20 \
-        -K <(printf 'header = "Authorization: Bearer %s"\n' "$3") \
-        -H "Accept: application/vnd.github.raw" -H "X-GitHub-Api-Version: 2022-11-28" \
-        -o "$2" "https://api.github.com/repos/${gh_repo}/contents/$1?ref=main"
-}
-
-# run_installer fetches install.sh with the token and runs it with "$@".
+# run_installer downloads install.sh and runs it with "$@". It is downloaded
+# to a file first, so a failed download stops here with a message.
 run_installer() {
-    local tok script rc
-    tok=$(read_token)
-    if [[ -z "$tok" ]]; then
-        LOGE "An access token is needed: the panel's repository is private."
-        return 1
-    fi
+    local script rc
     script=$(mktemp "${TMPDIR:-/tmp}/s-ui-install.XXXXXXXX") || return 1
-    if ! gh_raw install.sh "$script" "$tok"; then
+    if ! dist_get install.sh "$script"; then
         rm -f "$script"
-        LOGE "The install script could not be downloaded: check the access token (s-ui token) and that this server can reach GitHub."
+        LOGE "The install script could not be downloaded: check that this server can reach GitHub."
         return 1
     fi
-    DRN_TOKEN="$tok" bash "$script" "$@"
+    bash "$script" "$@"
     rc=$?
     rm -f "$script"
     return $rc
 }
 
-# set_token replaces the saved access token, after GitHub accepts it.
-set_token() {
-    local tok
-    read -rsp "New access token (input hidden): " tok </dev/tty
+# set_password replaces the saved install password, after the latest
+# release's password-check file accepts it.
+set_password() {
+    local pw check out
+    IFS= read -rsp "New install password (input hidden): " pw </dev/tty
     echo
-    tok="${tok//[[:space:]]/}"
-    if [[ ! "$tok" =~ ^[A-Za-z0-9_]{20,255}$ ]]; then
-        LOGE "That does not look like a GitHub access token."
+    if [[ -z "$pw" ]]; then
+        LOGE "The password can not be empty."
         return 1
     fi
-    if ! gh_raw install.sh /dev/null "$tok"; then
-        LOGE "GitHub refused the token (wrong, expired, or without read access to the repository)."
+    check=$(mktemp "${TMPDIR:-/tmp}/s-ui-check.XXXXXXXX") || return 1
+    out="${check}.out"
+    if ! dist_get password-check.enc "$check"; then
+        rm -f "$check"
+        LOGE "The password check could not be downloaded: check that this server can reach GitHub."
         return 1
     fi
+    if ! openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -md sha256 -in "$check" -out "$out" \
+        -pass fd:3 3< <(printf '%s\n' "$pw") 2>/dev/null || [[ "$(cat "$out")" != "drnetwork-ok" ]]; then
+        rm -f "$check" "$out"
+        LOGE "Wrong install password."
+        return 1
+    fi
+    rm -f "$check" "$out"
     (
         umask 077
-        mkdir -p "$(dirname "$gh_token_file")"
-        chmod 700 "$(dirname "$gh_token_file")"
-        printf '%s\n' "$tok" >"$gh_token_file"
-        chmod 600 "$gh_token_file"
+        mkdir -p "$(dirname "$pw_file")"
+        chmod 700 "$(dirname "$pw_file")"
+        printf '%s\n' "$pw" >"$pw_file"
+        chmod 600 "$pw_file"
     )
-    LOGI "Access token saved."
+    LOGI "Install password saved."
 }
 
 install() {
@@ -413,28 +400,20 @@ show_log() {
 }
 
 update_shell() {
-    # Certificate verification stays on: this file is about to be installed as
-    # /usr/bin/s-ui and run as root.
-    local tok tmp
-    tok=$(read_token)
+    local tmp
     tmp=$(mktemp "${TMPDIR:-/tmp}/s-ui-sh.XXXXXXXX") || return 1
-    if ! gh_raw s-ui.sh "$tmp" "$tok" || ! bash -n "$tmp"; then
+    # Certificate verification stays on: this file is about to be installed
+    # as /usr/bin/s-ui and run as root.
+    if ! dist_get s-ui.sh "$tmp" || ! bash -n "$tmp"; then
         rm -f "$tmp"
         echo ""
-        LOGE "Failed to download script, Please check the access token (s-ui token) and whether the machine can connect Github"
+        LOGE "Failed to download script, Please check whether the machine can connect Github"
         before_show_menu
         return
     fi
     install -m 755 "$tmp" /usr/bin/s-ui
     rm -f "$tmp"
-    if [[ $? != 0 ]]; then
-        echo ""
-        LOGE "Failed to download script, Please check whether the machine can connect Github"
-        before_show_menu
-    else
-        chmod +x /usr/bin/s-ui
-        LOGI "Upgrade script succeeded, Please rerun the script" && exit 0
-    fi
+    LOGI "Upgrade script succeeded, Please rerun the script" && exit 0
 }
 
 check_status() {
@@ -999,7 +978,7 @@ show_usage() {
     echo -e "s-ui update       - Update"
     echo -e "s-ui install      - Install"
     echo -e "s-ui uninstall    - Uninstall"
-    echo -e "s-ui token        - Replace the GitHub access token"
+    echo -e "s-ui password     - Change the saved install password"
     echo -e "s-ui help         - Control Menu Usage"
     echo -e "------------------------------------------"
 }
@@ -1141,8 +1120,8 @@ if [[ $# > 0 ]]; then
     "uninstall")
         check_install 0 && uninstall 0
         ;;
-    "token")
-        set_token
+    "password")
+        set_password
         ;;
     *) show_usage ;;
     esac

@@ -252,13 +252,12 @@ describe('the add-node wizard', () => {
   it('writes the install command only from safe values', () => {
     const token = 'A'.repeat(32)
     expect(installCommand({ token, port: 2095, path: '/xYz/' })).toBe(
-      `(read -rsp 'Access token: ' DRN_TOKEN && echo && export DRN_TOKEN && f=$(mktemp) && ` +
-      `curl -fsSL -K <(printf 'header = "Authorization: Bearer %s"\\n' "$DRN_TOKEN") ` +
-      `-H 'Accept: application/vnd.github.raw' -o "$f" ` +
-      `https://api.github.com/repos/Danialrostamani/drnetwork-panel/contents/install.sh && ` +
+      '(f=$(mktemp) && curl -fsSL -o "$f" ' +
+      'https://github.com/Danialrostamani/drnetwork-dist/releases/latest/download/install.sh && ' +
       `bash "$f" --node-token ${token} --port 2095 --path /xYz/; r=$?; rm -f "$f"; exit $r)`)
-    // The token is never on curl's command line, and a failed download stops.
-    expect(installBootstrap()).not.toMatch(/Bearer \$DRN_TOKEN"/)
+    // No GitHub token anywhere: the install script asks for the install
+    // password itself. A failed download stops.
+    expect(installBootstrap()).not.toMatch(/Authorization|TOKEN/)
     expect(installBootstrap()).toContain('-o "$f"')
     expect(installCommand({ token: 'short', port: 2095, path: '/a/' })).toBe('')
     expect(installCommand({ token, port: 70000, path: '/a/' })).toBe('')
