@@ -504,21 +504,7 @@ export function randomToken(length = 32, fill: (buf: Uint8Array) => Uint8Array =
   return out
 }
 
-// The repository is private: the install script comes through the GitHub API
-// with a read-only access token. The command asks for it without showing it,
-// gives it to curl in a config read from a file descriptor rather than on the
-// command line other users can list, and hands it to the script in DRN_TOKEN
-// so it is typed once. All of it runs in a subshell, so the token does not
-// stay in the operator's shell, and the script is downloaded to a file first:
-// a failed download stops with curl's error instead of running nothing.
-export const installScriptUrl = 'https://api.github.com/repos/Danialrostamani/drnetwork-panel/contents/install.sh'
-export function installBootstrap(args = ''): string {
-  const a = args ? ' ' + args : ''
-  return `(read -rsp 'Access token: ' DRN_TOKEN && echo && export DRN_TOKEN && f=$(mktemp) && ` +
-    `curl -fsSL -K <(printf 'header = "Authorization: Bearer %s"\\n' "$DRN_TOKEN") ` +
-    `-H 'Accept: application/vnd.github.raw' -o "$f" ${installScriptUrl} && ` +
-    `bash "$f"${a}; r=$?; rm -f "$f"; exit $r)`
-}
+export const installScriptUrl = 'https://raw.githubusercontent.com/Danialrostamani/drnetwork-panel/main/install.sh'
 
 // What the install script accepts; anything else must not reach a root shell.
 export const validToken = (t: string) => /^[A-Za-z0-9]{16,128}$/.test(t)
@@ -539,7 +525,7 @@ export function webPathOf(p: string): string {
 // when a value would not be safe to run.
 export function installCommand(o: { token: string; port: number; path: string }): string {
   if (!validToken(o.token) || !validPort(o.port) || !validPath(o.path)) return ''
-  return installBootstrap(`--node-token ${o.token} --port ${o.port} --path ${o.path}`)
+  return `bash <(curl -Ls ${installScriptUrl}) --node-token ${o.token} --port ${o.port} --path ${o.path}`
 }
 
 // The address of a panel on host:port. A new panel answers over plain HTTP

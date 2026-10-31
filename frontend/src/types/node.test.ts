@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest'
 import {
-  installBootstrap,
   alertValue, bytesToGb, capPercent, cloneNode, defaultNode, editableNode, emptyFilter, flagEmoji, gbToBytes, historySeries,
   installCommand, matchesFilter, needsAttention, newNode, nodeCountries, nodePayload, nodeTags, nodeVersion, nodeView,
   nodesHealth, nodesSummary, panelUrl, parseMultiAdd, randomToken, sortNodes, uniqueName, usage, validHost, validPath,
@@ -252,14 +251,7 @@ describe('the add-node wizard', () => {
   it('writes the install command only from safe values', () => {
     const token = 'A'.repeat(32)
     expect(installCommand({ token, port: 2095, path: '/xYz/' })).toBe(
-      `(read -rsp 'Access token: ' DRN_TOKEN && echo && export DRN_TOKEN && f=$(mktemp) && ` +
-      `curl -fsSL -K <(printf 'header = "Authorization: Bearer %s"\\n' "$DRN_TOKEN") ` +
-      `-H 'Accept: application/vnd.github.raw' -o "$f" ` +
-      `https://api.github.com/repos/Danialrostamani/drnetwork-panel/contents/install.sh && ` +
-      `bash "$f" --node-token ${token} --port 2095 --path /xYz/; r=$?; rm -f "$f"; exit $r)`)
-    // The token is never on curl's command line, and a failed download stops.
-    expect(installBootstrap()).not.toMatch(/Bearer \$DRN_TOKEN"/)
-    expect(installBootstrap()).toContain('-o "$f"')
+      `bash <(curl -Ls https://raw.githubusercontent.com/Danialrostamani/drnetwork-panel/main/install.sh) --node-token ${token} --port 2095 --path /xYz/`)
     expect(installCommand({ token: 'short', port: 2095, path: '/a/' })).toBe('')
     expect(installCommand({ token, port: 70000, path: '/a/' })).toBe('')
     expect(installCommand({ token, port: 2095, path: '/a/;rm -rf /' })).toBe('')
