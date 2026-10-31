@@ -12,8 +12,10 @@ func TestVersion(t *testing.T) {
 	if !regexp.MustCompile(`^[0-9]+(\.[0-9]+)*$`).MatchString(v) {
 		t.Fatalf("version %q is not plain numbers", v)
 	}
-	if VersionLabel(v) != "v52.4.1" {
-		t.Errorf("VersionLabel(%q) = %q, want v52.4.1", v, VersionLabel(v))
+	// Measured against the file, not a fixed number: pinning "v52.4.1" here
+	// made every version bump fail the tests until this line was edited too.
+	if VersionLabel(v) != "v"+v {
+		t.Errorf("VersionLabel(%q) = %q, want %q", v, VersionLabel(v), "v"+v)
 	}
 	for in, want := range map[string]string{
 		"0.1":                "V.0.1",
