@@ -22,8 +22,9 @@ func newPanelClient(t *testing.T, srv *httptest.Server) *panelClient {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c := srv.Client()
-	c.Jar = jar
+	// A client of its own: srv.Client() hands out one shared client, and a jar
+	// set on it would be every panelClient's jar.
+	c := &http.Client{Transport: srv.Client().Transport, Jar: jar}
 	return &panelClient{t: t, srv: srv, c: c}
 }
 
