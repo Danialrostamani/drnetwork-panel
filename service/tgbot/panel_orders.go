@@ -172,7 +172,13 @@ type PanelOrderEdit struct {
 	Notify bool
 }
 
-var panelOrderMu sync.Mutex
+// orderDecisionMu is held by everything that reads an order's status and
+// then decides it: the web panel's edits, and the bot's approve, reject,
+// wallet payment and cancel. The bot handles its updates one at a time, but
+// the panel runs beside it, so before the bot took this lock a seller tapping
+// approve while an operator approved on the web could both see "pending" and
+// both deliver -- two clients, or a wallet topped up twice.
+var orderDecisionMu sync.Mutex
 
 var (
 	errOrderSettled = errors.New("this order is in a settlement with the seller already; its amount, seller and status can no longer change")
@@ -181,8 +187,8 @@ var (
 
 // PanelEditOrder applies e and returns the order as it is now.
 func PanelEditOrder(ctx context.Context, cs *service.ConfigService, actor string, e PanelOrderEdit) (PanelOrderRow, error) {
-	panelOrderMu.Lock()
-	defer panelOrderMu.Unlock()
+	orderDecisionMu.Lock()
+	defer orderDecisionMu.Unlock()
 	o, err := loadOrder(e.Id)
 	if err != nil {
 		return PanelOrderRow{}, errors.New("order not found")

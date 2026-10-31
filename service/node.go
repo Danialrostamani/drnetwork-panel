@@ -380,6 +380,7 @@ func (s *NodeService) probeNodes(nodes []*model.Node) map[uint]NodeStatus {
 		wg.Add(1)
 		sem <- struct{}{}
 		go func(n *model.Node) {
+			defer LogPanic("nodes: probe")
 			defer wg.Done()
 			defer func() { <-sem }()
 			st := s.probe(n, nodeHTTPClient(n))

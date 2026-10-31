@@ -163,7 +163,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import api from '@/plugins/api'
 import HttpUtils from '@/plugins/httputil'
 import { i18n, locale } from '@/locales'
-import { versionLabel } from '@/types/node'
+import { installBootstrap, versionLabel } from '@/types/node'
 
 // What GET api/panelUpdate answers: the panel's version, the latest release
 // and the last update started from the panel.
@@ -216,7 +216,7 @@ const manualCommand = computed(() => {
     case 'os':
       return ''
     default:
-      return 'bash <(curl -Ls https://raw.githubusercontent.com/Danialrostamani/drnetwork-panel/main/install.sh)'
+      return installBootstrap()
   }
 })
 

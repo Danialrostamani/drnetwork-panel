@@ -171,6 +171,7 @@ func (s *StatsService) GetSiteUsage(user string, start, end int64) (*SiteUsageRe
 		}
 		wg.Add(1)
 		go func(i int) {
+			defer LogPanic("nodes: site stats")
 			defer wg.Done()
 			node := nodes[i]
 			client := nodePushClient(&node)

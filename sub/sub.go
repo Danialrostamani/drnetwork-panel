@@ -49,6 +49,13 @@ func (s *Server) initRouter() (*gin.Engine, error) {
 	}
 
 	engine := gin.Default()
+	// As in web.go. gin trusts every proxy by default, and behind a reverse
+	// proxy on this machine the forwarded address is what the limit on
+	// guessing subscription names counts against: a client could make every
+	// guess from a new address, or get someone else's address cut off.
+	if err := engine.SetTrustedProxies(middleware.TrustedProxies); err != nil {
+		return nil, err
+	}
 	engine.Use(gzip.Gzip(gzip.DefaultCompression))
 
 	customHeadersStr, err := s.SettingService.GetSubCustomHeaders()

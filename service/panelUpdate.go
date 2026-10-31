@@ -32,8 +32,19 @@ import (
 var (
 	updateRepo    = "Danialrostamani/drnetwork-panel"
 	updateAPIBase = "https://api.github.com"
-	updateRawBase = "https://raw.githubusercontent.com"
+	// githubTokenPath is the read-only GitHub token install.sh saved. The
+	// repository is private, so every release lookup and download needs it.
+	githubTokenPath = "/etc/drnetwork/github-token"
 )
+
+// githubToken is the saved GitHub token, or "" when there is none.
+func githubToken() string {
+	b, err := os.ReadFile(githubTokenPath)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(b))
+}
 
 const (
 	// updateInstallDir is where install.sh puts the panel. A panel that runs
@@ -104,6 +115,10 @@ func fetchLatestRelease() latestRelease {
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", "drnetwork-panel/"+config.GetVersion())
+	token := githubToken()
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
 	resp, err := (&http.Client{Timeout: 15 * time.Second}).Do(req)
 	if err != nil {
 		r.err = err
@@ -112,6 +127,14 @@ func fetchLatestRelease() latestRelease {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		r.err = fmt.Errorf("GitHub answered %s", resp.Status)
+		// A private repository answers 404 to anyone without access.
+		if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusUnauthorized {
+			if token == "" {
+				r.err = fmt.Errorf("GitHub answered %s: no access token is saved on this server (run: s-ui token)", resp.Status)
+			} else {
+				r.err = fmt.Errorf("GitHub answered %s: the saved access token was refused (run: s-ui token)", resp.Status)
+			}
+		}
 		return r
 	}
 	var body struct {
@@ -187,7 +210,7 @@ func checkUpdateHost() (updateHost, string) {
 		return updateHost{}, "root"
 	}
 	h := updateHost{dir: updateInstallDir}
-	if h.bash, err = exec.LookPath("bash"); err != nil || (!hasCommand("curl") && !hasCommand("wget")) {
+	if h.bash, err = exec.LookPath("bash"); err != nil || !hasCommand("curl") {
 		return updateHost{}, "tools"
 	}
 	if st, err := os.Stat("/run/systemd/system"); err == nil && st.IsDir() && hasCommand("systemd-run") {
@@ -223,14 +246,23 @@ func inContainer() bool {
 // ends the log with the exit status. When the install fails it starts the
 // panel again: the script stops the panel before it replaces the files, and a
 // failure after that must not leave the server without a panel.
-const updateRunner = `tag="$1" log="$2" url="$3" lang="$4"
+const updateRunner = `tag="$1" log="$2" url="$3" lang="$4" tokfile="$5"
 exec >>"$log" 2>&1 </dev/null
 dir=$(mktemp -d "${TMPDIR:-/tmp}/s-ui-update.XXXXXXXX") || { echo "EXIT=1"; exit 1; }
 cd "$dir" || { echo "EXIT=1"; exit 1; }
 rc=1
+# The token is read here and handed to curl in a config on a file descriptor:
+# never on a command line, where other users of the server could list it.
+tok=""
+if [ -n "$tokfile" ] && [ -r "$tokfile" ]; then
+	IFS= read -r tok <"$tokfile" || true
+	tok="${tok//[[:space:]]/}"
+fi
 echo "Downloading $url"
-if { command -v curl >/dev/null 2>&1 && curl -fsSL --retry 2 --connect-timeout 20 -o "$dir/install.sh" "$url"; } ||
-	{ command -v wget >/dev/null 2>&1 && wget -q -T 20 -O "$dir/install.sh" "$url"; }; then
+if command -v curl >/dev/null 2>&1 &&
+	curl -fsSL --retry 2 --connect-timeout 20 -H "Accept: application/vnd.github.raw" \
+		-K <(if [ -n "$tok" ]; then printf 'header = "Authorization: Bearer %s"\n' "$tok"; fi) \
+		-o "$dir/install.sh" "$url"; then
 	SUI_LANG="$lang" bash "$dir/install.sh" --unattended --version "$tag"
 	rc=$?
 else
@@ -318,8 +350,10 @@ func (s *PanelUpdateService) StartAt(lang, by, tag string, force bool) (string, 
 	if err := os.WriteFile(logPath, []byte(header), 0o600); err != nil {
 		return "", err
 	}
-	url := fmt.Sprintf("%s/%s/%s/install.sh", updateRawBase, updateRepo, target)
-	if err := launchUpdate(h, []string{target, logPath, url, scriptLang}); err != nil {
+	// Through the API: the repository is private, and the runner sends the
+	// saved token with it.
+	url := fmt.Sprintf("%s/repos/%s/contents/install.sh?ref=%s", updateAPIBase, updateRepo, target)
+	if err := launchUpdate(h, []string{target, logPath, url, scriptLang, githubTokenPath}); err != nil {
 		appendUpdateLog(logPath, "The update could not be started: "+err.Error()+"\nEXIT=1\n")
 		return "", err
 	}
