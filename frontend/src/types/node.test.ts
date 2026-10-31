@@ -251,7 +251,9 @@ describe('the add-node wizard', () => {
   it('writes the install command only from safe values', () => {
     const token = 'A'.repeat(32)
     expect(installCommand({ token, port: 2095, path: '/xYz/' })).toBe(
-      `bash <(curl -Ls https://raw.githubusercontent.com/Danialrostamani/drnetwork-panel/main/install.sh) --node-token ${token} --port 2095 --path /xYz/`)
+      `read -rsp 'Access token: ' DRN_TOKEN && echo && export DRN_TOKEN && ` +
+      `bash <(curl -fsSL -H "Authorization: Bearer $DRN_TOKEN" -H 'Accept: application/vnd.github.raw' ` +
+      `https://api.github.com/repos/Danialrostamani/drnetwork-panel/contents/install.sh) --node-token ${token} --port 2095 --path /xYz/`)
     expect(installCommand({ token: 'short', port: 2095, path: '/a/' })).toBe('')
     expect(installCommand({ token, port: 70000, path: '/a/' })).toBe('')
     expect(installCommand({ token, port: 2095, path: '/a/;rm -rf /' })).toBe('')

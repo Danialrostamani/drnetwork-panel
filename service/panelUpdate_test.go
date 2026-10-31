@@ -42,6 +42,10 @@ func TestCompareVersions(t *testing.T) {
 		{"v46", "v0.1", 1},
 		{"46", "45", 1},
 		{"0.2", "46", -1},
+		// The line restarted at 1.0 after v52.4.3.
+		{"v1.0", "52.4.3", 1},
+		{"v52.4.3", "1.0", -1},
+		{"v9.9", "1.0", 1},
 	}
 	for _, c := range cases {
 		if got := compareVersions(c.a, c.b); got != c.want {
@@ -87,13 +91,13 @@ func stubUpdateHost(t *testing.T, h updateHost, why string) {
 
 func TestPanelUpdateInfo(t *testing.T) {
 	var tag atomic.Value
-	tag.Store("v99")
+	tag.Store("v9.9")
 	calls := fakeReleases(t, &tag)
 	stubUpdateHost(t, updateHost{}, "docker")
 	s := &PanelUpdateService{}
 
 	info := s.Info(false)
-	if info.Current != config.GetVersion() || info.Latest != "v99" || !info.Newer ||
+	if info.Current != config.GetVersion() || info.Latest != "v9.9" || !info.Newer ||
 		info.LatestURL != "https://example.com/r" || info.Published != 1791469743 || info.Unsupported != "docker" {
 		t.Fatalf("info = %+v", info)
 	}
@@ -115,7 +119,7 @@ func TestPanelUpdateInfo(t *testing.T) {
 
 func TestStartPanelUpdate(t *testing.T) {
 	var tag atomic.Value
-	tag.Store("v99")
+	tag.Store("v9.9")
 	fakeReleases(t, &tag)
 	dir := t.TempDir()
 	stubUpdateHost(t, updateHost{dir: dir, init: "openrc", bash: "/bin/bash"}, "")
@@ -129,16 +133,16 @@ func TestStartPanelUpdate(t *testing.T) {
 	s := &PanelUpdateService{}
 
 	got, err := s.Start("zhHans", "admin")
-	if err != nil || got != "v99" {
+	if err != nil || got != "v9.9" {
 		t.Fatalf("Start = %q, %v", got, err)
 	}
 	logPath := filepath.Join(dir, updateLogName)
-	want := []string{"v99", logPath, updateRawBase + "/" + updateRepo + "/v99/install.sh", "zhcn"}
+	want := []string{"v9.9", logPath, updateAPIBase + "/repos/" + updateRepo + "/contents/install.sh?ref=v9.9", "zhcn", githubTokenPath}
 	if len(launched) != 1 || !reflect.DeepEqual(launched[0], want) {
 		t.Fatalf("launched %q", launched)
 	}
 	info := s.Info(false)
-	if !info.Running || info.Target != "v99" || info.From != config.GetVersion() || info.Exit != nil {
+	if !info.Running || info.Target != "v9.9" || info.From != config.GetVersion() || info.Exit != nil {
 		t.Fatalf("while running: %+v", info)
 	}
 	if _, err := s.Start("en", "admin"); err == nil || !strings.Contains(err.Error(), "already running") {
@@ -160,7 +164,7 @@ func TestStartPanelUpdate(t *testing.T) {
 		t.Fatalf("an older release was installed: %v", err)
 	}
 	stubUpdateHost(t, updateHost{}, "path")
-	tag.Store("v99")
+	tag.Store("v9.9")
 	s.Info(true)
 	if _, err := s.Start("en", "admin"); err == nil {
 		t.Fatal("an update started where the panel cannot update itself")
@@ -191,7 +195,7 @@ func TestForcePanelUpdateInstallsEvenIfNotNewer(t *testing.T) {
 	if err != nil || got != "v48.2" {
 		t.Fatalf("force latest = %q, %v", got, err)
 	}
-	_, err = s.StartAt("fa", "admin", "v99", true)
+	_, err = s.StartAt("fa", "admin", "v9.9", true)
 	if err == nil || !strings.Contains(err.Error(), "already running") {
 		t.Fatalf("second force started: %v", err)
 	}
@@ -263,17 +267,31 @@ func TestUpdateRunner(t *testing.T) {
 	}
 	script := "#!/bin/bash\necho \"args: $*\"\necho \"lang: $SUI_LANG\"\nexit ${FAKE_EXIT:-0}\n"
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/install.sh" {
+		switch r.URL.Path {
+		case "/install.sh":
+		case "/private.sh":
+			// A private repository: the API answers with the file only for
+			// the token, and only when asked for the raw content.
+			if r.Header.Get("Authorization") != "Bearer ghp_secret123" || r.Header.Get("Accept") != "application/vnd.github.raw" {
+				http.NotFound(w, r)
+				return
+			}
+		default:
 			http.NotFound(w, r)
 			return
 		}
 		_, _ = w.Write([]byte(script))
 	}))
 	defer srv.Close()
+	tokenFile := filepath.Join(t.TempDir(), "github-token")
+	if err := os.WriteFile(tokenFile, []byte("ghp_secret123\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	tokfile := ""
 	run := func(url string, env ...string) string {
 		t.Helper()
 		logPath := filepath.Join(t.TempDir(), updateLogName)
-		cmd := exec.Command(bash, "-c", updateRunner, "s-ui-update", "v9", logPath, url, "fa")
+		cmd := exec.Command(bash, "-c", updateRunner, "s-ui-update", "v9", logPath, url, "fa", tokfile)
 		cmd.Env = append([]string{"PATH=" + bin, "TMPDIR=" + t.TempDir()}, env...)
 		_ = cmd.Run()
 		b, err := os.ReadFile(logPath)
@@ -291,5 +309,18 @@ func TestUpdateRunner(t *testing.T) {
 	}
 	if out = run(srv.URL + "/missing.sh"); !strings.Contains(out, "could not be downloaded") || !strings.HasSuffix(out, "EXIT=1\n") {
 		t.Fatalf("missing script, log:\n%s", out)
+	}
+
+	// The private script needs the saved token, which never shows in the log.
+	if out = run(srv.URL + "/private.sh"); !strings.Contains(out, "could not be downloaded") {
+		t.Fatalf("private script without the token, log:\n%s", out)
+	}
+	tokfile = tokenFile
+	out = run(srv.URL + "/private.sh")
+	if !strings.Contains(out, "args: --unattended --version v9\n") || !strings.HasSuffix(out, "EXIT=0\n") {
+		t.Fatalf("private script with the token, log:\n%s", out)
+	}
+	if strings.Contains(out, "ghp_secret123") {
+		t.Fatalf("the token was written to the log:\n%s", out)
 	}
 }

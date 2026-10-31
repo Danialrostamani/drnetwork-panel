@@ -268,6 +268,8 @@ func (s *ServerService) GetSystemInfo() map[string]interface{} {
 	info["hostName"], _ = os.Hostname()
 	info["appVersion"] = config.GetVersion()
 	info["appFull"] = config.GetVersion()
+	// The sing-box core built in, shown beside the panel's own version.
+	info["coreVersion"] = singboxVersion()
 	ipv4 := make([]string, 0)
 	ipv6 := make([]string, 0)
 	// get ip address

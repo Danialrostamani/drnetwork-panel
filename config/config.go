@@ -11,11 +11,11 @@ import (
 	"unicode"
 )
 
-// release is the DrNetwork version, such as 48.0: what the panel, the bot, the
+// release is the DrNetwork version, such as 1.0: what the panel, the bot, the
 // nodes and the installer show. It is bumped by hand in the commit that is
-// tagged v<release>. Tags stay dotted (48.0, 48.1…) so a panel still on V.0.2
-// treats them as the same line as 0.x (two numbers) and GitHub's latest is
-// newer than v47. V.0.1 / V.0.2 sat between v45 and v46.
+// tagged v<release>. The line restarted at 1.0 after v52.4.3; CompareVersions
+// puts it after every earlier line (1.6.3-drnetwork.N, V.0.x, v32 to v52), so
+// panels and nodes still on 52.x see 1.0 as an update.
 //
 //go:embed release
 var release string
@@ -39,7 +39,7 @@ const (
 	Error LogLevel = "error"
 )
 
-// GetVersion returns the DrNetwork version, such as "48.0".
+// GetVersion returns the DrNetwork version, such as "1.0".
 func GetVersion() string {
 	return strings.TrimSpace(release)
 }
@@ -99,11 +99,22 @@ func versionEpoch(v string) int {
 		return 0
 	}
 	nums := rawVersionNumbers(v)
-	if len(nums) >= 2 && nums[0] == 1 && nums[1] == 6 {
+	// S-UI's own numbers, which the oldest nodes report: 1.6.<n>.
+	if len(nums) >= 3 && nums[0] == 1 && nums[1] == 6 {
 		return 0
+	}
+	// The product line restarted at 1.0 after v52.4.3. Its versions keep
+	// below 32, where the previous line began, and come after all of it. It
+	// never uses a three-part 1.6.<n>, which reads as S-UI's.
+	if len(nums) > 0 && nums[0] >= 1 && nums[0] < firstOldLineMajor {
+		return 2
 	}
 	return 1
 }
+
+// firstOldLineMajor is the first major version of the line that ran from v32
+// to v52.4.3; the line that restarted at 1.0 stays below it.
+const firstOldLineMajor = 32
 
 func versionNumbers(v string) []int {
 	nums := rawVersionNumbers(v)

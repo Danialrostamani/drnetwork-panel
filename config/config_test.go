@@ -12,8 +12,8 @@ func TestVersion(t *testing.T) {
 	if !regexp.MustCompile(`^[0-9]+(\.[0-9]+)*$`).MatchString(v) {
 		t.Fatalf("version %q is not plain numbers", v)
 	}
-	if VersionLabel(v) != "v52.4.3" {
-		t.Errorf("VersionLabel(%q) = %q, want v52.4.3", v, VersionLabel(v))
+	if VersionLabel(v) != "v1.0" {
+		t.Errorf("VersionLabel(%q) = %q, want v1.0", v, VersionLabel(v))
 	}
 	for in, want := range map[string]string{
 		"0.1":                "V.0.1",
@@ -56,6 +56,21 @@ func TestCompareVersions(t *testing.T) {
 		{"48.0", "0.2", 1},
 		{"v48.0", "v47", 1},
 		{"v47", "48.0", -1},
+		// The line restarted at 1.0 after v52.4.3 and comes after all of
+		// it, so a panel or node on 52.x sees 1.0 as an update.
+		{"1.0", "52.4.3", 1},
+		{"v1.0", "V52.4.3", 1},
+		{"52.4.3", "1.0", -1},
+		{"1.0", "0.2", 1},
+		{"1.0", "1.6.3-drnetwork.31", 1},
+		{"1.1", "1.0", 1},
+		{"1.0.1", "1.0", 1},
+		{"1.6", "1.5.9", 1},
+		{"1.6.3", "1.0", -1},
+		{"2.0", "1.9", 1},
+		{"31.9", "2.0", 1},
+		{"1.0", "1.0", 0},
+		{"v1.0", "1.0", 0},
 	}
 	for _, c := range cases {
 		if got := CompareVersions(c.a, c.b); got != c.want {
