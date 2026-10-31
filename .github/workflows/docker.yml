@@ -40,10 +40,6 @@ jobs:
       matrix:
         include:
           - { platform: linux/amd64 }
-          - { platform: linux/386 }
-          - { platform: linux/arm64/v8 }
-          - { platform: linux/arm/v7 }
-          - { platform: linux/arm/v6 }
     runs-on: ubuntu-26.04
     steps:
       - name: Checkout repository
