@@ -213,7 +213,6 @@ func EnforceClusterIPLimits() {
 		wg.Add(1)
 		sem <- struct{}{}
 		go func(i int) {
-			defer LogPanic("nodes: cluster IPs")
 			defer wg.Done()
 			defer func() { <-sem }()
 			node := &nodes[i]
@@ -276,7 +275,6 @@ func EnforceClusterIPLimits() {
 		wg.Add(1)
 		sem <- struct{}{}
 		go func(i int) {
-			defer LogPanic("nodes: cluster bans")
 			defer wg.Done()
 			defer func() { <-sem }()
 			form := url.Values{"data": {string(data)}}

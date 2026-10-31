@@ -60,7 +60,6 @@ func (s *StatsService) GetClusterSessions(resource, tag string) ([]ClusterSessio
 	for i, n := range nodes {
 		wg.Add(1)
 		go func(i int, n *model.Node) {
-			defer LogPanic("nodes: sessions")
 			defer wg.Done()
 			raw, err := ns.nodeGet(n, nodeHTTPClient(n), "sessions", url.Values{"resource": {"user"}, "tag": {tag}})
 			if err != nil {
@@ -106,16 +105,6 @@ func (s *StatsService) CloseClusterSessions(user string) error {
 		wg.Add(1)
 		go func(n *model.Node) {
 			defer wg.Done()
-			// A node whose answer panicked did not disconnect the client
-			// either; counted as failed rather than reported as done.
-			defer func() {
-				if r := recover(); r != nil {
-					logger.Error("nodes: close sessions on ", n.Name, ": panic: ", r)
-					mu.Lock()
-					failed = append(failed, n.Name+": internal error")
-					mu.Unlock()
-				}
-			}()
 			if _, err := syncer.nodePost(n, nodeHTTPClient(n), "closeSessions", url.Values{"u": {user}}); err != nil {
 				mu.Lock()
 				failed = append(failed, n.Name+": "+err.Error())

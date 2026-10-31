@@ -82,25 +82,8 @@ before_show_menu() {
     show_menu
 }
 
-# run_installer downloads install.sh and runs it with "$@". It goes to a file
-# first: piped straight into bash, a failed download ran an error page, or
-# nothing at all and reported success.
-run_installer() {
-    local f rc
-    f=$(mktemp "${TMPDIR:-/tmp}/s-ui-install.XXXXXXXX") || return 1
-    if ! curl -fsSL --retry 2 --connect-timeout 20 -o "$f" https://raw.githubusercontent.com/Danialrostamani/drnetwork-panel/main/install.sh; then
-        rm -f "$f"
-        LOGE "The install script could not be downloaded, Please check whether the machine can connect Github"
-        return 1
-    fi
-    bash "$f" "$@"
-    rc=$?
-    rm -f "$f"
-    return $rc
-}
-
 install() {
-    run_installer
+    bash <(curl -Ls https://raw.githubusercontent.com/Danialrostamani/drnetwork-panel/main/install.sh)
     if [[ $? == 0 ]]; then
         if [[ $# == 0 ]]; then
             start
@@ -119,7 +102,7 @@ update() {
         fi
         return 0
     fi
-    run_installer
+    bash <(curl -Ls https://raw.githubusercontent.com/Danialrostamani/drnetwork-panel/main/install.sh)
     if [[ $? == 0 ]]; then
         LOGI "Update is complete, Panel has automatically restarted "
         exit 0
@@ -127,21 +110,20 @@ update() {
 }
 
 custom_version() {
-    echo "Enter the panel version (like 1.0):"
-    read -r panel_version
+    echo "Enter the panel version (like 32):"
+    read panel_version
 
     if [ -z "$panel_version" ]; then
         echo "Panel version cannot be empty. Exiting."
-        exit 1
-    fi
-    # It goes on a command line: a version is letters, digits, dots and dashes.
-    if [[ ! "$panel_version" =~ ^[A-Za-z0-9._-]+$ ]]; then
-        LOGE "That is not a version."
-        exit 1
+    exit 1
     fi
 
+    download_link="https://raw.githubusercontent.com/Danialrostamani/drnetwork-panel/main/install.sh"
+
+    install_command="bash <(curl -Ls $download_link) $panel_version"
+
     echo "Downloading and installing panel version $panel_version..."
-    run_installer "$panel_version"
+    eval $install_command
 }
 
 uninstall() {
@@ -355,21 +337,17 @@ show_log() {
 }
 
 update_shell() {
-    local tmp
-    tmp=$(mktemp "${TMPDIR:-/tmp}/s-ui-sh.XXXXXXXX") || return 1
-    # Into a file first, checked, then put in place: written straight over
-    # /usr/bin/s-ui, a failed download left a broken command behind.
-    # Certificate verification stays on: this runs as root.
-    if ! curl -fsSL --retry 2 --connect-timeout 20 -o "$tmp" https://raw.githubusercontent.com/Danialrostamani/drnetwork-panel/main/s-ui.sh || ! bash -n "$tmp"; then
-        rm -f "$tmp"
+    # Certificate verification stays on: this file is about to be installed as
+    # /usr/bin/s-ui and run as root.
+    wget -O /usr/bin/s-ui -N https://raw.githubusercontent.com/Danialrostamani/drnetwork-panel/main/s-ui.sh
+    if [[ $? != 0 ]]; then
         echo ""
         LOGE "Failed to download script, Please check whether the machine can connect Github"
         before_show_menu
-        return
+    else
+        chmod +x /usr/bin/s-ui
+        LOGI "Upgrade script succeeded, Please rerun the script" && exit 0
     fi
-    install -m 755 "$tmp" /usr/bin/s-ui
-    rm -f "$tmp"
-    LOGI "Upgrade script succeeded, Please rerun the script" && exit 0
 }
 
 check_status() {

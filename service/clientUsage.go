@@ -201,7 +201,6 @@ func (s *StatsService) locationSamples(c model.Client, since, now int64) []usage
 		}
 		wg.Add(1)
 		go func(i int) {
-			defer LogPanic("nodes: client locations")
 			defer wg.Done()
 			node := nodes[i]
 			client := nodePushClient(&node)

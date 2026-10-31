@@ -7,8 +7,6 @@ import (
 	"strings"
 
 	"github.com/Danialrostamani/drnetwork-panel/database/model"
-	"github.com/Danialrostamani/drnetwork-panel/logger"
-	"github.com/Danialrostamani/drnetwork-panel/service"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -16,15 +14,7 @@ import (
 
 const (
 	loginUser = "LOGIN_USER"
-	// loginEpoch is the account's session version the session was issued
-	// with; see model.User.SessionEpoch.
-	loginEpoch = "LOGIN_EPOCH"
-	// checkedLoginKey keeps the checked user on the request, so the database
-	// is asked once per request rather than by every GetLoginUser.
-	checkedLoginKey = "drnetwork.loginUser"
 )
-
-var sessionUsers service.UserService
 
 func init() {
 	gob.Register(model.User{})
@@ -81,23 +71,11 @@ func requestIsHTTPS(c *gin.Context) bool {
 	return ip != nil && (ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast())
 }
 
-// SetLoginUser starts a session for userName at the account's current session
-// version. It is also how a request whose own change ended the account's
-// sessions (new credentials, two-factor on or off) keeps its own.
 func SetLoginUser(c *gin.Context, userName string, maxAge int) error {
-	epoch, _, err := sessionUsers.SessionEpoch(userName)
-	if err != nil {
-		return err
-	}
 	s := sessions.Default(c)
 	s.Set(loginUser, userName)
-	s.Set(loginEpoch, epoch)
 	s.Options(sessionOptions(c, maxAge))
-	if err := s.Save(); err != nil {
-		return err
-	}
-	c.Set(checkedLoginKey, userName)
-	return nil
+	return s.Save()
 }
 
 func SetMaxAge(c *gin.Context) error {
@@ -106,47 +84,17 @@ func SetMaxAge(c *gin.Context) error {
 	return s.Save()
 }
 
-// GetLoginUser is the user the request's session belongs to, or "" when it
-// has none that still holds. The cookie is signed, but signed is not enough:
-// it names a user and nothing on the server can take it back, so a cookie
-// copied before the password changed kept working until it expired. A session
-// now also holds while its version is the account's current one and the
-// account exists.
 func GetLoginUser(c *gin.Context) string {
-	if v, ok := c.Get(checkedLoginKey); ok {
-		name, _ := v.(string)
-		return name
-	}
-	name := sessionLoginUser(c)
-	c.Set(checkedLoginKey, name)
-	return name
-}
-
-func sessionLoginUser(c *gin.Context) string {
 	s := sessions.Default(c)
-	name, ok := s.Get(loginUser).(string)
-	if !ok || name == "" {
+	obj := s.Get(loginUser)
+	if obj == nil {
 		return ""
 	}
-	var issued int64
-	switch v := s.Get(loginEpoch).(type) {
-	case int64:
-		issued = v
-	case int:
-		issued = int64(v)
-	}
-	current, found, err := sessionUsers.SessionEpoch(name)
-	if err != nil {
-		// A database that cannot be read right now says nothing about the
-		// session. Failing closed here would sign the operator out on every
-		// busy moment of the database.
-		logger.Warning("session check: ", err)
-		return name
-	}
-	if !found || current != issued {
+	objStr, ok := obj.(string)
+	if !ok {
 		return ""
 	}
-	return name
+	return objStr
 }
 
 func IsLogin(c *gin.Context) bool {
@@ -163,5 +111,4 @@ func ClearSession(c *gin.Context) {
 	o.MaxAge = -1
 	s.Options(o)
 	s.Save()
-	c.Set(checkedLoginKey, "")
 }

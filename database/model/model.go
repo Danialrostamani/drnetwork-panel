@@ -28,12 +28,6 @@ type User struct {
 	LastLogins string `json:"lastLogin"`
 	// Totp is the two-factor secret; empty while two-factor login is off.
 	Totp string `json:"-" form:"-"`
-	// SessionEpoch is the version of the account's sessions. A session cookie
-	// carries the value it was issued with and stops working once this moves
-	// on, so changing the password or two-factor login ends every other
-	// session, a copied cookie included. Sessions from before the column
-	// existed carry no value, read as 0, and so stay valid until it moves.
-	SessionEpoch int64 `json:"-" form:"-" gorm:"default:0;not null"`
 }
 
 type Client struct {

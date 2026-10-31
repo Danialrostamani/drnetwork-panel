@@ -14,8 +14,6 @@ import (
 	"github.com/Danialrostamani/drnetwork-panel/database"
 	"github.com/Danialrostamani/drnetwork-panel/database/model"
 	"github.com/Danialrostamani/drnetwork-panel/util/common"
-
-	"gorm.io/gorm"
 )
 
 // Two-factor login with time-based one-time codes (RFC 6238: SHA-1, six
@@ -132,9 +130,7 @@ func (s *UserService) EnableTotp(username, code string) error {
 	if !checkTotp(username, secret, code) {
 		return common.NewError("wrong code")
 	}
-	// Sessions opened before two-factor login was on did not pass it; they end.
-	res := database.GetDB().Model(model.User{}).Where("username = ?", username).
-		Updates(map[string]any{"totp": secret, "session_epoch": gorm.Expr("session_epoch + 1")})
+	res := database.GetDB().Model(model.User{}).Where("username = ?", username).Update("totp", secret)
 	if res.Error != nil {
 		return res.Error
 	}
@@ -159,6 +155,5 @@ func (s *UserService) DisableTotp(username, code string) error {
 	if !checkTotp(username, user.Totp, code) {
 		return common.NewError("wrong code")
 	}
-	return database.GetDB().Model(model.User{}).Where("id = ?", user.Id).
-		Updates(map[string]any{"totp": "", "session_epoch": gorm.Expr("session_epoch + 1")}).Error
+	return database.GetDB().Model(model.User{}).Where("id = ?", user.Id).Update("totp", "").Error
 }

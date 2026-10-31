@@ -53,8 +53,6 @@ func (s *UserService) UpdateFirstUser(username string, password string) error {
 	// Resetting the credentials from the server also turns two-factor login
 	// off: it is the way back in for an admin who lost the code's device.
 	user.Totp = ""
-	// And signs every session out, which is the point of resetting them.
-	user.SessionEpoch++
 	return db.Save(user).Error
 }
 
@@ -183,28 +181,7 @@ func (s *UserService) ChangePass(loginUser string, oldPass string, newUser strin
 	}
 	user.Username = newUser
 	user.Password = hashedPass
-	// Every session of the account ends with the old credentials, a stolen
-	// cookie included; the caller issues the current one a new session.
-	user.SessionEpoch++
 	return db.Save(user).Error
-}
-
-// SessionEpoch is the current session version of an account. found is false
-// when there is no such account, which ends any session that names it; err is
-// a failure to read, which says nothing about the session either way.
-func (s *UserService) SessionEpoch(username string) (epoch int64, found bool, err error) {
-	if username == "" {
-		return 0, false, nil
-	}
-	var users []model.User
-	if err := database.GetDB().Model(model.User{}).Select("id", "session_epoch").
-		Where("username = ?", username).Limit(1).Find(&users).Error; err != nil {
-		return 0, false, err
-	}
-	if len(users) == 0 {
-		return 0, false, nil
-	}
-	return users[0].SessionEpoch, true, nil
 }
 
 func (s *UserService) LoadTokens() ([]byte, error) {

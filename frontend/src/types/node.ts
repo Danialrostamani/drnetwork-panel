@@ -525,15 +525,7 @@ export function webPathOf(p: string): string {
 // when a value would not be safe to run.
 export function installCommand(o: { token: string; port: number; path: string }): string {
   if (!validToken(o.token) || !validPort(o.port) || !validPath(o.path)) return ''
-  return installBootstrap(`--node-token ${o.token} --port ${o.port} --path ${o.path}`)
-}
-
-// The install script is downloaded to a file before it runs: piped straight
-// into bash, a failed download ran an error page, or ran nothing and looked
-// like success. The subshell keeps the temporary name out of the shell.
-export function installBootstrap(args = ''): string {
-  const a = args ? ' ' + args : ''
-  return `(f=$(mktemp) && curl -fsSL -o "$f" ${installScriptUrl} && bash "$f"${a}; r=$?; rm -f "$f"; exit $r)`
+  return `bash <(curl -Ls ${installScriptUrl}) --node-token ${o.token} --port ${o.port} --path ${o.path}`
 }
 
 // The address of a panel on host:port. A new panel answers over plain HTTP

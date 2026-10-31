@@ -142,7 +142,6 @@ func (s *NodeSyncService) NodeActionWith(ids []uint, action, actor string, opts 
 		wg.Add(1)
 		sem <- struct{}{}
 		go func(i int) {
-			defer LogPanic("nodes: action")
 			defer wg.Done()
 			defer func() { <-sem }()
 			n := &nodes[i]

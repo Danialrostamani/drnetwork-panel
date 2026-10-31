@@ -389,8 +389,6 @@ func (b *bot) customerReceipt(ctx context.Context, chatID int64, from *fromUser,
 // delivers it at once. When delivery fails the price goes back to the
 // balance and the order stays pending, to be paid by card instead.
 func (b *bot) payFromWallet(ctx context.Context, chatID int64, from *fromUser, orderID uint) {
-	orderDecisionMu.Lock()
-	defer orderDecisionMu.Unlock()
 	o, err := loadOrder(orderID)
 	if err != nil || o.TgId != from.ID {
 		b.sendMenu(ctx, chatID, b.tr("❌ سفارش پیدا نشد.", "❌ Order not found."), b.customerMenu(from.ID))
@@ -438,10 +436,6 @@ func (b *bot) orderCallback(ctx context.Context, cbID string, chatID, msgID int6
 		b.answer(ctx, cbID, b.denied())
 		return
 	}
-	// Read and decided under the lock the web panel's order edits take, so
-	// the pending check below still holds when the decision is written.
-	orderDecisionMu.Lock()
-	defer orderDecisionMu.Unlock()
 	id64, _ := strconv.ParseUint(parts[2], 10, 32)
 	o, err := loadOrder(uint(id64))
 	if err != nil {

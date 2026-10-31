@@ -61,7 +61,6 @@ func (s *DepleteJob) Run() {
 	delay := kickDelay
 	kicking.Add(1)
 	go func() {
-		defer service.LogPanic("deplete: kick")
 		defer kicking.Done()
 		s.NodeSyncService.ReconcileDirtyOnlineWait()
 		s.kick(users)

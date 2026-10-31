@@ -1,6 +1,8 @@
 package api
 
 import (
+	"strings"
+
 	"github.com/Danialrostamani/drnetwork-panel/util/common"
 
 	"github.com/gin-gonic/gin"
@@ -19,23 +21,14 @@ func NewAPIHandler(g *gin.RouterGroup, a2 *APIv2Handler) {
 }
 
 func (a *APIHandler) initRouter(g *gin.RouterGroup) {
-	// Login and logout are the only actions open without a session. The
-	// check used to match any path ending in "login" or "logout", which held
-	// only because no other action happened to end that way.
-	g.POST("/:postAction", requireLoginExcept("login"), a.postHandler)
-	g.GET("/:getAction", requireLoginExcept("logout"), a.getHandler)
-}
-
-// requireLoginExcept checks the session on every action of the route but the
-// one named.
-func requireLoginExcept(open string) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if c.Param("postAction") == open || c.Param("getAction") == open {
-			c.Next()
-			return
+	g.Use(func(c *gin.Context) {
+		path := c.Request.URL.Path
+		if !strings.HasSuffix(path, "login") && !strings.HasSuffix(path, "logout") {
+			checkLogin(c)
 		}
-		checkLogin(c)
-	}
+	})
+	g.POST("/:postAction", a.postHandler)
+	g.GET("/:getAction", a.getHandler)
 }
 
 func (a *APIHandler) postHandler(c *gin.Context) {
@@ -47,8 +40,6 @@ func (a *APIHandler) postHandler(c *gin.Context) {
 		a.ApiService.Login(c)
 	case "changePass":
 		a.ApiService.ChangePass(c)
-		// API tokens are held with their owner's name, which may have changed.
-		a.apiv2.ReloadTokens()
 	case "save":
 		a.ApiService.Save(c, loginUser, true)
 	case "restartApp":

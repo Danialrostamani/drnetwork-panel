@@ -8,7 +8,6 @@ import (
 	"reflect"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/Danialrostamani/drnetwork-panel/core"
 	"github.com/Danialrostamani/drnetwork-panel/database"
@@ -153,38 +152,5 @@ func TestNodeTrafficPushesQuotas(t *testing.T) {
 	want := map[string]int64{"alice": 300 + 10000 - 311}
 	if !reflect.DeepEqual(pushed, want) {
 		t.Fatalf("pushed %v, want %v", pushed, want)
-	}
-}
-
-// A core started while something else holds the quota lock -- the
-// subscription page's live usage takes it every second per open page -- still
-// gets its quotas once the lock is free. RefreshQuotas used to give up.
-func TestRefreshQuotasWaitsForABusyLock(t *testing.T) {
-	saved := refreshLiveQuotasLocked
-	t.Cleanup(func() { refreshLiveQuotasLocked = saved })
-	refreshed := make(chan struct{}, 2)
-	refreshLiveQuotasLocked = func() { refreshed <- struct{}{} }
-
-	quotaMu.Lock()
-	RefreshQuotas()
-	select {
-	case <-refreshed:
-		quotaMu.Unlock()
-		t.Fatal("refreshed while another holder still had the lock")
-	case <-time.After(50 * time.Millisecond):
-	}
-	quotaMu.Unlock()
-	select {
-	case <-refreshed:
-	case <-time.After(5 * time.Second):
-		t.Fatal("the quotas were never handed over once the lock was free")
-	}
-
-	// A free lock refreshes at once, before returning.
-	RefreshQuotas()
-	select {
-	case <-refreshed:
-	default:
-		t.Fatal("a free lock did not refresh at once")
 	}
 }

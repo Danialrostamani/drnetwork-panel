@@ -206,31 +206,20 @@ func (b *bot) clientKeyboard(c model.Client) [][]button {
 	if c.Expiry != 0 || c.DelayStart {
 		timeRow = append(timeRow, button{Text: b.tr("♾ زمان نامحدود", "♾ Unlimited time"), Data: "c:dinf:" + id})
 	}
-	// One tap for the most common top-up; only a client with a volume can
-	// be given more of it.
-	var quickRow []button
-	if c.Volume > 0 {
-		quickRow = []button{{Text: b.tr("➕ ۱۰ گیگ حجم", "➕ 10 GB volume"), Data: "c:gb10:" + id}}
-	}
 	// The IP list only matters for a client with an IP limit.
 	toolsRow := []button{{Text: b.tr("✏️ ویرایش", "✏️ Edit"), Data: "c:edit:" + id}}
 	if c.LimitIp > 0 {
 		toolsRow = append(toolsRow, b.btn("btnIps", "c:ips:"+id))
 	}
-	rows := [][]button{
+	return [][]button{
 		{toggle, b.btn("btnReset", "c:rst:"+id)},
-	}
-	if quickRow != nil {
-		rows = append(rows, quickRow)
-	}
-	return append(rows, [][]button{
 		timeRow,
 		toolsRow,
 		{b.btn("btnSub", "c:sub:"+id)},
 		tokenRow,
 		{{Text: b.tr("🔔 تلگرام", "🔔 Telegram"), Data: "c:ask:tg:" + id}, b.btn("btnDelete", "c:del:"+id)},
 		{b.btn("btnRefresh", "c:view:"+id), {Text: b.tr("⬅️ کلاینت‌ها", "⬅️ Clients"), Data: "c:ls:a:0"}, {Text: b.tr("🏠", "🏠"), Data: "m:menu"}},
-	}...)
+	}
 }
 
 func isDepleted(c model.Client, now time.Time) bool {

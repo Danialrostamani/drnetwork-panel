@@ -251,7 +251,6 @@ func (s *StatsService) GetClusterSummary(since, bucket int64) ClusterSummary {
 		wg.Add(1)
 		sem <- struct{}{}
 		go func(slot *answer) {
-			defer LogPanic("nodes: stats summary")
 			defer wg.Done()
 			defer func() { <-sem }()
 			slot.sum, slot.note = askNodeSummary(&node, since, bucket)

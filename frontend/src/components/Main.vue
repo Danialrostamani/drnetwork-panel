@@ -23,30 +23,6 @@
           />
         </v-col>
       </v-row>
-      <v-row
-        v-if="versions.app"
-        class="d-flex align-center justify-center"
-      >
-        <v-col cols="auto">
-          <v-chip
-            density="compact"
-            color="primary"
-            variant="tonal"
-            class="ma-1"
-          >
-            DrNetwork {{ versionLabel(versions.app) }}
-          </v-chip>
-          <v-chip
-            v-if="versions.core"
-            density="compact"
-            color="secondary"
-            variant="tonal"
-            class="ma-1"
-          >
-            sing-box {{ versions.core }}
-          </v-chip>
-        </v-col>
-      </v-row>
       <v-row class="d-flex align-center justify-center">
         <v-col cols="auto">
           <v-dialog
@@ -274,18 +250,6 @@
                     </v-chip>
                   </v-col>
                   <v-col cols="3">
-                    sing-box
-                  </v-col>
-                  <v-col cols="9">
-                    <v-chip
-                      v-if="tilesData.sys?.coreVersion"
-                      density="compact"
-                      color="secondary"
-                    >
-                      {{ tilesData.sys?.coreVersion }}
-                    </v-chip>
-                  </v-col>
-                  <v-col cols="3">
                     {{ $t('main.info.uptime') }}
                   </v-col>
                   <v-col
@@ -299,19 +263,6 @@
               </template>
               <template v-if="i == 'i-sbd'">
                 <v-row>
-                  <v-col cols="4">
-                    {{ $t('version') }}
-                  </v-col>
-                  <v-col cols="8">
-                    <v-chip
-                      v-if="tilesData.sbd?.version"
-                      density="compact"
-                      color="secondary"
-                      variant="flat"
-                    >
-                      {{ tilesData.sbd?.version }}
-                    </v-chip>
-                  </v-col>
                   <v-col cols="4">
                     {{ $t('main.info.running') }}
                   </v-col>
@@ -541,13 +492,11 @@ interface SysInfo {
   ipv4: string[]
   ipv6: string[]
   appVersion: string
-  coreVersion?: string
   bootTime: number
 }
 
 interface SingBoxInfo {
   running: boolean
-  version?: string
   maintenance: boolean
   stats: {
     Alloc: number
@@ -611,20 +560,8 @@ const stopTimer = () => {
   }
 }
 
-// The panel's and the core's versions, shown under the logo whatever tiles
-// are picked. Kept apart from tilesData, which each reload replaces whole.
-const versions = ref({ app: '', core: '' })
-
-const loadVersions = async () => {
-  const data = await HttpUtils.get<TilesData>('api/status', { r: 'sys' })
-  if (data.success && data.obj?.sys) {
-    versions.value = { app: data.obj.sys.appVersion ?? '', core: data.obj.sys.coreVersion ?? '' }
-  }
-}
-
 onMounted(async () => {
   loading.value = true
-  await loadVersions()
   if (Data().reloadItems.length != 0) {
     await reloadData()
     startTimer()

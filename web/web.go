@@ -30,6 +30,14 @@ import (
 //go:embed *
 var content embed.FS
 
+// trustedProxies are the peers whose X-Forwarded-* headers are believed: the
+// loopback and private ranges a reverse proxy in front of the panel lives in.
+var trustedProxies = []string{
+	"127.0.0.0/8", "::1/128",
+	"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7",
+	"169.254.0.0/16", "fe80::/10",
+}
+
 type Server struct {
 	httpServer     *http.Server
 	listener       net.Listener
@@ -61,7 +69,7 @@ func (s *Server) initRouter() (*gin.Engine, error) {
 	// X-Forwarded-For and forge the address written to the login log. Only a
 	// loopback or private peer is a plausible reverse proxy; a direct client
 	// from the internet is now reported by its real address.
-	if err := engine.SetTrustedProxies(middleware.TrustedProxies); err != nil {
+	if err := engine.SetTrustedProxies(trustedProxies); err != nil {
 		return nil, err
 	}
 
