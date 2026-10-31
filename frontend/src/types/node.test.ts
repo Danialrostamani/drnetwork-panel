@@ -251,7 +251,8 @@ describe('the add-node wizard', () => {
   it('writes the install command only from safe values', () => {
     const token = 'A'.repeat(32)
     expect(installCommand({ token, port: 2095, path: '/xYz/' })).toBe(
-      `bash <(curl -Ls https://raw.githubusercontent.com/Danialrostamani/drnetwork-panel/main/install.sh) --node-token ${token} --port 2095 --path /xYz/`)
+      '(f=$(mktemp) && curl -fsSL -o "$f" https://raw.githubusercontent.com/Danialrostamani/drnetwork-panel/main/install.sh && ' +
+      `bash "$f" --node-token ${token} --port 2095 --path /xYz/; r=$?; rm -f "$f"; exit $r)`)
     expect(installCommand({ token: 'short', port: 2095, path: '/a/' })).toBe('')
     expect(installCommand({ token, port: 70000, path: '/a/' })).toBe('')
     expect(installCommand({ token, port: 2095, path: '/a/;rm -rf /' })).toBe('')

@@ -725,7 +725,9 @@ install_s-ui() {
         fi
         exit 1
     fi
-    wget -q -O "$sums" "${base}/SHA256SUMS" 2>/dev/null || : # older releases have none
+    # Through fetch, which falls back to curl: a failed wget alone used to skip
+    # the checksum check without saying why.
+    fetch "${base}/SHA256SUMS" "$sums" 2>/dev/null || : # older releases have none
     verify_checksum "$archive" "$sums" || exit 1
 
     if [[ -e /usr/local/s-ui/ ]]; then

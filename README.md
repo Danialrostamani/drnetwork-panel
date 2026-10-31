@@ -110,7 +110,7 @@ traffic benchmark or ISP-path measurement is implied by unit/browser tests.
 
 ### Linux/macOS
 ```sh
-bash <(curl -Ls https://raw.githubusercontent.com/Danialrostamani/drnetwork-panel/main/install.sh)
+(f=$(mktemp) && curl -fsSL -o "$f" https://raw.githubusercontent.com/Danialrostamani/drnetwork-panel/main/install.sh && bash "$f"; r=$?; rm -f "$f"; exit $r)
 ```
 
 #### Installer language
@@ -118,7 +118,8 @@ bash <(curl -Ls https://raw.githubusercontent.com/Danialrostamani/drnetwork-pane
 The installer is available in the same six languages as the panel: `en` (default), `fa`, `ru`, `vi`, `zhcn`, `zhtw`. Choose one with the `SUI_LANG` environment variable (when unset, your system `$LANG` is used as a hint):
 
 ```sh
-SUI_LANG=fa bash <(curl -Ls https://raw.githubusercontent.com/Danialrostamani/drnetwork-panel/main/install.sh)
+export SUI_LANG=fa
+(f=$(mktemp) && curl -fsSL -o "$f" https://raw.githubusercontent.com/Danialrostamani/drnetwork-panel/main/install.sh && bash "$f"; r=$?; rm -f "$f"; exit $r)
 ```
 
 ### Alpine Linux
@@ -126,7 +127,7 @@ Alpine uses `apk` and OpenRC instead of `apt`/systemd. The install script detect
 
 ```sh
 apk add bash
-bash <(curl -Ls https://raw.githubusercontent.com/Danialrostamani/drnetwork-panel/main/install.sh)
+(f=$(mktemp) && curl -fsSL -o "$f" https://raw.githubusercontent.com/Danialrostamani/drnetwork-panel/main/install.sh && bash "$f"; r=$?; rm -f "$f"; exit $r)
 ```
 
 Manage the service with OpenRC: `rc-service s-ui start|stop|restart` and `rc-update add s-ui default`.
@@ -303,7 +304,7 @@ A node is another DrNetwork panel that the master monitors and keeps in sync. Op
 
 - **Add a node** - *New server* gives a one-line command to run as root on a fresh server; it installs the latest release with a random panel port, path and API token for this master, then the wizard waits for the node to answer. *Existing panel* takes the address and an API token made on that panel (**Admins → API token**, or `s-ui token -add <token> -desc master` on its shell). **Add several nodes** takes one `name URL token [path]` per line. For security the master never logs in to your servers over SSH: you run the command yourself.
   ```sh
-  bash <(curl -Ls https://raw.githubusercontent.com/Danialrostamani/drnetwork-panel/main/install.sh) --node-token <token> --port <port> --path /<path>/
+  (f=$(mktemp) && curl -fsSL -o "$f" https://raw.githubusercontent.com/Danialrostamani/drnetwork-panel/main/install.sh && bash "$f" --node-token <token> --port <port> --path /<path>/; r=$?; rm -f "$f"; exit $r)
   ```
   The installer also takes `--version <version>`, such as `--version 32`.
 - **Overview** - a summary bar (online, down, users online, live speed, today's traffic, warnings), search, status/tag/country filters, sorting, cards or a table, tags, a country flag and a manual order per node.
