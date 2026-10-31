@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -447,7 +448,10 @@ func (a *ApiService) Save(c *gin.Context, loginUser string, fanout bool) {
 		jsonMsg(c, "save", err)
 		return
 	}
-	if fanout && (obj == "clients" || obj == "inbounds") {
+	// A settings save that rebuilt the client links (the remark prefix was
+	// switched) has to reach the nodes' links too, which a sync rewrites.
+	rebuiltLinks := obj == "settings" && slices.Contains(objs, "clients")
+	if fanout && (obj == "clients" || obj == "inbounds" || rebuiltLinks) {
 		a.NodeSyncService.MarkAllDirty()
 		go a.NodeSyncService.ReconcileDirtyOnline()
 	}

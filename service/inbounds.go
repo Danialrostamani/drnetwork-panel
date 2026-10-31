@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/Danialrostamani/drnetwork-panel/database"
@@ -285,7 +286,7 @@ func inboundTakesClients(inbound *model.Inbound) bool {
 	return true
 }
 
-func (s *InboundService) fetchUsers(db *gorm.DB, inboundType string, condition string, inbound map[string]interface{}) ([]json.RawMessage, error) {
+func (s *InboundService) fetchUsers(db *gorm.DB, inboundType string, condition string, args []any, inbound map[string]interface{}) ([]json.RawMessage, error) {
 	if inboundType == "shadowtls" {
 		version, _ := inbound["version"].(float64)
 		if int(version) < 3 {
@@ -309,7 +310,7 @@ func (s *InboundService) fetchUsers(db *gorm.DB, inboundType string, condition s
 		fmt.Sprintf(`SELECT json_extract(CAST(clients.config AS TEXT), "$.%[1]s")
 		FROM clients WHERE enable = true AND %[2]s
 		AND json_extract(CAST(clients.config AS TEXT), "$.%[1]s") IS NOT NULL`,
-			inboundType, condition)).Scan(&users).Error
+			inboundType, condition), args...).Scan(&users).Error
 	if err != nil {
 		return nil, err
 	}
@@ -344,7 +345,7 @@ func (s *InboundService) addUsers(db *gorm.DB, inboundJson []byte, inboundId uin
 	}
 
 	condition := fmt.Sprintf("%d IN (SELECT json_each.value FROM json_each(CAST(clients.inbounds AS TEXT)))", inboundId)
-	inbound["users"], err = s.fetchUsers(db, inboundType, condition, inbound)
+	inbound["users"], err = s.fetchUsers(db, inboundType, condition, nil, inbound)
 	if err != nil {
 		return nil, err
 	}
@@ -353,8 +354,7 @@ func (s *InboundService) addUsers(db *gorm.DB, inboundJson []byte, inboundId uin
 }
 
 func (s *InboundService) initUsers(db *gorm.DB, inboundJson []byte, clientIds string, inboundType string) ([]byte, error) {
-	ClientIds := strings.Split(clientIds, ",")
-	if len(ClientIds) == 0 {
+	if strings.TrimSpace(clientIds) == "" {
 		return inboundJson, nil
 	}
 
@@ -368,8 +368,25 @@ func (s *InboundService) initUsers(db *gorm.DB, inboundJson []byte, clientIds st
 		return nil, err
 	}
 
-	condition := fmt.Sprintf("id IN (%s)", strings.Join(ClientIds, ","))
-	inbound["users"], err = s.fetchUsers(db, inboundType, condition, inbound)
+	// The ids arrive as a form value, so they are attacker-shaped text, not
+	// numbers: spliced into the SQL condition (id IN (%s)), a value like
+	// "0) OR (1=1" selected every enabled client. Each id is parsed and
+	// passed as an argument instead, so nothing in the value can change the
+	// shape of the query. (S-UI #1301.)
+	parts := strings.Split(clientIds, ",")
+	ids := make([]any, 0, len(parts))
+	marks := make([]string, 0, len(parts))
+	for _, part := range parts {
+		id, err := strconv.ParseUint(strings.TrimSpace(part), 10, 64)
+		if err != nil {
+			return nil, common.NewError("invalid client id: ", part)
+		}
+		ids = append(ids, id)
+		marks = append(marks, "?")
+	}
+
+	condition := "id IN (" + strings.Join(marks, ",") + ")"
+	inbound["users"], err = s.fetchUsers(db, inboundType, condition, ids, inbound)
 	if err != nil {
 		return nil, err
 	}

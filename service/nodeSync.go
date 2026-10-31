@@ -773,7 +773,9 @@ func unusableLinkHost(host string) bool {
 // genNodeReplicaLinks makes a client's links to a node's inbound. fallback is
 // the address used when the inbound's own is missing or a loopback one (an
 // inbound saved on the node through an SSH tunnel, say), or "" for none.
-func genNodeReplicaLinks(replica *model.Inbound, client *model.Client, fallback string) (links []string) {
+// remark is what the names start with: the client's remark, or "" when the
+// subRemarkPrefix setting is off.
+func genNodeReplicaLinks(replica *model.Inbound, client *model.Client, fallback string, remark string) (links []string) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			logger.Warning("nodes: link generation panic for ", replica.Tag, ": ", recovered)
@@ -829,7 +831,7 @@ func genNodeReplicaLinks(replica *model.Inbound, client *model.Client, fallback 
 	synthetic.TlsId = 0
 	synthetic.Tls = nil
 	synthetic.Addrs, _ = json.Marshal(addresses)
-	return util.LinkGenerator(client.Config, &synthetic, server, client.Remark, client.Name)
+	return util.LinkGenerator(client.Config, &synthetic, server, remark, client.Name)
 }
 
 func (s *NodeSyncService) refreshReplicas(node *model.Node, client *http.Client, tagToID map[string]uint) bool {
@@ -902,6 +904,7 @@ func (s *NodeSyncService) refreshReplicas(node *model.Node, client *http.Client,
 func (s *NodeSyncService) refreshNodeLinks(node *model.Node, skip map[string]bool) {
 	refreshLinksMu.Lock()
 	defer refreshLinksMu.Unlock()
+	remarkPrefix := (&SettingService{}).SubRemarkPrefix(database.GetDB())
 	var replicas []model.Inbound
 	if err := database.GetDB().Where("node_id = ?", node.Id).Find(&replicas).Error; err != nil {
 		logger.Warning("nodes: load replicas for links: ", err)
@@ -936,7 +939,7 @@ func (s *NodeSyncService) refreshNodeLinks(node *model.Node, skip map[string]boo
 			if !exists {
 				continue
 			}
-			for _, uri := range genNodeReplicaLinks(replica, client, fallback) {
+			for _, uri := range genNodeReplicaLinks(replica, client, fallback, linkRemark(remarkPrefix, client.Remark)) {
 				desired = append(desired, map[string]string{"remark": prefix + replica.Tag, "type": "external", "uri": uri})
 			}
 		}

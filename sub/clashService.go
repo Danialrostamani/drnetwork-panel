@@ -119,6 +119,11 @@ func (s *ClashService) ConvertToClashMeta(outbounds *[]map[string]interface{}, b
 		if t == "selector" || t == "urltest" || t == "direct" {
 			continue
 		}
+		// Clash has no hysteria realm, and without it there is no address to
+		// reach the server at. (S-UI #1317.)
+		if _, viaRealm := obMap["realm"]; viaRealm {
+			continue
+		}
 
 		proxy := make(map[string]interface{})
 		proxy["name"] = obMap["tag"]

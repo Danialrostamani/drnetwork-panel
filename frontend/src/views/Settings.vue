@@ -274,6 +274,18 @@
               md="4"
             >
               <v-switch
+                v-model="subRemarkPrefix"
+                color="primary"
+                :label="$t('setting.subRemarkPrefix')"
+                hide-details
+              />
+            </v-col>
+            <v-col
+              cols="12"
+              sm="6"
+              md="4"
+            >
+              <v-switch
                 v-model="subPage"
                 color="primary"
                 :label="$t('setting.subPage')"
@@ -681,6 +693,7 @@ const settings = ref({
 	subUpdates: "12",
 	subEncode: "true",
 	subShowInfo: "false",
+	subRemarkPrefix: "true",
 	subPage: "true",
 	subPageConf: "{}",
 	subLoadOrder: "false",
@@ -843,6 +856,11 @@ const writeSubPageLists = () => writeSubPage(subPageConf.value)
 const setSubPage = <K extends keyof SubPageConf>(k: K, v: SubPageConf[K]) => {
   writeSubPage({ ...subPageConf.value, [k]: v })
 }
+
+const subRemarkPrefix = computed({
+  get: () => { return settings.value.subRemarkPrefix == "true" },
+  set: (v:boolean) => { settings.value.subRemarkPrefix = v ? "true" : "false" }
+})
 
 const subShowInfo = computed({
   get: () => { return settings.value.subShowInfo == "true" },

@@ -129,6 +129,13 @@ func fetchLatestRelease() latestRelease {
 		r.err = fmt.Errorf("GitHub named an invalid release tag %q", body.Tag)
 		return r
 	}
+	// The panel renders this URL as a link the operator is invited to click
+	// while logged in, and Vue's href binding does not filter schemes, so
+	// only the expected GitHub URL is handed on. (S-UI #1305.)
+	if !strings.HasPrefix(body.URL, "https://github.com/") {
+		r.err = fmt.Errorf("GitHub answered an unexpected release URL")
+		return r
+	}
 	r.tag, r.url = body.Tag, body.URL
 	if t, err := time.Parse(time.RFC3339, body.Published); err == nil {
 		r.published = t.Unix()

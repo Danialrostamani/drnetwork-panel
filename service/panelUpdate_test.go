@@ -60,7 +60,7 @@ func fakeReleases(t *testing.T, tag *atomic.Value) *atomic.Int32 {
 			http.NotFound(w, r)
 			return
 		}
-		fmt.Fprintf(w, `{"tag_name":%q,"html_url":"https://example.com/r","published_at":"2026-10-08T14:29:03Z"}`, tag.Load().(string))
+		fmt.Fprintf(w, `{"tag_name":%q,"html_url":"https://github.com/Danialrostamani/drnetwork-panel/releases/tag/r","published_at":"2026-10-08T14:29:03Z"}`, tag.Load().(string))
 	}))
 	t.Cleanup(srv.Close)
 	oldBase := updateAPIBase
@@ -94,7 +94,7 @@ func TestPanelUpdateInfo(t *testing.T) {
 
 	info := s.Info(false)
 	if info.Current != config.GetVersion() || info.Latest != "v99" || !info.Newer ||
-		info.LatestURL != "https://example.com/r" || info.Published != 1791469743 || info.Unsupported != "docker" {
+		info.LatestURL != "https://github.com/Danialrostamani/drnetwork-panel/releases/tag/r" || info.Published != 1791469743 || info.Unsupported != "docker" {
 		t.Fatalf("info = %+v", info)
 	}
 	// The answer is reused until it is old or a check is asked for.
