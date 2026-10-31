@@ -135,7 +135,12 @@ func (b *bot) resetTraffic(id uint) error {
 }
 
 func (b *bot) setVolume(id uint, bytes int64) error {
-	return b.editClient(id, func(c *model.Client) error { c.Volume = bytes; return nil })
+	return b.editClient(id, func(c *model.Client) error {
+		before := *c
+		c.Volume = bytes
+		reviveRenewed(before, c, time.Now())
+		return nil
+	})
 }
 
 func (b *bot) addVolume(id uint, bytes int64) error {
@@ -143,7 +148,9 @@ func (b *bot) addVolume(id uint, bytes int64) error {
 		if c.Volume <= 0 {
 			return errors.New("unlimited")
 		}
+		before := *c
 		c.Volume += bytes
+		reviveRenewed(before, c, time.Now())
 		return nil
 	})
 }
@@ -153,11 +160,13 @@ func (b *bot) setExpiryDays(id uint, days int) error {
 		if c.DelayStart {
 			return errors.New("delay start")
 		}
+		before := *c
 		if days <= 0 {
 			c.Expiry = 0
 		} else {
 			c.Expiry = time.Now().Add(time.Duration(days) * 24 * time.Hour).Unix()
 		}
+		reviveRenewed(before, c, time.Now())
 		return nil
 	})
 }
@@ -170,11 +179,14 @@ func (b *bot) addDays(id uint, days int) error {
 		if c.Expiry <= 0 {
 			return errors.New("unlimited")
 		}
+		before := *c
+		now := time.Now()
 		base := time.Unix(c.Expiry, 0)
-		if now := time.Now(); base.Before(now) {
+		if base.Before(now) {
 			base = now
 		}
 		c.Expiry = base.Add(time.Duration(days) * 24 * time.Hour).Unix()
+		reviveRenewed(before, c, now)
 		return nil
 	})
 }
@@ -183,10 +195,28 @@ func (b *bot) addDays(id uint, days int) error {
 // since there is no period left to start.
 func (b *bot) setUnlimitedTime(id uint) error {
 	return b.editClient(id, func(c *model.Client) error {
+		before := *c
 		c.Expiry = 0
 		c.DelayStart = false
+		reviveRenewed(before, c, time.Now())
 		return nil
 	})
+}
+
+// reviveRenewed switches a client back on when it was switched off for using
+// up its volume or time and this change -- a renewal, or an administrator
+// adding volume or days -- gave it both again. Without it a renewed client got
+// its volume and days but its link stayed disabled. A client switched off by
+// hand (not out of anything) stays off, and so does one still held by its
+// daily limit, which the new day lifts on its own.
+func reviveRenewed(before model.Client, c *model.Client, now time.Time) {
+	if before.Enable || c.Enable || c.DayLocked {
+		return
+	}
+	if !isDepleted(before, now) || isDepleted(*c, now) {
+		return
+	}
+	c.Enable = true
 }
 
 // volTimeErr turns the guards of addVolume / addDays / setExpiryDays into

@@ -200,7 +200,8 @@ func (b *bot) clientKeyboard(c model.Client) [][]button {
 	if c.UseSubToken {
 		tokenRow = []button{{Text: b.tr("🔑 لینک با توکن: روشن", "🔑 Token link: on"), Data: "c:tok:" + id}, {Text: b.tr("♻️ لینک جدید", "♻️ New link"), Data: "c:nsub:" + id}}
 	}
-	// Volume and time are typed in (a total, or +N to add); the time row
+	// Volume and time are typed in (a total, or +N to add), with +10 GB in one
+	// tap above them; the time row
 	// also offers "unlimited" in one tap while the client has an expiry.
 	timeRow := []button{{Text: b.tr("📦 حجم دلخواه", "📦 Custom volume"), Data: "c:ask:cvol:" + id}, {Text: b.tr("⏳ زمان دلخواه", "⏳ Custom time"), Data: "c:ask:cdays:" + id}}
 	if c.Expiry != 0 || c.DelayStart {
@@ -211,15 +212,20 @@ func (b *bot) clientKeyboard(c model.Client) [][]button {
 	if c.LimitIp > 0 {
 		toolsRow = append(toolsRow, b.btn("btnIps", "c:ips:"+id))
 	}
-	return [][]button{
-		{toggle, b.btn("btnReset", "c:rst:"+id)},
+	rows := [][]button{{toggle, b.btn("btnReset", "c:rst:"+id)}}
+	// One tap for the most common top-up. Only a client with a volume can be
+	// given more of it; unlimited has nothing to add to.
+	if c.Volume > 0 {
+		rows = append(rows, []button{{Text: b.tr("➕ ۱۰ گیگ حجم", "➕ 10 GB volume"), Data: "c:gb10:" + id}})
+	}
+	return append(rows, [][]button{
 		timeRow,
 		toolsRow,
 		{b.btn("btnSub", "c:sub:"+id)},
 		tokenRow,
 		{{Text: b.tr("🔔 تلگرام", "🔔 Telegram"), Data: "c:ask:tg:" + id}, b.btn("btnDelete", "c:del:"+id)},
 		{b.btn("btnRefresh", "c:view:"+id), {Text: b.tr("⬅️ کلاینت‌ها", "⬅️ Clients"), Data: "c:ls:a:0"}, {Text: b.tr("🏠", "🏠"), Data: "m:menu"}},
-	}
+	}...)
 }
 
 func isDepleted(c model.Client, now time.Time) bool {
